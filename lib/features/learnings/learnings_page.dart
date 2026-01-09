@@ -6,111 +6,317 @@ class LearningsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth > 600;
-    final availableHeight = screenHeight - 
-        kBottomNavigationBarHeight - 
-        MediaQuery.of(context).padding.top - 
-        MediaQuery.of(context).padding.bottom;
-
     return SingleChildScrollView(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: availableHeight,
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: isLargeScreen ? 32 : 16,
-            vertical: 16,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: isLargeScreen ? 120 : 80,
-                height: isLargeScreen ? 120 : 80,
-                decoration: BoxDecoration(
-                  gradient: AppTheme.saffronGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.school,
-                  size: isLargeScreen ? 60 : 40,
-                  color: Colors.white,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Learnings',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
               ),
-              SizedBox(height: isLargeScreen ? 24 : 16),
-              Text(
-                'Learnings',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  fontSize: isLargeScreen ? null : 28,
-                ),
-                textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Your path to spiritual evolution',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.textSecondary,
               ),
-              SizedBox(height: isLargeScreen ? 12 : 8),
-              Text(
-                'Coming Soon',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppTheme.saffron,
-                  fontSize: isLargeScreen ? null : 20,
-                ),
-                textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            
+            // Online Courses Section
+            _buildSectionHeader('Online Courses', Icons.video_library),
+            SizedBox(height: 16),
+            _buildLevelCard(
+              context,
+              level: 'Level 1',
+              title: 'Brahmarandhra Opening',
+              icon: Icons.looks_one,
+              color: AppTheme.saffron,
+            ),
+            _buildLevelCard(
+              context,
+              level: 'Level 2',
+              title: 'Sushumna Nadi Activation',
+              icon: Icons.looks_two,
+              color: AppTheme.gold,
+            ),
+            _buildLevelCard(
+              context,
+              level: 'Entrance',
+              title: 'Meditation Test',
+              icon: Icons.assignment,
+              color: AppTheme.saffron,
+            ),
+            _buildLevelCard(
+              context,
+              level: 'Level 3',
+              title: 'Chakra Activation',
+              icon: Icons.looks_3,
+              color: AppTheme.gold,
+            ),
+            _buildLevelCard(
+              context,
+              level: 'Level 4',
+              title: 'Kundalini Activation',
+              icon: Icons.looks_4,
+              color: AppTheme.saffron,
+            ),
+            
+            SizedBox(height: 32),
+            
+            // Residential Courses Section
+            _buildSectionHeader('Residential Courses', Icons.home),
+            SizedBox(height: 8),
+            Text(
+              'In-person with Guruji. Available after completing Online Courses.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                fontStyle: FontStyle.italic,
               ),
-              SizedBox(height: isLargeScreen ? 16 : 12),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 0 : 8),
-                child: Text(
-                  'Spiritual courses, audio lessons, video teachings, and sacred texts will be available here soon.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontSize: isLargeScreen ? null : 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              SizedBox(height: isLargeScreen ? 32 : 20),
-              Container(
-                constraints: BoxConstraints(
-                  maxWidth: isLargeScreen ? 500 : double.infinity,
-                ),
-                padding: EdgeInsets.all(isLargeScreen ? 20 : 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.beige,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    _buildFeatureItem(context, Icons.video_library, 'Video Courses', isLargeScreen),
-                    _buildFeatureItem(context, Icons.headphones, 'Audio Lessons', isLargeScreen),
-                    _buildFeatureItem(context, Icons.picture_as_pdf, 'Sacred Texts', isLargeScreen),
-                    _buildFeatureItem(context, Icons.quiz, 'Interactive Quizzes', isLargeScreen),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(height: 16),
+            _buildResidentialCard(
+              context,
+              level: 'Level 5',
+              description: 'Advanced practice with Guruji',
+            ),
+            _buildResidentialCard(
+              context,
+              level: 'Level 5.1',
+              description: 'Master level intensive',
+            ),
+            
+            SizedBox(height: 32),
+          ],
         ),
       ),
     );
   }
-
-  Widget _buildFeatureItem(BuildContext context, IconData icon, String text, bool isLargeScreen) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: isLargeScreen ? 10 : 6),
+  
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: AppTheme.saffronGradient,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.darkBrown,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildLevelCard(
+    BuildContext context, {
+    required String level,
+    required String title,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: Container(
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          title: Text(
+            level,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          subtitle: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  _buildDayTile(context, 'Day 1'),
+                  _buildDayTile(context, 'Day 2'),
+                  _buildDayTile(context, 'Day 3'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildDayTile(BuildContext context, String day) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        tileColor: AppTheme.beige.withValues(alpha: 0.3),
+        leading: Icon(
+          Icons.play_circle_outline,
+          color: AppTheme.saffron,
+          size: 28,
+        ),
+        title: Text(
+          day,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.darkBrown,
+          ),
+        ),
+        trailing: Container(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppTheme.gold.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Coming Soon',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.gold,
+            ),
+          ),
+        ),
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$day video coming soon!'),
+              duration: Duration(seconds: 2),
+              backgroundColor: AppTheme.saffron,
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _buildResidentialCard(
+    BuildContext context, {
+    required String level,
+    required String description,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.gold.withValues(alpha: 0.15),
+            AppTheme.saffron.withValues(alpha: 0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.gold.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
       child: Row(
         children: [
-          Icon(
-            icon, 
-            color: AppTheme.saffron, 
-            size: isLargeScreen ? 24 : 20,
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: AppTheme.saffronGradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.school,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
-          SizedBox(width: isLargeScreen ? 12 : 8),
+          SizedBox(width: 16),
           Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontSize: isLargeScreen ? null : 14,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  level,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.saffron,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_available,
+                      size: 16,
+                      color: AppTheme.gold,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Apply via event notification',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Spiritual Color Palette
-  static const Color saffron = Color(0xFFFF9933);
-  static const Color lightSaffron = Color(0xFFFFB366);
-  static const Color beige = Color(0xFFF5E6D3);
-  static const Color white = Color(0xFFFFFBF5);
-  static const Color gold = Color(0xFFD4AF37);
-  static const Color darkBrown = Color(0xFF4A3728);
-  static const Color softGray = Color(0xFFE8E0D5);
+  // Spiritual Color Palette - Updated to match design mockups
+  static const Color primary = Color(0xFFFF6B4A); // Coral orange from mockup
+  static const Color saffron = Color(0xFFFF6B4A); // Same as primary for compatibility
+  static const Color lightSaffron = Color(0xFFFF8A6B);
+  static const Color beige = Color(0xFFF5F5F5);
+  static const Color white = Color(0xFFFFFFFF); // Pure white background
+  static const Color gold = Color(0xFFFF6B4A); // Same as primary
+  static const Color darkBrown = Color(0xFF000000); // Black for text
+  static const Color softGray = Color(0xFFE0E0E0);
+  static const Color textPrimary = Color(0xFF000000);
+  static const Color textSecondary = Color(0xFF757575);
   
   static ThemeData get lightTheme {
     return ThemeData(
@@ -19,58 +22,58 @@ class AppTheme {
       scaffoldBackgroundColor: white,
       
       colorScheme: ColorScheme.light(
-        primary: saffron,
-        secondary: gold,
+        primary: primary,
+        secondary: primary,
         surface: white,
         onPrimary: Colors.white,
-        onSecondary: darkBrown,
-        onSurface: darkBrown,
+        onSecondary: white,
+        onSurface: textPrimary,
       ),
       
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.playfairDisplay(
+        displayLarge: GoogleFonts.inter(
           fontSize: 32,
           fontWeight: FontWeight.bold,
-          color: darkBrown,
+          color: textPrimary,
         ),
-        displayMedium: GoogleFonts.playfairDisplay(
-          fontSize: 28,
-          fontWeight: FontWeight.w600,
-          color: darkBrown,
-        ),
-        headlineMedium: GoogleFonts.lora(
+        displayMedium: GoogleFonts.inter(
           fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: darkBrown,
+          fontWeight: FontWeight.bold,
+          color: textPrimary,
         ),
-        titleLarge: GoogleFonts.lora(
+        headlineMedium: GoogleFonts.inter(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: darkBrown,
+          color: textPrimary,
         ),
-        bodyLarge: GoogleFonts.openSans(
+        titleLarge: GoogleFonts.inter(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
+        ),
+        bodyLarge: GoogleFonts.inter(
           fontSize: 16,
-          color: darkBrown,
+          color: textPrimary,
         ),
-        bodyMedium: GoogleFonts.openSans(
+        bodyMedium: GoogleFonts.inter(
           fontSize: 14,
-          color: darkBrown,
+          color: textSecondary,
         ),
       ),
       
       appBarTheme: AppBarTheme(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        iconTheme: IconThemeData(color: darkBrown),
-        titleTextStyle: GoogleFonts.lora(
-          fontSize: 20,
+        iconTheme: IconThemeData(color: textPrimary),
+        titleTextStyle: GoogleFonts.inter(
+          fontSize: 18,
           fontWeight: FontWeight.w600,
-          color: darkBrown,
+          color: textPrimary,
         ),
       ),
       
       cardTheme: CardThemeData(
-        elevation: 2,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -79,14 +82,14 @@ class AppTheme {
       
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: saffron,
+          backgroundColor: primary,
           foregroundColor: Colors.white,
-          elevation: 2,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          elevation: 0,
+          padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.openSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -109,19 +112,20 @@ class AppTheme {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      saffron,
-      lightSaffron,
+      primary,
+      Color(0xFFFF8A6B),
+      Color(0xFFFFA891),
     ],
   );
   
   static BoxShadow get softShadow => BoxShadow(
-    color: darkBrown.withValues(alpha: 0.08),
-    blurRadius: 12,
-    offset: Offset(0, 4),
+    color: Colors.black.withOpacity(0.05),
+    blurRadius: 8,
+    offset: Offset(0, 2),
   );
   
   static BoxShadow get glowShadow => BoxShadow(
-    color: gold.withValues(alpha: 0.3),
+    color: primary.withOpacity(0.2),
     blurRadius: 20,
     spreadRadius: 2,
   );

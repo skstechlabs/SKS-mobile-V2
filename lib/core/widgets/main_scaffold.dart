@@ -49,11 +49,29 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Siva Kundalini Sadhana'),
+        titleSpacing: 16,
+        centerTitle: false,
+        title: Text(
+          'Siva Kundalini Sadhana',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
+          Container(
+            margin: EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.saffron.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.notifications_outlined,
+                size: 30,
+              ),
+              onPressed: () => context.go('/notifications'),
+            ),
           ),
         ],
       ),

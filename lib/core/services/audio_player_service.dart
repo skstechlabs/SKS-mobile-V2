@@ -217,6 +217,10 @@ class AudioPlayerService extends ChangeNotifier {
   Duration get duration => _audioPlayer.duration ?? Duration.zero;
   Duration get position => _audioPlayer.position;
 
+  Future<void> seek(Duration position) async {
+    await _audioPlayer.seek(position);
+  }
+
   Future<void> dispose() async {
     try {
       await _audioPlayer.dispose();
@@ -226,6 +230,7 @@ class AudioPlayerService extends ChangeNotifier {
     } catch (e) {
       developer.log('Error disposing audio player: $e');
     }
+    super.dispose();
   }
 
   // Loop control methods

@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/audio_player_service.dart';
-import '../../core/widgets/section_header.dart';
-import '../../core/widgets/shimmer_loading.dart';
 
-import '../audio/playlist_screen.dart';
-import '../video/youtube_player.dart';
+import '../chakras/chakra_detail_page.dart';
+import '../songs/all_songs_page.dart';
+import '../guru_journey/guru_journey_page.dart';
+import '../kundalini_science/kundalini_science_page.dart';
+import '../benefits/benefits_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -19,7 +19,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
-  bool _showFullAbout = false;
   int _currentQuoteIndex = 0;
   late AnimationController _glowController;
   late PageController _pageController;
@@ -69,13 +68,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildGurujiSection(),
-          _buildAboutSection(),
+          _buildHeader(),
           _buildDailyQuotes(),
           _buildMeditationMusic(),
           _buildBhajans(),
-          _buildExperienceVideos(),
-          _buildRecommendedSection(),
+          _buildGuruJourney(),
+          _buildKundaliniScience(),
+          _buildBenefits(),
+          _build7Chakras(),
           _buildUpcomingPrograms(),
           SizedBox(height: 24),
         ],
@@ -83,94 +83,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildGurujiSection() {
-    return Container(
-      height: MediaQuery.of(context).size.height > 700 ? 400 : 
-              MediaQuery.of(context).size.height * 0.4,
-      child: Stack(
-        children: [
-          AnimatedBuilder(
-            animation: _glowController,
-            builder: (context, child) {
-              return Container(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.gold.withValues(alpha: 0.2 + _glowController.value * 0.2),
-                      blurRadius: 40,
-                      spreadRadius: 10,
-                    ),
-                  ],
-                ),
-                child: child,
-              );
-            },
-            child: Image.asset(
-              AppConstants.gurujiImageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: AppTheme.beige,
-                child: Center(
-                  child: Icon(Icons.person, size: 100, color: AppTheme.saffron),
-                ),
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  AppTheme.white.withValues(alpha: 0.9),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: Text(
-              'Parama Pujya Sri Jeeveswara Yogi',
-              style: Theme.of(context).textTheme.displayLarge,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAboutSection() {
+  Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'About Guruji',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              SizedBox(height: 12),
-              Text(
-                _showFullAbout
-                    ? AppConstants.aboutGuruji
-                    : AppConstants.aboutGuruji.substring(0, 120) + '...',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              TextButton(
-                onPressed: () => setState(() => _showFullAbout = !_showFullAbout),
-                child: Text(_showFullAbout ? 'Read less' : 'Read more'),
-              ),
-            ],
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sivoham 🙏',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
           ),
-        ),
+          SizedBox(height: 4),
+          // Text(
+          //   'Your Spiritual Journey',
+          //   style: Theme.of(context).textTheme.displayMedium?.copyWith(
+          //     fontSize: 28,
+          //     fontWeight: FontWeight.bold,
+          //   ),
+          // ),
+        ],
       ),
     );
   }
@@ -181,50 +114,62 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
     
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Daily Wisdom'),
+        SizedBox(height: 24),
         Container(
-          height: MediaQuery.of(context).size.width > 600 ? 200 : 160,
+          height: 350,
           child: PageView.builder(
             controller: _pageController,
             itemCount: AppConstants.dailyQuotes.length,
             onPageChanged: (index) => setState(() => _currentQuoteIndex = index),
             itemBuilder: (context, index) {
               final quote = AppConstants.dailyQuotes[index];
+              final imageUrl = AppConstants.dailyWisdomImages[index % AppConstants.dailyWisdomImages.length];
               return Container(
-                margin: EdgeInsets.symmetric(horizontal: 16),
+                margin: EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
-                  gradient: AppTheme.saffronGradient,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [AppTheme.softShadow],
+                  borderRadius: BorderRadius.circular(24),
+                  image: DecorationImage(
+                    image: NetworkImage(imageUrl),
+                    fit: BoxFit.cover,
+                  ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.3),
+                        Colors.black.withOpacity(0.6),
+                      ],
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(32),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.format_quote, 
-                        color: Colors.white.withValues(alpha: 0.4), 
-                        size: 20,
-                      ),
-                      SizedBox(height: 8),
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            quote,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontStyle: FontStyle.italic,
-                              fontSize: MediaQuery.of(context).size.width > 600 ? 16 : 14,
-                              height: 1.4,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: MediaQuery.of(context).size.width > 600 ? 4 : 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                      Text(
+                        '"${quote}"',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontSize: 20,
+                          height: 1.4,
                         ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      SizedBox(height: 16),
+                      // Text(
+                      //   '- Parama Pujya Sri Jeeveswara Yogi',
+                      //   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      //     color: Colors.white.withOpacity(0.9),
+                      //     fontWeight: FontWeight.w500,
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
@@ -232,445 +177,694 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
         ),
-        SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: AppConstants.dailyQuotes.asMap().entries.map((entry) {
-            return AnimatedContainer(
-              duration: Duration(milliseconds: 300),
-              width: _currentQuoteIndex == entry.key ? 16 : 6,
-              height: 6,
-              margin: EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(3),
-                color: _currentQuoteIndex == entry.key
-                    ? AppTheme.saffron
-                    : AppTheme.softGray,
+        SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.only(left: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [
+                    AppTheme.saffron,
+                    AppTheme.gold,
+                  ],
+                ).createShader(bounds),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Parama Pujya',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        fontStyle: FontStyle.italic,
+                        letterSpacing: 1.2,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                    Text(
+                      'Sri Jeeveswara Yogi',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        fontStyle: FontStyle.italic,
+                        letterSpacing: 1.0,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          }).toList(),
+              SizedBox(height: 12),
+              Row(
+                children: AppConstants.dailyQuotes.asMap().entries.map((entry) {
+                  return AnimatedContainer(
+                    duration: Duration(milliseconds: 300),
+                    width: _currentQuoteIndex == entry.key ? 32 : 8,
+                    height: 8,
+                    margin: EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      color: _currentQuoteIndex == entry.key
+                          ? AppTheme.primary
+                          : AppTheme.softGray,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _buildMeditationMusic() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PlaylistScreen(
-                        title: 'Meditation Music',
-                        songs: AppConstants.meditationMusic,
-                      ),
-                    ),
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Meditation Music',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 16),
+          GestureDetector(
+            onTap: () async {
+              if (AppConstants.meditationMusic.isNotEmpty) {
+                await _audioService.playSong(AppConstants.meditationMusic, 0);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Playing "${AppConstants.meditationMusic[0]['title']}"')),
                   );
-                },
-                child: Text(
-                  'Meditation Music',
-                  style: Theme.of(context).textTheme.titleLarge,
+                }
+              }
+            },
+            child: Container(
+              height: 240,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                image: DecorationImage(
+                  image: NetworkImage(AppConstants.gurujiTeachingImageUrl),
+                  fit: BoxFit.cover,
                 ),
               ),
-              TextButton.icon(
-                icon: Icon(Icons.repeat, color: AppTheme.gold, size: 20),
-                label: Text('Loop All', style: TextStyle(color: AppTheme.gold)),
-                onPressed: () async {
-                  await _audioService.playWithLoop(AppConstants.meditationMusic, 0, loopMode: LoopMode.all);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Playing Meditation Music in loop')),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: MediaQuery.of(context).size.width > 600 ? 120 : 100,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            itemCount: AppConstants.meditationMusic.length,
-            itemBuilder: (context, index) {
-              final music = AppConstants.meditationMusic[index];
-              final screenWidth = MediaQuery.of(context).size.width;
-              final isLargeScreen = screenWidth > 600;
-              
-              return Container(
-                width: isLargeScreen ? 300 : (screenWidth * 0.75).clamp(250.0, 280.0),
-                margin: EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () async {
-                    await _audioService.playSong(AppConstants.meditationMusic, index);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Playing "${music['title']}"')),
-                      );
-                    }
-                  },
-                  child: Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: isLargeScreen ? 60 : 45,
-                            height: isLargeScreen ? 60 : 45,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.saffronGradient,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.music_note,
-                              color: Colors.white,
-                              size: isLargeScreen ? 30 : 22,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  music['title']!,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: isLargeScreen ? 14 : 12,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.access_time, size: 10, color: Colors.grey),
-                                    SizedBox(width: 4),
-                                    Flexible(
-                                      child: Text(
-                                        music['duration']!,
-                                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      '• Song',
-                                      style: TextStyle(fontSize: 10, color: AppTheme.saffron),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.play_arrow,
-                            color: AppTheme.saffron,
-                            size: 20,
-                          ),
-                        ],
-                      ),
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.7),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBhajans() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PlaylistScreen(
-                        title: 'Songs & Bhajans',
-                        songs: AppConstants.bhajans,
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
                     ),
-                  );
-                },
-                child: Text(
-                  'Songs & Bhajans',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              TextButton.icon(
-                icon: Icon(Icons.repeat, color: AppTheme.gold, size: 20),
-                label: Text('Loop All', style: TextStyle(color: AppTheme.gold)),
-                onPressed: () async {
-                  await _audioService.playWithLoop(AppConstants.bhajans, 0, loopMode: LoopMode.all);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Playing Songs & Bhajans in loop')),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            itemCount: AppConstants.bhajans.length,
-            itemBuilder: (context, index) {
-              final bhajan = AppConstants.bhajans[index];
-              return Container(
-                width: 160,
-                margin: EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () async {
-                    await _audioService.playSong(AppConstants.bhajans, index);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Playing "${bhajan['title']}"')),
-                      );
-                    }
-                  },
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Stack(
-                          children: [
-                            Image.asset(
-                              bhajan['imageUrl']!,
-                              height: 100,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                height: 100,
-                                color: AppTheme.beige,
-                                child: Icon(Icons.music_note, size: 40, color: AppTheme.saffron),
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.play_arrow,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Morning Peace',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
                         ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.music_note, size: 14, color: AppTheme.saffron),
-                                    SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        bhajan['title']!,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '${bhajan['artist']!} • Song',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: AppTheme.saffron,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Tap to play',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Text(
+                          '15:00',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildExperienceVideos() {
-    return Column(
-      children: [
-        const SectionHeader(title: 'Experience Videos'),
-        SizedBox(
-          height: 180,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            itemCount: AppConstants.experienceVideos.length,
-            itemBuilder: (context, index) {
-              final video = AppConstants.experienceVideos[index];
-              return Container(
-                width: 280,
-                margin: EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => YouTubeVideoPlayer(
-                          videoId: video['youtubeId']!,
-                          title: video['title']!,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: video['thumbnail']!,
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => ShimmerLoading(
-                          width: double.infinity,
-                          height: MediaQuery.of(context).size.width > 600 ? 180 : 160,
-                          borderRadius: BorderRadius.zero,
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.7),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.play_arrow, size: 40, color: AppTheme.saffron),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              video['title']!,
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              video['duration']!,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  ),
+  Widget _buildBhajans() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Songs & Bhajans',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Icon(Icons.repeat, color: AppTheme.softGray, size: 24),
+            ],
+          ),
+          SizedBox(height: 16),
+          ...AppConstants.bhajans.take(3).map((bhajan) => _buildBhajanCard(bhajan)).toList(),
+          SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AllSongsPage(),
                 ),
               );
             },
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppTheme.primary, width: 2),
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'View All Songs',
+                  style: TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward, color: AppTheme.primary, size: 20),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildRecommendedSection() {
-    return Column(
-      children: [
-        const SectionHeader(title: 'Recommended for You'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
+  Widget _buildBhajanCard(Map<String, dynamic> bhajan) {
+    return GestureDetector(
+      onTap: () async {
+        final index = AppConstants.bhajans.indexWhere((b) => b['title'] == bhajan['title']);
+        if (index != -1) {
+          await _audioService.playSong(AppConstants.bhajans, index);
+        }
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: DecorationImage(
+                  image: AssetImage(bhajan['imageUrl']!),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.auto_awesome, color: AppTheme.gold, size: 40),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Personalized content coming soon based on your spiritual journey',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  Text(
+                    bhajan['title']!,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    bhajan['artist'] ?? 'Divine Chants',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  bhajan['duration'] ?? '5:30',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Icon(
+                  Icons.play_arrow,
+                  color: AppTheme.textSecondary,
+                  size: 24,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuruJourney() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GuruJourneyPage(),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            image: DecorationImage(
+              image: NetworkImage(AppConstants.guruJourneyImageUrl),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.saffron.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFF6B4A).withValues(alpha: 0.88),
+                  Color(0xFFFF8A65).withValues(alpha: 0.85),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Journey of\nour Guru',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Discover the life and teachings of\nParama Pujya Sri Jeeveswara Yogi',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            'Know More',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildKundaliniScience() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => KundaliniSciencePage(),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            image: DecorationImage(
+              image: NetworkImage(AppConstants.kundaliniScienceImageUrl),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.gold.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF00897B).withValues(alpha: 0.88),
+                  Color(0xFF26A69A).withValues(alpha: 0.85),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'The Science of\nKundalini Awakening',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Unlock the primordial cosmic energy\nwithin you',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            'Learn More',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBenefits() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BenefitsPage(),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            image: DecorationImage(
+              image: NetworkImage(AppConstants.benefitsImageUrl),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.saffron.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFE91E63).withValues(alpha: 0.88),
+                  Color(0xFFEC407A).withValues(alpha: 0.85),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Benefits of\nKundalini Sadhana',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Transform your life through enhanced\nenergy, clarity, and spiritual growth',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            'Explore Benefits',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _build7Chakras() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChakraDetailPage(initialIndex: 0),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            image: DecorationImage(
+              image: NetworkImage(AppConstants.chakrasImageUrl),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.saffron.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.purple.withValues(alpha: 0.85),
+                  Colors.deepPurple.withValues(alpha: 0.75),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Explore the\n7 Chakras',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Journey through your body\'s\nenergy centers',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            'Swipe to Explore',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -679,30 +873,45 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return SizedBox.shrink();
     }
     
-    return Column(
-      children: [
-        SectionHeader(title: 'Upcoming Programs', onSeeAll: () {}),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          itemCount: AppConstants.upcomingEvents.length,
-          itemBuilder: (context, index) {
-            final event = AppConstants.upcomingEvents[index];
-            return Card(
-              margin: EdgeInsets.only(bottom: 12),
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Upcoming Events',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 16),
+          ...AppConstants.upcomingEvents.map((event) {
+            return Container(
+              width: double.infinity,
+              margin: EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CachedNetworkImage(
-                    imageUrl: event['imageUrl']!,
-                    height: 150,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => ShimmerLoading(
-                      width: double.infinity,
-                      height: MediaQuery.of(context).size.width > 600 ? 150 : 130,
-                      borderRadius: BorderRadius.zero,
+                  Container(
+                    height: 180,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      image: DecorationImage(
+                        image: NetworkImage(event['imageUrl']!),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   Padding(
@@ -712,24 +921,49 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       children: [
                         Text(
                           event['title']!,
-                          style: Theme.of(context).textTheme.titleLarge,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                         SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.calendar_today, size: 16, color: AppTheme.saffron),
-                            SizedBox(width: 8),
-                            Text(event['date']!),
-                            SizedBox(width: 16),
-                            Icon(Icons.location_on, size: 16, color: AppTheme.saffron),
-                            SizedBox(width: 8),
-                            Text(event['location']!),
+                            Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: AppTheme.primary,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              event['date']!,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
-                        SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: () {},
-                          child: Text('Learn More'),
+                        SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 16,
+                              color: AppTheme.textSecondary,
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                event['location']!,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -737,9 +971,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ],
               ),
             );
-          },
-        ),
-      ],
+          }).toList(),
+        ],
+      ),
     );
   }
 }

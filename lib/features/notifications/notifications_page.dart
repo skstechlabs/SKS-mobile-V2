@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 
 class NotificationsPage extends StatelessWidget {
@@ -6,78 +7,78 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notifications = [
-      {
-        'title': 'New Meditation Session',
-        'message': 'Join us for a special meditation session this evening',
-        'time': '2 hours ago',
-        'type': 'event',
-        'read': false,
-      },
-      {
-        'title': 'Daily Quote',
-        'message': 'Your daily wisdom has been updated',
-        'time': '5 hours ago',
-        'type': 'content',
-        'read': false,
-      },
-      {
-        'title': 'Event Reminder',
-        'message': 'Meditation Retreat starts in 3 days',
-        'time': '1 day ago',
-        'type': 'reminder',
-        'read': true,
-      },
-      {
-        'title': 'New Bhajan Released',
-        'message': 'Listen to the latest devotional song',
-        'time': '2 days ago',
-        'type': 'content',
-        'read': true,
-      },
-    ];
+    final hasNotifications = false; // Set to false to show empty state
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Notifications'),
-        actions: [
-          TextButton(
-            onPressed: () {},
-            child: Text('Mark all read'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => context.go('/'),
+        ),
+        title: Text(
+          'Notifications',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
       ),
-      body: notifications.isEmpty
-          ? _buildEmptyState(context)
-          : ListView.builder(
-              itemCount: notifications.length,
-              itemBuilder: (context, index) {
-                return _buildNotificationItem(context, notifications[index]);
-              },
-            ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Stay updated with spiritual content',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            SizedBox(height: 60),
+            if (!hasNotifications) _buildEmptyState(context),
+            if (!hasNotifications) ...[
+              SizedBox(height: 40),
+              _buildNotificationPreferences(context),
+            ],
+          ],
+        ),
+      ),
+      ),
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.notifications_none,
+            Icons.notifications_off_outlined,
             size: 80,
             color: AppTheme.softGray,
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 24),
           Text(
-            'No notifications yet',
-            style: Theme.of(context).textTheme.titleLarge,
+            'No Notifications Yet',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          SizedBox(height: 8),
-          Text(
-            'We\'ll notify you about important updates',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.darkBrown.withValues(alpha: 0.6),
+          SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              'You\'ll receive updates about events, new content, and spiritual reminders here.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -85,83 +86,76 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildNotificationItem(BuildContext context, Map<String, dynamic> notification) {
-    final isUnread = !(notification['read'] as bool);
-    
-    return Container(
-      color: isUnread ? AppTheme.beige.withValues(alpha: 0.3) : Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: _getNotificationColor(notification['type'] as String).withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            _getNotificationIcon(notification['type'] as String),
-            color: _getNotificationColor(notification['type'] as String),
-          ),
+  Widget _buildNotificationPreferences(BuildContext context) {
+    return Column(
+      children: [
+        _buildPreferenceCard(
+          context,
+          icon: Icons.notifications_active,
+          title: 'Events',
+          description: 'Get notified about upcoming spiritual gatherings',
         ),
-        title: Text(
-          notification['title'] as String,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
-          ),
+        SizedBox(height: 16),
+        _buildPreferenceCard(
+          context,
+          icon: Icons.notifications_active,
+          title: 'New Content',
+          description: 'Stay updated with new songs and learnings',
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 4),
-            Text(notification['message'] as String),
-            SizedBox(height: 4),
-            Text(
-              notification['time'] as String,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.darkBrown.withValues(alpha: 0.5),
-              ),
-            ),
-          ],
-        ),
-        trailing: isUnread
-            ? Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: AppTheme.saffron,
-                  shape: BoxShape.circle,
-                ),
-              )
-            : null,
-        onTap: () {},
-      ),
+      ],
     );
   }
 
-  IconData _getNotificationIcon(String type) {
-    switch (type) {
-      case 'event':
-        return Icons.event;
-      case 'content':
-        return Icons.auto_awesome;
-      case 'reminder':
-        return Icons.alarm;
-      default:
-        return Icons.notifications;
-    }
-  }
-
-  Color _getNotificationColor(String type) {
-    switch (type) {
-      case 'event':
-        return AppTheme.saffron;
-      case 'content':
-        return AppTheme.gold;
-      case 'reminder':
-        return Colors.blue;
-      default:
-        return AppTheme.darkBrown;
-    }
+  Widget _buildPreferenceCard(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: AppTheme.primary,
+              size: 24,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -31,6 +31,13 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     }
   }
 
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSong = _audioService.currentSong;
@@ -42,7 +49,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     return SafeArea(
       top: false,
       child: Container(
-        height: 80,
+        height: 100,
         decoration: BoxDecoration(
           gradient: AppTheme.saffronGradient,
           boxShadow: [
@@ -55,14 +62,51 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         ),
         child: Column(
           children: [
-            // Progress bar
-            LinearProgressIndicator(
-              value: _audioService.duration.inMilliseconds > 0
-                  ? _audioService.position.inMilliseconds / _audioService.duration.inMilliseconds
-                  : 0.0,
-              backgroundColor: Colors.white.withValues(alpha: 0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              minHeight: 2,
+            // Draggable slider with time display
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    _formatDuration(_audioService.position),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 2,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                        activeTrackColor: Colors.white,
+                        inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
+                        thumbColor: Colors.white,
+                        overlayColor: Colors.white.withValues(alpha: 0.2),
+                      ),
+                      child: Slider(
+                        value: _audioService.duration.inMilliseconds > 0
+                            ? _audioService.position.inMilliseconds / _audioService.duration.inMilliseconds
+                            : 0.0,
+                        onChanged: (value) async {
+                          final position = Duration(
+                            milliseconds: (value * _audioService.duration.inMilliseconds).round(),
+                          );
+                          await _audioService.seek(position);
+                        },
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _formatDuration(_audioService.duration),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
             ),
             
             // Player controls

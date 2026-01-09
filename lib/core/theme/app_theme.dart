@@ -22,7 +22,6 @@ class AppTheme {
         primary: saffron,
         secondary: gold,
         surface: white,
-        background: beige,
         onPrimary: Colors.white,
         onSecondary: darkBrown,
         onSurface: darkBrown,
@@ -102,7 +101,7 @@ class AppTheme {
     colors: [
       beige,
       white,
-      softGray.withOpacity(0.3),
+      softGray.withValues(alpha: 0.3),
     ],
   );
   
@@ -116,13 +115,13 @@ class AppTheme {
   );
   
   static BoxShadow get softShadow => BoxShadow(
-    color: darkBrown.withOpacity(0.08),
+    color: darkBrown.withValues(alpha: 0.08),
     blurRadius: 12,
     offset: Offset(0, 4),
   );
   
   static BoxShadow get glowShadow => BoxShadow(
-    color: gold.withOpacity(0.3),
+    color: gold.withValues(alpha: 0.3),
     blurRadius: 20,
     spreadRadius: 2,
   );

@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-import 'package:share_plus/share_plus.dart';
+
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/audio_player_service.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/shimmer_loading.dart';
+
+import '../audio/playlist_screen.dart';
+import '../video/youtube_player.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -18,19 +22,44 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _showFullAbout = false;
   int _currentQuoteIndex = 0;
   late AnimationController _glowController;
+  late PageController _pageController;
+  late Timer _autoScrollTimer;
+  final AudioPlayerService _audioService = AudioPlayerService();
 
   @override
   void initState() {
     super.initState();
     _glowController = AnimationController(
       vsync: this,
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    _audioService.initialize();
+    
+    // Initialize page controller for wisdom cards
+    _pageController = PageController();
+    
+    // Start auto-scroll timer for wisdom cards (2 seconds interval)
+    if (AppConstants.dailyQuotes.isNotEmpty) {
+      _autoScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        if (mounted && _pageController.hasClients) {
+          int nextPage = (_currentQuoteIndex + 1) % AppConstants.dailyQuotes.length;
+          _pageController.animateToPage(
+            nextPage,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _glowController.dispose();
+    _pageController.dispose();
+    if (AppConstants.dailyQuotes.isNotEmpty) {
+      _autoScrollTimer.cancel();
+    }
     super.dispose();
   }
 
@@ -56,7 +85,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Widget _buildGurujiSection() {
     return Container(
-      height: 400,
+      height: MediaQuery.of(context).size.height > 700 ? 400 : 
+              MediaQuery.of(context).size.height * 0.4,
       child: Stack(
         children: [
           AnimatedBuilder(
@@ -66,7 +96,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 decoration: BoxDecoration(
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.gold.withOpacity(0.2 + _glowController.value * 0.2),
+                      color: AppTheme.gold.withValues(alpha: 0.2 + _glowController.value * 0.2),
                       blurRadius: 40,
                       spreadRadius: 10,
                     ),
@@ -94,7 +124,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  AppTheme.white.withOpacity(0.9),
+                  AppTheme.white.withValues(alpha: 0.9),
                 ],
               ),
             ),
@@ -146,75 +176,73 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildDailyQuotes() {
+    if (AppConstants.dailyQuotes.isEmpty) {
+      return SizedBox.shrink();
+    }
+    
     return Column(
       children: [
-        SectionHeader(title: 'Daily Wisdom'),
-        CarouselSlider(
-          options: CarouselOptions(
-            height: 200,
-            autoPlay: true,
-            autoPlayInterval: Duration(seconds: 5),
-            enlargeCenterPage: true,
-            onPageChanged: (index, reason) {
-              setState(() => _currentQuoteIndex = index);
-            },
-          ),
-          items: AppConstants.dailyQuotes.map((quote) {
-            return Builder(
-              builder: (BuildContext context) {
-                return Container(
-                  width: MediaQuery.of(context).size.width,
-                  margin: EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.saffronGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [AppTheme.softShadow],
-                  ),
-                  child: Stack(
+        const SectionHeader(title: 'Daily Wisdom'),
+        Container(
+          height: MediaQuery.of(context).size.width > 600 ? 200 : 160,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: AppConstants.dailyQuotes.length,
+            onPageChanged: (index) => setState(() => _currentQuoteIndex = index),
+            itemBuilder: (context, index) {
+              final quote = AppConstants.dailyQuotes[index];
+              return Container(
+                margin: EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.saffronGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [AppTheme.softShadow],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.format_quote, color: Colors.white.withOpacity(0.3), size: 40),
-                            SizedBox(height: 12),
-                            Text(
-                              quote,
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: Colors.white,
-                                fontStyle: FontStyle.italic,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
+                      Icon(
+                        Icons.format_quote, 
+                        color: Colors.white.withValues(alpha: 0.4), 
+                        size: 20,
                       ),
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: IconButton(
-                          icon: Icon(Icons.share, color: Colors.white),
-                          onPressed: () => Share.share(quote),
+                      SizedBox(height: 8),
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            quote,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontStyle: FontStyle.italic,
+                              fontSize: MediaQuery.of(context).size.width > 600 ? 16 : 14,
+                              height: 1.4,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: MediaQuery.of(context).size.width > 600 ? 4 : 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                );
-              },
-            );
-          }).toList(),
+                ),
+              );
+            },
+          ),
         ),
         SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: AppConstants.dailyQuotes.asMap().entries.map((entry) {
-            return Container(
-              width: 8,
-              height: 8,
-              margin: EdgeInsets.symmetric(horizontal: 4),
+            return AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              width: _currentQuoteIndex == entry.key ? 16 : 6,
+              height: 6,
+              margin: EdgeInsets.symmetric(horizontal: 3),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(3),
                 color: _currentQuoteIndex == entry.key
                     ? AppTheme.saffron
                     : AppTheme.softGray,
@@ -229,34 +257,129 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildMeditationMusic() {
     return Column(
       children: [
-        SectionHeader(title: 'Meditation Music'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PlaylistScreen(
+                        title: 'Meditation Music',
+                        songs: AppConstants.meditationMusic,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(
+                  'Meditation Music',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              TextButton.icon(
+                icon: Icon(Icons.repeat, color: AppTheme.gold, size: 20),
+                label: Text('Loop All', style: TextStyle(color: AppTheme.gold)),
+                onPressed: () async {
+                  await _audioService.playWithLoop(AppConstants.meditationMusic, 0, loopMode: LoopMode.all);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Playing Meditation Music in loop')),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
         SizedBox(
-          height: 100,
+          height: MediaQuery.of(context).size.width > 600 ? 120 : 100,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(horizontal: 16),
             itemCount: AppConstants.meditationMusic.length,
             itemBuilder: (context, index) {
               final music = AppConstants.meditationMusic[index];
+              final screenWidth = MediaQuery.of(context).size.width;
+              final isLargeScreen = screenWidth > 600;
+              
               return Container(
-                width: 280,
+                width: isLargeScreen ? 300 : (screenWidth * 0.75).clamp(250.0, 280.0),
                 margin: EdgeInsets.only(right: 12),
-                child: Card(
-                  child: ListTile(
-                    leading: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.saffronGradient,
-                        borderRadius: BorderRadius.circular(8),
+                child: GestureDetector(
+                  onTap: () async {
+                    await _audioService.playSong(AppConstants.meditationMusic, index);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Playing "${music['title']}"')),
+                      );
+                    }
+                  },
+                  child: Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: isLargeScreen ? 60 : 45,
+                            height: isLargeScreen ? 60 : 45,
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.saffronGradient,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.music_note,
+                              color: Colors.white,
+                              size: isLargeScreen ? 30 : 22,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  music['title']!,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isLargeScreen ? 14 : 12,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time, size: 10, color: Colors.grey),
+                                    SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        music['duration']!,
+                                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      '• Song',
+                                      style: TextStyle(fontSize: 10, color: AppTheme.saffron),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.play_arrow,
+                            color: AppTheme.saffron,
+                            size: 20,
+                          ),
+                        ],
                       ),
-                      child: Icon(Icons.music_note, color: Colors.white),
-                    ),
-                    title: Text(music['title']!),
-                    subtitle: Text(music['duration']!),
-                    trailing: IconButton(
-                      icon: Icon(Icons.play_arrow, color: AppTheme.saffron),
-                      onPressed: () {},
                     ),
                   ),
                 ),
@@ -271,7 +394,43 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildBhajans() {
     return Column(
       children: [
-        SectionHeader(title: 'Songs & Bhajans'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PlaylistScreen(
+                        title: 'Songs & Bhajans',
+                        songs: AppConstants.bhajans,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(
+                  'Songs & Bhajans',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              TextButton.icon(
+                icon: Icon(Icons.repeat, color: AppTheme.gold, size: 20),
+                label: Text('Loop All', style: TextStyle(color: AppTheme.gold)),
+                onPressed: () async {
+                  await _audioService.playWithLoop(AppConstants.bhajans, 0, loopMode: LoopMode.all);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Playing Songs & Bhajans in loop')),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
         SizedBox(
           height: 200,
           child: ListView.builder(
@@ -283,45 +442,100 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               return Container(
                 width: 160,
                 margin: EdgeInsets.only(right: 12),
-                child: Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Image.asset(
-                        bhajan['imageUrl']!,
-                        height: 120,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 120,
-                          color: AppTheme.beige,
-                          child: Icon(Icons.music_note, size: 40, color: AppTheme.saffron),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                child: GestureDetector(
+                  onTap: () async {
+                    await _audioService.playSong(AppConstants.bhajans, index);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Playing "${bhajan['title']}"')),
+                      );
+                    }
+                  },
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
                           children: [
-                            Text(
-                              bhajan['title']!,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
+                            Image.asset(
+                              bhajan['imageUrl']!,
+                              height: 100,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                height: 100,
+                                color: AppTheme.beige,
+                                child: Icon(Icons.music_note, size: 40, color: AppTheme.saffron),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            Text(
-                              bhajan['artist']!,
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.play_arrow,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.music_note, size: 14, color: AppTheme.saffron),
+                                    SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        bhajan['title']!,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  '${bhajan['artist']!} • Song',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppTheme.saffron,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Tap to play',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -335,7 +549,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildExperienceVideos() {
     return Column(
       children: [
-        SectionHeader(title: 'Experience Videos'),
+        const SectionHeader(title: 'Experience Videos'),
         SizedBox(
           height: 180,
           child: ListView.builder(
@@ -347,9 +561,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               return Container(
                 width: 280,
                 margin: EdgeInsets.only(right: 12),
-                child: Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => YouTubeVideoPlayer(
+                          videoId: video['youtubeId']!,
+                          title: video['title']!,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
                     children: [
                       CachedNetworkImage(
                         imageUrl: video['thumbnail']!,
@@ -358,7 +584,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         fit: BoxFit.cover,
                         placeholder: (context, url) => ShimmerLoading(
                           width: double.infinity,
-                          height: 180,
+                          height: MediaQuery.of(context).size.width > 600 ? 180 : 160,
                           borderRadius: BorderRadius.zero,
                         ),
                       ),
@@ -369,7 +595,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withOpacity(0.7),
+                              Colors.black.withValues(alpha: 0.7),
                             ],
                           ),
                         ),
@@ -379,7 +605,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           width: 60,
                           height: 60,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(Icons.play_arrow, size: 40, color: AppTheme.saffron),
@@ -410,6 +636,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       ),
                     ],
                   ),
+                  ),
                 ),
               );
             },
@@ -422,7 +649,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildRecommendedSection() {
     return Column(
       children: [
-        SectionHeader(title: 'Recommended for You'),
+        const SectionHeader(title: 'Recommended for You'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Card(
@@ -448,6 +675,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildUpcomingPrograms() {
+    if (AppConstants.upcomingEvents.isEmpty) {
+      return SizedBox.shrink();
+    }
+    
     return Column(
       children: [
         SectionHeader(title: 'Upcoming Programs', onSeeAll: () {}),
@@ -455,7 +686,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: 16),
-          itemCount: 2,
+          itemCount: AppConstants.upcomingEvents.length,
           itemBuilder: (context, index) {
             final event = AppConstants.upcomingEvents[index];
             return Card(
@@ -470,7 +701,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     fit: BoxFit.cover,
                     placeholder: (context, url) => ShimmerLoading(
                       width: double.infinity,
-                      height: 150,
+                      height: MediaQuery.of(context).size.width > 600 ? 150 : 130,
                       borderRadius: BorderRadius.zero,
                     ),
                   ),

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import '../services/audio_player_service.dart';
 import 'spiritual_background.dart';
-import '../../features/home/home_page.dart';
-import '../../features/learnings/learnings_page.dart';
-import '../../features/guruji_connect/guruji_connect_page.dart';
-import '../../features/events/events_page.dart';
+import 'mini_audio_player.dart';
 
 class MainScaffold extends StatefulWidget {
   final Widget child;
@@ -22,6 +20,31 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
+  final AudioPlayerService _audioService = AudioPlayerService();
+
+  @override
+  void initState() {
+    super.initState();
+    _audioService.initialize();
+    _audioService.addListener(_onAudioStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _audioService.removeListener(_onAudioStateChanged);
+    super.dispose();
+  }
+
+  void _onAudioStateChanged() {
+    if (mounted) {
+      try {
+        setState(() {});
+      } catch (e) {
+        debugPrint('Error updating audio state: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,12 +57,34 @@ class _MainScaffoldState extends State<MainScaffold> {
           ),
         ],
       ),
-      body: SpiritualBackground(child: widget.child),
+      body: Column(
+        children: [
+          Expanded(child: SpiritualBackground(child: widget.child)),
+          // Mini Audio Player
+          GestureDetector(
+            onTap: () {
+              try {
+                if (_audioService.currentSong != null) {
+                  // Navigate to audio player when implemented
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Audio player will open here')),
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error handling audio player tap: $e');
+              }
+            },
+            child: const MiniAudioPlayer(),
+          ),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: AppTheme.darkBrown.withOpacity(0.1),
+              color: AppTheme.darkBrown.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: Offset(0, -2),
             ),
@@ -51,7 +96,7 @@ class _MainScaffoldState extends State<MainScaffold> {
           type: BottomNavigationBarType.fixed,
           backgroundColor: AppTheme.white,
           selectedItemColor: AppTheme.saffron,
-          unselectedItemColor: AppTheme.darkBrown.withOpacity(0.6),
+          unselectedItemColor: AppTheme.darkBrown.withValues(alpha: 0.6),
           selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
           items: [
             BottomNavigationBarItem(

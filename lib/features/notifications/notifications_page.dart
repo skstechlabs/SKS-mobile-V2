@@ -77,7 +77,7 @@ class NotificationsPage extends StatelessWidget {
           Text(
             'We\'ll notify you about important updates',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.darkBrown.withOpacity(0.6),
+              color: AppTheme.darkBrown.withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -89,14 +89,14 @@ class NotificationsPage extends StatelessWidget {
     final isUnread = !(notification['read'] as bool);
     
     return Container(
-      color: isUnread ? AppTheme.beige.withOpacity(0.3) : Colors.transparent,
+      color: isUnread ? AppTheme.beige.withValues(alpha: 0.3) : Colors.transparent,
       child: ListTile(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: _getNotificationColor(notification['type'] as String).withOpacity(0.1),
+            color: _getNotificationColor(notification['type'] as String).withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -119,7 +119,7 @@ class NotificationsPage extends StatelessWidget {
             Text(
               notification['time'] as String,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.darkBrown.withOpacity(0.5),
+                color: AppTheme.darkBrown.withValues(alpha: 0.5),
               ),
             ),
           ],

@@ -141,7 +141,7 @@ class _EventsPageState extends State<EventsPage> {
                 Text(
                   event['description']!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.darkBrown.withOpacity(0.7),
+                    color: AppTheme.darkBrown.withValues(alpha: 0.7),
                   ),
                 ),
                 SizedBox(height: 16),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+
 import 'package:go_router/go_router.dart';
 import '../features/home/home_page.dart';
 import '../features/learnings/learnings_page.dart';
@@ -7,13 +7,18 @@ import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
 import 'widgets/main_scaffold.dart';
 import 'widgets/permission_screen.dart';
+import 'utils/permission_checker.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/permissions',
   routes: [
     GoRoute(
       path: '/permissions',
-      builder: (context, state) => PermissionScreen(),
+      builder: (context, state) => const PermissionChecker(),
+    ),
+    GoRoute(
+      path: '/permission-screen',
+      builder: (context, state) => const PermissionScreen(),
     ),
     ShellRoute(
       builder: (context, state, child) {
@@ -41,32 +46,32 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: HomePage(),
+            child: const HomePage(),
           ),
         ),
         GoRoute(
           path: '/learnings',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: LearningsPage(),
+            child: const LearningsPage(),
           ),
         ),
         GoRoute(
           path: '/guruji-connect',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: GurujiConnectPage(),
+            child: const GurujiConnectPage(),
           ),
         ),
         GoRoute(
           path: '/events',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: EventsPage(),
+            child: const EventsPage(),
           ),
         ),
       ],
     ),
     GoRoute(
       path: '/notifications',
-      builder: (context, state) => NotificationsPage(),
+      builder: (context, state) => const NotificationsPage(),
     ),
   ],
 );

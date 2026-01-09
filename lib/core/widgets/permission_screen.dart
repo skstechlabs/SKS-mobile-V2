@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 
+
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({Key? key}) : super(key: key);
 
@@ -51,6 +52,11 @@ class _PermissionScreenState extends State<PermissionScreen> {
     }
   }
 
+  void _skipPermissions() {
+    // Navigate to home without requesting permissions
+    context.go('/');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,37 +66,48 @@ class _PermissionScreenState extends State<PermissionScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: MediaQuery.of(context).size.width > 600 ? 100 : 80,
+                  height: MediaQuery.of(context).size.width > 600 ? 100 : 80,
                   decoration: BoxDecoration(
                     gradient: AppTheme.saffronGradient,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.security, size: 60, color: Colors.white),
+                  child: Icon(
+                    Icons.security, 
+                    size: MediaQuery.of(context).size.width > 600 ? 50 : 40, 
+                    color: Colors.white
+                  ),
                 ),
-                SizedBox(height: 32),
+                SizedBox(height: MediaQuery.of(context).size.height > 700 ? 24 : 16),
                 Text(
                   'Permissions Required',
-                  style: Theme.of(context).textTheme.displayMedium,
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontSize: MediaQuery.of(context).size.width > 600 ? null : 20,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: MediaQuery.of(context).size.height > 700 ? 12 : 8),
                 Text(
                   'To provide you with the best experience, we need access to:',
                   style: Theme.of(context).textTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 32),
+                SizedBox(height: MediaQuery.of(context).size.height > 700 ? 16 : 12),
                 _buildPermissionItem(Icons.camera_alt, 'Camera', 'For capturing spiritual moments'),
                 _buildPermissionItem(Icons.mic, 'Microphone', 'For audio recordings'),
                 _buildPermissionItem(Icons.folder, 'Storage', 'For saving content'),
                 _buildPermissionItem(Icons.photo_library, 'Photos', 'For accessing media'),
                 _buildPermissionItem(Icons.notifications, 'Notifications', 'For spiritual reminders'),
                 _buildPermissionItem(Icons.location_on, 'Location', 'For nearby events'),
-                SizedBox(height: 32),
+                    ],
+                  ),
+                ),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -110,6 +127,24 @@ class _PermissionScreenState extends State<PermissionScreen> {
                         : Text('Grant Permissions', style: TextStyle(fontSize: 18)),
                   ),
                 ),
+                SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _isLoading ? null : _skipPermissions,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: AppTheme.saffron,
+                    ),
+                    child: Text(
+                      'Skip Permissions', 
+                      style: TextStyle(
+                        fontSize: 16,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -120,17 +155,23 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
   Widget _buildPermissionItem(IconData icon, String title, String description) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(
+        vertical: MediaQuery.of(context).size.height > 700 ? 6 : 4,
+      ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: MediaQuery.of(context).size.width > 600 ? 48 : 40,
+            height: MediaQuery.of(context).size.width > 600 ? 48 : 40,
             decoration: BoxDecoration(
-              color: AppTheme.saffron.withOpacity(0.1),
+              color: AppTheme.saffron.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppTheme.saffron),
+            child: Icon(
+              icon, 
+              color: AppTheme.saffron,
+              size: MediaQuery.of(context).size.width > 600 ? 24 : 20,
+            ),
           ),
           SizedBox(width: 16),
           Expanded(

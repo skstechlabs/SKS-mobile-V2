@@ -33,25 +33,11 @@ class KundaliniSciencePage extends StatelessWidget {
             Container(
               height: 300,
               width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppTheme.gold.withValues(alpha: 0.3),
-                    AppTheme.saffron.withValues(alpha: 0.2),
-                  ],
-                ),
-              ),
-              child: Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    AppConstants.kundaliniImageUrl,
-                    height: 250,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              child: Image.asset(
+                AppConstants.kundaliniImageUrl,
+                width: double.infinity,
+                height: 300,
+                fit: BoxFit.cover,
               ),
             ),
             

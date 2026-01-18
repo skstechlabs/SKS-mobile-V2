@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
 
 class GurujiConnectPage extends StatelessWidget {
   const GurujiConnectPage({Key? key}) : super(key: key);
@@ -7,91 +9,464 @@ class GurujiConnectPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Guruji Connect',
-              style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Guruji Connect',
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Direct spiritual guidance',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 4),
-            Text(
-              'Direct spiritual guidance',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            SizedBox(height: 80),
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.saffronGradient,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: Offset(0, 8),
+          ),
+          _buildContactFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactFooter() {
+    return Container(
+      margin: EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.grey[50]!,
+            Colors.grey[100]!,
+          ],
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Organization Logo/Title
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.saffron.withOpacity(0.2),
+                              blurRadius: 20,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            AppConstants.gurujiLogoUrl,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        AppConstants.organizationName,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.saffron,
+                          letterSpacing: 0.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 12),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          AppConstants.organizationDescription,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.6,
+                            color: AppTheme.textSecondary,
+                            letterSpacing: 0.2,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                SizedBox(height: 40),
+                
+                // Contact Info Section
+                Text(
+                  'Contact Us',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 20),
+                
+                // Email
+                InkWell(
+                  onTap: () async {
+                    try {
+                      final uri = Uri.parse('mailto:${AppConstants.contactEmail}');
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint('Error launching email: $e');
+                    }
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.saffron.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.email_outlined,
+                            color: AppTheme.saffron,
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            AppConstants.contactEmail,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 56,
-                      color: Colors.white,
+                  ),
+                ),
+                
+                // Call Us
+                InkWell(
+                  onTap: () async {
+                    try {
+                      final uri = Uri.parse('tel:${AppConstants.contactPhone}');
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint('Error launching phone: $e');
+                    }
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.saffron.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.phone_outlined,
+                            color: AppTheme.saffron,
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Call Us',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                AppConstants.contactPhone,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 32),
-                  Text(
-                    'Connect with Guruji',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                ),
+                
+                // WhatsApp
+                InkWell(
+                  onTap: () async {
+                    try {
+                      final uri = Uri.parse(AppConstants.whatsappUrl);
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint('Error launching WhatsApp: $e');
+                    }
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF25D366).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.chat,
+                            color: Color(0xFF25D366),
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'WhatsApp Us',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                AppConstants.whatsappNumber,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Coming Soon',
-                      style: TextStyle(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                ),
+                
+                // Address
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.saffron.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.location_on_outlined,
+                          color: AppTheme.saffron,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'Direct communication with spiritual guidance and personalized teachings. Get answers to your spiritual questions.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.textSecondary,
-                        height: 1.6,
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          AppConstants.contactAddress,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.textPrimary,
+                            height: 1.5,
+                          ),
+                        ),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
+                    ],
                   ),
-                ],
+                ),
+                
+                SizedBox(height: 32),
+                
+                // Social Media Links
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Connect With Us',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Facebook
+                          InkWell(
+                            onTap: () async {
+                              try {
+                                final uri = Uri.parse(AppConstants.facebookUrl);
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } catch (e) {
+                                debugPrint('Error launching Facebook: $e');
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF1877F2),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFF1877F2).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.facebook,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          
+                          // Instagram
+                          InkWell(
+                            onTap: () async {
+                              try {
+                                final uri = Uri.parse(AppConstants.instagramUrl);
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } catch (e) {
+                                debugPrint('Error launching Instagram: $e');
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFF833AB4),
+                                    Color(0xFFC13584),
+                                    Color(0xFFE1306C),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFFE1306C).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          
+                          // YouTube
+                          InkWell(
+                            onTap: () async {
+                              try {
+                                final uri = Uri.parse(AppConstants.youtubeChannelUrl);
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } catch (e) {
+                                debugPrint('Error launching YouTube: $e');
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFF0000),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFFFF0000).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Copyright Section
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              border: Border(
+                top: BorderSide(
+                  color: Colors.grey[300]!,
+                  width: 1,
+                ),
               ),
             ),
-          ],
-        ),
+            child: Center(
+              child: Text(
+                '© ${DateTime.now().year} Siva Kundalini Sadhana. All rights reserved.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/audio_player_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/sks_loader.dart';
 
 
 class PlaylistScreen extends StatefulWidget {
@@ -136,14 +137,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (isCurrentSong && _audioService.isPlaying)
-                            Container(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.saffron),
-                              ),
-                            )
+                            const SKSLoaderStatic(size: 24)
                           else
                             IconButton(
                               icon: Icon(

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
+import '../widgets/sks_loader.dart';
 
 
 class PermissionChecker extends StatefulWidget {
@@ -78,8 +79,8 @@ class _PermissionCheckerState extends State<PermissionChecker> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
+              SKSLoader(size: 80),
+              SizedBox(height: 24),
               Text(
                 'Checking permissions...',
                 style: TextStyle(fontSize: 16),

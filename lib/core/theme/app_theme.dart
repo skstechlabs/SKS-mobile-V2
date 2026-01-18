@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Spiritual Color Palette - Updated to match design mockups
-  static const Color primary = Color(0xFFFF6B4A); // Coral orange from mockup
-  static const Color saffron = Color(0xFFFF6B4A); // Same as primary for compatibility
-  static const Color lightSaffron = Color(0xFFFF8A6B);
+  static const Color primary = Color(0xFFF97316); // Orange-500
+  static const Color saffron = Color(0xFFF97316); // Orange-500
+  static const Color lightSaffron = Color(0xFFFB923C); // Orange-400
   static const Color beige = Color(0xFFF5F5F5);
   static const Color white = Color(0xFFFFFFFF); // Pure white background
-  static const Color gold = Color(0xFFFF6B4A); // Same as primary
+  static const Color gold = Color(0xFFF97316); // Orange-500
   static const Color darkBrown = Color(0xFF000000); // Black for text
   static const Color softGray = Color(0xFFE0E0E0);
   static const Color textPrimary = Color(0xFF000000);
@@ -30,32 +29,33 @@ class AppTheme {
         onSurface: textPrimary,
       ),
       
+      fontFamily: '.AppleSystemUIFont',
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.inter(
+        displayLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
           color: textPrimary,
         ),
-        displayMedium: GoogleFonts.inter(
+        displayMedium: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
           color: textPrimary,
         ),
-        headlineMedium: GoogleFonts.inter(
+        headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
-        titleLarge: GoogleFonts.inter(
+        titleLarge: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
-        bodyLarge: GoogleFonts.inter(
+        bodyLarge: TextStyle(
           fontSize: 16,
           color: textPrimary,
         ),
-        bodyMedium: GoogleFonts.inter(
+        bodyMedium: TextStyle(
           fontSize: 14,
           color: textSecondary,
         ),
@@ -65,7 +65,7 @@ class AppTheme {
         elevation: 0,
         backgroundColor: Colors.transparent,
         iconTheme: IconThemeData(color: textPrimary),
-        titleTextStyle: GoogleFonts.inter(
+        titleTextStyle: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: textPrimary,
@@ -89,7 +89,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.inter(
+          textStyle: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),

@@ -58,6 +58,9 @@ flutter:
   
   assets:
     - assets/images/
+    - assets/images/daily_wisdom_images/
+    - assets/images/chakras/
+    - assets/images/recentGatherings/
     - assets/icons/
     - assets/audio/
 

@@ -117,11 +117,12 @@ class _PermissionScreenState extends State<PermissionScreen> {
                     ),
                     child: _isLoading
                         ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            height: 24,
+                            width: 24,
+                            child: Image.asset(
+                              'assets/images/SKS_Logo.png',
+                              width: 24,
+                              height: 24,
                             ),
                           )
                         : Text('Grant Permissions', style: TextStyle(fontSize: 18)),

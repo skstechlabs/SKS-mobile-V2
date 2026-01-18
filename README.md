@@ -81,6 +81,7 @@ flutter run -d ios
 # For specific device
 flutter devices
 flutter run -d <device_id>
+cd "/Users/srinath/SKS Techlabs/SKS-mobile-V2" && flutter run -d chrome --web-port 8083 --web-hostname 0.0.0.0
 ```
 
 ### Build for Production

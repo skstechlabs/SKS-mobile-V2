@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -63,7 +64,7 @@ class _EventsPageState extends State<EventsPage> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               image: DecorationImage(
-                image: NetworkImage(event['imageUrl']!),
+                image: AssetImage(event['imageUrl']!),
                 fit: BoxFit.cover,
               ),
             ),

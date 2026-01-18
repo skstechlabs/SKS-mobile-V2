@@ -18,6 +18,19 @@ class _AllSongsPageState extends State<AllSongsPage> {
   void initState() {
     super.initState();
     _audioService.initialize();
+    _audioService.addListener(_onAudioStateChanged);
+  }
+
+  void _onAudioStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioService.removeListener(_onAudioStateChanged);
+    super.dispose();
   }
 
   void _toggleLoop() {
@@ -125,16 +138,26 @@ class _AllSongsPageState extends State<AllSongsPage> {
   }
 
   Widget _buildSongCard(Map<String, dynamic> song, int index) {
+    final isCurrentSong = _audioService.currentSong?['title'] == song['title'];
+    final isPlaying = isCurrentSong && _audioService.isPlaying;
+    
     return GestureDetector(
       onTap: () async {
-        await _audioService.playSong(AppConstants.bhajans, index);
+        if (isCurrentSong && _audioService.isPlaying) {
+          await _audioService.pause();
+        } else {
+          await _audioService.playSong(AppConstants.bhajans, index);
+        }
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 12),
         padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
+          color: isCurrentSong ? AppTheme.saffron.withOpacity(0.1) : Colors.grey[50],
           borderRadius: BorderRadius.circular(16),
+          border: isCurrentSong 
+            ? Border.all(color: AppTheme.saffron, width: 2)
+            : null,
         ),
         child: Row(
           children: [
@@ -146,23 +169,42 @@ class _AllSongsPageState extends State<AllSongsPage> {
                 '${index + 1}',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey[600],
+                  color: isCurrentSong ? AppTheme.saffron : Colors.grey[600],
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
             SizedBox(width: 12),
             // Album art
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: AssetImage(song['imageUrl'] ?? 'assets/images/placeholder.png'),
-                  fit: BoxFit.cover,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: DecorationImage(
+                      image: AssetImage(song['imageUrl'] ?? 'assets/images/placeholder.png'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-              ),
+                if (isCurrentSong)
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.black.withOpacity(0.5),
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+              ],
             ),
             SizedBox(width: 16),
             // Song details
@@ -175,7 +217,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      color: isCurrentSong ? AppTheme.saffron : Colors.black,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -206,8 +248,8 @@ class _AllSongsPageState extends State<AllSongsPage> {
                 ),
                 SizedBox(height: 4),
                 Icon(
-                  Icons.play_arrow,
-                  color: AppTheme.primary,
+                  isCurrentSong && isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: isCurrentSong ? AppTheme.saffron : AppTheme.primary,
                   size: 28,
                 ),
               ],

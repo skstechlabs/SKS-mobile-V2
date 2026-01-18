@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
@@ -33,17 +35,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     _audioService.initialize();
+    _audioService.addListener(_onAudioStateChanged);
     
-    // Initialize page controller for wisdom cards
-    _pageController = PageController();
+    // Initialize page controller for wisdom cards with high initial page for infinite scroll
+    final initialPage = 10000;
+    _pageController = PageController(initialPage: initialPage);
+    _currentQuoteIndex = initialPage;
     
     // Start auto-scroll timer for wisdom cards (2 seconds interval)
     if (AppConstants.dailyQuotes.isNotEmpty) {
       _autoScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
         if (mounted && _pageController.hasClients) {
-          int nextPage = (_currentQuoteIndex + 1) % AppConstants.dailyQuotes.length;
+          _currentQuoteIndex++;
           _pageController.animateToPage(
-            nextPage,
+            _currentQuoteIndex,
             duration: const Duration(milliseconds: 500),
             curve: Curves.easeInOut,
           );
@@ -52,10 +57,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
+  void _onAudioStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
     _glowController.dispose();
     _pageController.dispose();
+    _audioService.removeListener(_onAudioStateChanged);
     if (AppConstants.dailyQuotes.isNotEmpty) {
       _autoScrollTimer.cancel();
     }
@@ -65,6 +77,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      // Performance optimizations
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -76,36 +90,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _buildKundaliniScience(),
           _buildBenefits(),
           _build7Chakras(),
+          _buildRecentGatherings(),
           _buildUpcomingPrograms(),
-          SizedBox(height: 24),
+          _buildVisionMission(),
+          SizedBox(height: 40),
         ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Sivoham 🙏',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          SizedBox(height: 4),
-          // Text(
-          //   'Your Spiritual Journey',
-          //   style: Theme.of(context).textTheme.displayMedium?.copyWith(
-          //     fontSize: 28,
-          //     fontWeight: FontWeight.bold,
-          //   ),
-          // ),
-        ],
-      ),
-    );
+    return SizedBox.shrink();
   }
 
   Widget _buildDailyQuotes() {
@@ -116,28 +111,25 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: 24),
         Container(
           height: 350,
           child: PageView.builder(
             controller: _pageController,
-            itemCount: AppConstants.dailyQuotes.length,
             onPageChanged: (index) => setState(() => _currentQuoteIndex = index),
             itemBuilder: (context, index) {
-              final quote = AppConstants.dailyQuotes[index];
-              final imageUrl = AppConstants.dailyWisdomImages[index % AppConstants.dailyWisdomImages.length];
+              final actualIndex = index % AppConstants.dailyQuotes.length;
+              final quote = AppConstants.dailyQuotes[actualIndex];
+              final imageUrl = AppConstants.dailyWisdomImages[actualIndex % AppConstants.dailyWisdomImages.length];
               return Container(
-                margin: EdgeInsets.symmetric(horizontal: 20),
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
                   image: DecorationImage(
-                    image: NetworkImage(imageUrl),
+                    image: AssetImage(imageUrl),
                     fit: BoxFit.cover,
                   ),
                 ),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -177,68 +169,219 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             },
           ),
         ),
-        SizedBox(height: 16),
+        SizedBox(height: 20),
         Padding(
           padding: const EdgeInsets.only(left: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [
-                    AppTheme.saffron,
-                    AppTheme.gold,
-                  ],
-                ).createShader(bounds),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Parama Pujya',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        fontStyle: FontStyle.italic,
-                        letterSpacing: 1.2,
-                        color: Colors.white,
-                        height: 1.3,
-                      ),
-                    ),
-                    Text(
-                      'Sri Jeeveswara Yogi',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        fontStyle: FontStyle.italic,
-                        letterSpacing: 1.0,
-                        color: Colors.white,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
+              Text(
+                'Parama Pujya',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFF97316),
+                  letterSpacing: 1.2,
+                  height: 1.4,
                 ),
               ),
-              SizedBox(height: 12),
-              Row(
-                children: AppConstants.dailyQuotes.asMap().entries.map((entry) {
-                  return AnimatedContainer(
-                    duration: Duration(milliseconds: 300),
-                    width: _currentQuoteIndex == entry.key ? 32 : 8,
-                    height: 8,
-                    margin: EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: _currentQuoteIndex == entry.key
-                          ? AppTheme.primary
-                          : AppTheme.softGray,
-                    ),
-                  );
-                }).toList(),
+              Text(
+                'Sri Jeeveswara Yogi',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFF97316),
+                  letterSpacing: 0.5,
+                  height: 1.2,
+                ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVisionMission() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.saffron.withOpacity(0.1),
+            AppTheme.primary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: AppTheme.saffron.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Vision Card
+          Container(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.saffron,
+                            AppTheme.saffron.withOpacity(0.7),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.saffron.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.visibility,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Our Vision',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.saffron,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Text(
+                  AppConstants.vision,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0.2,
+                  ),
+                  textAlign: TextAlign.justify,
+                ),
+              ],
+            ),
+          ),
+          
+          // Decorative Divider
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          AppTheme.saffron.withOpacity(0.3),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: AppTheme.saffron.withOpacity(0.5),
+                    size: 20,
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.saffron.withOpacity(0.3),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Mission Card
+          Container(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primary,
+                            AppTheme.primary.withOpacity(0.7),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.explore,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Our Mission',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Text(
+                  AppConstants.mission,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0.2,
+                  ),
+                  textAlign: TextAlign.justify,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -249,7 +392,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Meditation Music',
+            'Daily Meditation',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -259,11 +402,31 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           GestureDetector(
             onTap: () async {
               if (AppConstants.meditationMusic.isNotEmpty) {
-                await _audioService.playSong(AppConstants.meditationMusic, 0);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Playing "${AppConstants.meditationMusic[0]['title']}"')),
-                  );
+                // Check if this meditation is currently playing
+                final isCurrentlyPlaying = _audioService.playlist == AppConstants.meditationMusic && 
+                                          _audioService.currentIndex == 0 && 
+                                          _audioService.isPlaying;
+                
+                if (isCurrentlyPlaying) {
+                  // If playing, pause it
+                  await _audioService.pause();
+                } else {
+                  // If not playing or different song, play it
+                  await _audioService.playSong(AppConstants.meditationMusic, 0);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Playing "${AppConstants.meditationMusic[0]['title']}"'),
+                        duration: Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                        margin: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).size.height - 100,
+                          left: 10,
+                          right: 10,
+                        ),
+                      ),
+                    );
+                  }
                 }
               }
             },
@@ -271,9 +434,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               height: 240,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
+                border: (_audioService.playlist == AppConstants.meditationMusic && 
+                        _audioService.currentIndex == 0 && 
+                        _audioService.isPlaying)
+                    ? Border.all(color: AppTheme.primary, width: 3)
+                    : null,
                 image: DecorationImage(
-                  image: NetworkImage(AppConstants.gurujiTeachingImageUrl),
-                  fit: BoxFit.cover,
+                  image: AssetImage(AppConstants.gurujiTeachingImageUrl),
+                  fit: BoxFit.contain,
                 ),
               ),
               child: Container(
@@ -302,7 +470,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          Icons.play_arrow,
+                          (_audioService.playlist == AppConstants.meditationMusic && 
+                           _audioService.currentIndex == 0 && 
+                           _audioService.isPlaying)
+                              ? Icons.pause
+                              : Icons.play_arrow,
                           color: Colors.white,
                           size: 32,
                         ),
@@ -312,7 +484,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Morning Peace',
+                          'Guided Meditation',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -398,32 +570,61 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildBhajanCard(Map<String, dynamic> bhajan) {
+    final isCurrentSong = _audioService.currentSong?['title'] == bhajan['title'];
+    final isPlaying = isCurrentSong && _audioService.isPlaying;
+    
     return GestureDetector(
       onTap: () async {
         final index = AppConstants.bhajans.indexWhere((b) => b['title'] == bhajan['title']);
         if (index != -1) {
-          await _audioService.playSong(AppConstants.bhajans, index);
+          if (isCurrentSong && _audioService.isPlaying) {
+            await _audioService.pause();
+          } else {
+            await _audioService.playSong(AppConstants.bhajans, index);
+          }
         }
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 16),
         padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
+          color: isCurrentSong ? AppTheme.saffron.withOpacity(0.1) : Colors.grey[50],
           borderRadius: BorderRadius.circular(16),
+          border: isCurrentSong 
+            ? Border.all(color: AppTheme.saffron, width: 2)
+            : null,
         ),
         child: Row(
           children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: AssetImage(bhajan['imageUrl']!),
-                  fit: BoxFit.cover,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: DecorationImage(
+                      image: AssetImage(bhajan['imageUrl']!),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-              ),
+                if (isCurrentSong)
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.black.withOpacity(0.5),
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+              ],
             ),
             SizedBox(width: 12),
             Expanded(
@@ -435,6 +636,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
+                      color: isCurrentSong ? AppTheme.saffron : null,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -464,8 +666,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
                 SizedBox(height: 4),
                 Icon(
-                  Icons.play_arrow,
-                  color: AppTheme.textSecondary,
+                  isCurrentSong && isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: isCurrentSong ? AppTheme.saffron : AppTheme.textSecondary,
                   size: 24,
                 ),
               ],
@@ -493,7 +695,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(
-              image: NetworkImage(AppConstants.guruJourneyImageUrl),
+              image: AssetImage(AppConstants.guruJourneyImageUrl),
               fit: BoxFit.cover,
             ),
             boxShadow: [
@@ -591,7 +793,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(
-              image: NetworkImage(AppConstants.kundaliniScienceImageUrl),
+              image: AssetImage(AppConstants.kundaliniScienceImageUrl),
               fit: BoxFit.cover,
             ),
             boxShadow: [
@@ -689,7 +891,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(
-              image: NetworkImage(AppConstants.benefitsImageUrl),
+              image: AssetImage(AppConstants.benefitsImageUrl),
               fit: BoxFit.cover,
             ),
             boxShadow: [
@@ -787,7 +989,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(
-              image: NetworkImage(AppConstants.chakrasImageUrl),
+              image: AssetImage(AppConstants.chakrasImageUrl),
               fit: BoxFit.cover,
             ),
             boxShadow: [
@@ -868,6 +1070,198 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
+  Widget _buildRecentGatherings() {
+    if (AppConstants.recentGatherings.isEmpty) {
+      return SizedBox.shrink();
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Recent Gatherings',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        SizedBox(height: 16),
+        SizedBox(
+          height: 340,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            itemCount: AppConstants.recentGatherings.length,
+            itemBuilder: (context, index) {
+              final gathering = AppConstants.recentGatherings[index];
+              return InkWell(
+                onTap: () async {
+                  final videoUrl = gathering['videoUrl'] as String?;
+                  if (videoUrl != null && videoUrl.isNotEmpty) {
+                    try {
+                      // Open YouTube video
+                      final uri = Uri.parse(videoUrl);
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint('Error launching URL: $e');
+                    }
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 300,
+                  margin: EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        children: [
+                          Container(
+                            height: 180,
+                            width: 300,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                              image: DecorationImage(
+                                image: AssetImage(gathering['image']!),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          // Play button overlay
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.3),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.saffron.withOpacity(0.9),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.play_arrow,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                gathering['title']!,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today,
+                                    size: 14,
+                                    color: AppTheme.primary,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      gathering['date']!,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: AppTheme.primary,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (gathering['participants'] != null) ...[
+                                SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      size: 14,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        gathering['participants']!,
+                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              SizedBox(height: 6),
+                              Expanded(
+                                child: Text(
+                                  gathering['description']!,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        SizedBox(height: 20),
+      ],
+    );
+  }
+
   Widget _buildUpcomingPrograms() {
     if (AppConstants.upcomingEvents.isEmpty) {
       return SizedBox.shrink();
@@ -887,21 +1281,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           SizedBox(height: 16),
           ...AppConstants.upcomingEvents.map((event) {
-            return Container(
-              width: double.infinity,
-              margin: EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
+            return InkWell(
+              onTap: () {
+                // Navigate to events tab
+                context.go('/events');
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: double.infinity,
+                margin: EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
@@ -909,7 +1309,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                       image: DecorationImage(
-                        image: NetworkImage(event['imageUrl']!),
+                        image: AssetImage(event['imageUrl']!),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -970,6 +1370,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                 ],
               ),
+            ),
             );
           }).toList(),
         ],

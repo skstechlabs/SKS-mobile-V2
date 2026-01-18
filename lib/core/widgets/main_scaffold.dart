@@ -56,6 +56,7 @@ class _MainScaffoldState extends State<MainScaffold> {
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
+            color: Colors.black,
           ),
         ),
         actions: [

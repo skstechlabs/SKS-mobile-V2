@@ -6,20 +6,20 @@ import '../features/guruji_connect/guruji_connect_page.dart';
 import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
 import 'widgets/main_scaffold.dart';
-import 'widgets/permission_screen.dart';
-import 'utils/permission_checker.dart';
+// import 'widgets/permission_screen.dart';
+// import 'utils/permission_checker.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/permissions',
+  initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/permissions',
-      builder: (context, state) => const PermissionChecker(),
-    ),
-    GoRoute(
-      path: '/permission-screen',
-      builder: (context, state) => const PermissionScreen(),
-    ),
+    // GoRoute(
+    //   path: '/permissions',
+    //   builder: (context, state) => const PermissionChecker(),
+    // ),
+    // GoRoute(
+    //   path: '/permission-screen',
+    //   builder: (context, state) => const PermissionScreen(),
+    // ),
     ShellRoute(
       builder: (context, state, child) {
         int currentIndex = 0;

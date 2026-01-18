@@ -200,7 +200,7 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: Image.network(
+          child: Image.asset(
             chakra['image'],
             fit: BoxFit.contain,
             width: double.infinity,

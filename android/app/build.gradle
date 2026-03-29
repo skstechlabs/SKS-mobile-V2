@@ -38,18 +38,20 @@ android {
 
     defaultConfig {
         applicationId "com.spiritual.app"
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion flutter.minSdkVersion  // OneSignal requires minimum SDK 21
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true  // Enable multidex for large apps
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Disable minification to prevent OneSignal plugin issues
+            minifyEnabled false
+            shrinkResources false
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

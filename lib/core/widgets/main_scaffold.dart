@@ -126,12 +126,12 @@ class _MainScaffoldState extends State<MainScaffold> {
             BottomNavigationBarItem(
               icon: Icon(Icons.school_outlined),
               activeIcon: Icon(Icons.school),
-              label: 'Learnings',
+              label: 'Classes',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.connect_without_contact_outlined),
               activeIcon: Icon(Icons.connect_without_contact),
-              label: 'Connect',
+              label: 'Contact',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.event_outlined),

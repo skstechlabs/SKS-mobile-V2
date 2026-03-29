@@ -1,13 +1,115 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/notification_storage_service.dart';
+import 'package:intl/intl.dart';
 
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({Key? key}) : super(key: key);
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key});
+
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  final NotificationStorageService _storageService = NotificationStorageService();
+  List<NotificationModel> _notifications = [];
+  int _unreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+    _cleanupExpiredNotifications();
+    
+    // Listen for notification changes
+    _storageService.addListener(_onNotificationsChanged);
+  }
+  
+  Future<void> _cleanupExpiredNotifications() async {
+    // Trigger cleanup of expired notifications
+    final allNotifications = _storageService.getAll();
+    debugPrint('🗑️ Checking for expired notifications (showing ${allNotifications.length} active)');
+  }
+
+  @override
+  void dispose() {
+    _storageService.removeListener(_onNotificationsChanged);
+    super.dispose();
+  }
+
+  void _onNotificationsChanged(List<NotificationModel> notifications) {
+    if (mounted) {
+      setState(() {
+        _notifications = notifications;
+        _unreadCount = _storageService.getUnreadCount();
+      });
+    }
+  }
+
+  void _loadNotifications() {
+    setState(() {
+      _notifications = _storageService.getAll();
+      _unreadCount = _storageService.getUnreadCount();
+    });
+  }
+
+  Future<void> _markAsRead(String notificationId) async {
+    await _storageService.markAsRead(notificationId);
+  }
+
+  Future<void> _markAllAsRead() async {
+    await _storageService.markAllAsRead();
+  }
+
+  Future<void> _deleteNotification(String notificationId) async {
+    await _storageService.deleteNotification(notificationId);
+  }
+
+  Future<void> _clearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All Notifications'),
+        content: const Text('Are you sure you want to delete all notifications?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear All', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _storageService.clearAll();
+    }
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return DateFormat('MMM d, yyyy').format(dateTime);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final hasNotifications = false; // Set to false to show empty state
+    final hasNotifications = _notifications.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -15,39 +117,195 @@ class NotificationsPage extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => context.go('/'),
         ),
-        title: Text(
-          'Notifications',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Stay updated with spiritual content',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.textSecondary,
+        title: Row(
+          children: [
+            const Text(
+              'Notifications',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (_unreadCount > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$_unreadCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            SizedBox(height: 60),
-            if (!hasNotifications) _buildEmptyState(context),
-            if (!hasNotifications) ...[
-              SizedBox(height: 40),
-              _buildNotificationPreferences(context),
             ],
           ],
         ),
+        actions: hasNotifications
+            ? [
+                if (_unreadCount > 0)
+                  TextButton(
+                    onPressed: _markAllAsRead,
+                    child: const Text('Mark all read'),
+                  ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'clear') {
+                      _clearAll();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'clear',
+                      child: Text('Clear all'),
+                    ),
+                  ],
+                ),
+              ]
+            : null,
       ),
+      body: hasNotifications
+          ? RefreshIndicator(
+              onRefresh: () async {
+                _loadNotifications();
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) {
+                  final notification = _notifications[index];
+                  return _buildNotificationItem(notification);
+                },
+              ),
+            )
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Stay updated with spiritual content',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 60),
+                    _buildEmptyState(context),
+                    const SizedBox(height: 40),
+                    _buildNotificationPreferences(context),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildNotificationItem(NotificationModel notification) {
+    return Dismissible(
+      key: Key(notification.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (direction) {
+        _deleteNotification(notification.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notification deleted')),
+        );
+      },
+      child: InkWell(
+        onTap: () {
+          if (!notification.isRead) {
+            _markAsRead(notification.id);
+          }
+          // Navigate to notification detail screen
+          context.push('/notifications/${notification.id}');
+        },
+        child: Container(
+          color: notification.isRead ? Colors.white : AppTheme.primary.withValues(alpha: 0.05),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.notifications,
+                  color: AppTheme.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: notification.isRead
+                                  ? FontWeight.w500
+                                  : FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (!notification.isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notification.body,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatTime(notification.receivedAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -56,28 +314,28 @@ class NotificationsPage extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.notifications_off_outlined,
             size: 80,
             color: AppTheme.softGray,
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           Text(
             'No Notifications Yet',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
               'You\'ll receive updates about events, new content, and spiritual reminders here.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppTheme.textSecondary,
-                height: 1.5,
-              ),
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -95,7 +353,7 @@ class NotificationsPage extends StatelessWidget {
           title: 'Events',
           description: 'Get notified about upcoming spiritual gatherings',
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         _buildPreferenceCard(
           context,
           icon: Icons.notifications_active,
@@ -106,13 +364,14 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPreferenceCard(BuildContext context, {
+  Widget _buildPreferenceCard(
+    BuildContext context, {
     required IconData icon,
     required String title,
     required String description,
   }) {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(16),
@@ -120,9 +379,9 @@ class NotificationsPage extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.1),
+              color: AppTheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -131,7 +390,7 @@ class NotificationsPage extends StatelessWidget {
               size: 24,
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,17 +398,17 @@ class NotificationsPage extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                  ),
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
                 ),
               ],
             ),

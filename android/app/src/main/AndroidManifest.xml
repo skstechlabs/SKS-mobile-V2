@@ -11,10 +11,28 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
+    <!-- Required for url_launcher to open external links -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+    
     <application
         android:label="SKS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        
+        <!-- OneSignal App ID -->
+        <meta-data
+            android:name="onesignal_app_id"
+            android:value="b89d199e-15be-4343-9e04-640c43f355e9" />
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"

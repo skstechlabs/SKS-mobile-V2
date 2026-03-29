@@ -45,13 +45,14 @@ class LearningsPage extends StatelessWidget {
               icon: Icons.looks_two,
               color: AppTheme.gold,
             ),
-            _buildLevelCard(
-              context,
-              level: 'Entrance',
-              title: 'Meditation Test',
-              icon: Icons.assignment,
-              color: AppTheme.saffron,
-            ),
+            // _buildLevelCard(
+            //   context,
+            //   level: 'Entrance',
+            //   title: 'Meditation Test',
+            //   icon: Icons.assignment,
+            //   color: AppTheme.saffron,
+            // ),
+            _buildDayTile(context, 'Meditation test'),
             _buildLevelCard(
               context,
               level: 'Level 3',

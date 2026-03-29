@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "294856785598",
+    "project_id": "sks-login-mobile",
+    "storage_bucket": "sks-login-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:294856785598:android:c5a6e5f6685abcef9da8ef",
+        "android_client_info": {
+          "package_name": "com.spiritual.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "294856785598-qivhqf2ehn5p0rs1830dt9mt030ort9p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXUN42KBq3eGoMgib4ZWDbYYFFc0Ft458"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "294856785598-qivhqf2ehn5p0rs1830dt9mt030ort9p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "294856785598-2aailfbatjcbmqare2ankjcvc5974cfp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "org.sks"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

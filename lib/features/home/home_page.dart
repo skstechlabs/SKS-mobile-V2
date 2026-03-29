@@ -20,10 +20,10 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   int _currentQuoteIndex = 0;
   late AnimationController _glowController;
-  late PageController _pageController;
   late Timer _autoScrollTimer;
   final AudioPlayerService _audioService = AudioPlayerService();
 
@@ -36,22 +36,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     )..repeat(reverse: true);
     _audioService.initialize();
     _audioService.addListener(_onAudioStateChanged);
-    
-    // Initialize page controller for wisdom cards with high initial page for infinite scroll
-    final initialPage = 10000;
-    _pageController = PageController(initialPage: initialPage);
-    _currentQuoteIndex = initialPage;
-    
-    // Start auto-scroll timer for wisdom cards (2 seconds interval)
+
+    // Initialize quote index
+    _currentQuoteIndex = 0;
+
+    // Start timer for quote rotation (3 seconds interval)
     if (AppConstants.dailyQuotes.isNotEmpty) {
-      _autoScrollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-        if (mounted && _pageController.hasClients) {
-          _currentQuoteIndex++;
-          _pageController.animateToPage(
-            _currentQuoteIndex,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
+      _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+        if (mounted) {
+          setState(() {
+            _currentQuoteIndex =
+                (_currentQuoteIndex + 1) % AppConstants.dailyQuotes.length;
+          });
         }
       });
     }
@@ -66,7 +62,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _glowController.dispose();
-    _pageController.dispose();
     _audioService.removeListener(_onAudioStateChanged);
     if (AppConstants.dailyQuotes.isNotEmpty) {
       _autoScrollTimer.cancel();
@@ -107,69 +102,53 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (AppConstants.dailyQuotes.isEmpty) {
       return SizedBox.shrink();
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Fixed single image container
         Container(
-          height: 350,
-          child: PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) => setState(() => _currentQuoteIndex = index),
-            itemBuilder: (context, index) {
-              final actualIndex = index % AppConstants.dailyQuotes.length;
-              final quote = AppConstants.dailyQuotes[actualIndex];
-              final imageUrl = AppConstants.dailyWisdomImages[actualIndex % AppConstants.dailyWisdomImages.length];
-              return Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(imageUrl),
-                    fit: BoxFit.cover,
-                  ),
+          height: 300,
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.saffron.withOpacity(0.3),
+                blurRadius: 12,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(AppConstants
+                      .dailyWisdomImages[0]), // Fixed to first image
+                  fit: BoxFit.cover,
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.3),
-                        Colors.black.withOpacity(0.6),
-                      ],
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '"${quote}"',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
-                          fontSize: 20,
-                          height: 1.4,
-                        ),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 16),
-                      // Text(
-                      //   '- Parama Pujya Sri Jeeveswara Yogi',
-                      //   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      //     color: Colors.white.withOpacity(0.9),
-                      //     fontWeight: FontWeight.w500,
-                      //   ),
-                      // ),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.7),
                     ],
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
-        SizedBox(height: 20),
+
+        SizedBox(height: 30),
+
+        // Guruji name section with enhanced styling
         Padding(
           padding: const EdgeInsets.only(left: 20),
           child: Column(
@@ -198,6 +177,73 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ],
           ),
         ),
+
+        SizedBox(height: 30),
+// Beautiful static quotation with top icon and fixed height for 3 rows
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            height: 140, // Fixed height for exactly 3 rows
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFF97316).withOpacity(0.08),
+                  Color(0xFFFF6B35).withOpacity(0.12),
+                  Color(0xFFFFAB40).withOpacity(0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Color(0xFFF97316).withOpacity(0.25),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFFF97316).withOpacity(0.15),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Top icon
+                Icon(
+                  Icons.format_quote,
+                  color: Color(0xFFF97316),
+                  size: 20,
+                ),
+                SizedBox(height: 8),
+                // Quote text with fixed height for 3 lines
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      AppConstants.dailyQuotes[
+                          _currentQuoteIndex], // Rotating quote without animation
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                color: Color(0xFF2D3748),
+                                fontSize: 16,
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                                fontStyle: FontStyle.italic,
+                                letterSpacing: 0.3,
+                              ),
+                      textAlign: TextAlign.center,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        SizedBox(height: 20),
       ],
     );
   }
@@ -256,12 +302,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     SizedBox(width: 12),
                     Text(
                       'Our Vision',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.saffron,
-                        letterSpacing: 0.5,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.saffron,
+                                letterSpacing: 0.5,
+                              ),
                     ),
                   ],
                 ),
@@ -279,7 +326,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ],
             ),
           ),
-          
+
           // Decorative Divider
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -322,7 +369,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ],
             ),
           ),
-          
+
           // Mission Card
           Container(
             padding: EdgeInsets.all(20),
@@ -357,12 +404,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     SizedBox(width: 12),
                     Text(
                       'Our Mission',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primary,
-                        letterSpacing: 0.5,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primary,
+                                letterSpacing: 0.5,
+                              ),
                     ),
                   ],
                 ),
@@ -394,19 +442,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           Text(
             'Daily Meditation',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           SizedBox(height: 16),
           GestureDetector(
             onTap: () async {
               if (AppConstants.meditationMusic.isNotEmpty) {
                 // Check if this meditation is currently playing
-                final isCurrentlyPlaying = _audioService.playlist == AppConstants.meditationMusic && 
-                                          _audioService.currentIndex == 0 && 
-                                          _audioService.isPlaying;
-                
+                final isCurrentlyPlaying =
+                    _audioService.playlist == AppConstants.meditationMusic &&
+                        _audioService.currentIndex == 0 &&
+                        _audioService.isPlaying;
+
                 if (isCurrentlyPlaying) {
                   // If playing, pause it
                   await _audioService.pause();
@@ -416,7 +465,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Playing "${AppConstants.meditationMusic[0]['title']}"'),
+                        content: Text(
+                            'Playing "${AppConstants.meditationMusic[0]['title']}"'),
                         duration: Duration(seconds: 2),
                         behavior: SnackBarBehavior.floating,
                         margin: EdgeInsets.only(
@@ -434,11 +484,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               height: 240,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                border: (_audioService.playlist == AppConstants.meditationMusic && 
-                        _audioService.currentIndex == 0 && 
-                        _audioService.isPlaying)
-                    ? Border.all(color: AppTheme.primary, width: 3)
-                    : null,
+                border:
+                    (_audioService.playlist == AppConstants.meditationMusic &&
+                            _audioService.currentIndex == 0 &&
+                            _audioService.isPlaying)
+                        ? Border.all(color: AppTheme.primary, width: 3)
+                        : null,
                 image: DecorationImage(
                   image: AssetImage(AppConstants.gurujiTeachingImageUrl),
                   fit: BoxFit.contain,
@@ -470,9 +521,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          (_audioService.playlist == AppConstants.meditationMusic && 
-                           _audioService.currentIndex == 0 && 
-                           _audioService.isPlaying)
+                          (_audioService.playlist ==
+                                      AppConstants.meditationMusic &&
+                                  _audioService.currentIndex == 0 &&
+                                  _audioService.isPlaying)
                               ? Icons.pause
                               : Icons.play_arrow,
                           color: Colors.white,
@@ -485,18 +537,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       children: [
                         Text(
                           'Guided Meditation',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
                         ),
                         Text(
                           '15:00',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                         ),
                       ],
                     ),
@@ -522,15 +576,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Text(
                 'Songs & Bhajans',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               Icon(Icons.repeat, color: AppTheme.softGray, size: 24),
             ],
           ),
           SizedBox(height: 16),
-          ...AppConstants.bhajans.take(3).map((bhajan) => _buildBhajanCard(bhajan)).toList(),
+          ...AppConstants.bhajans
+              .take(3)
+              .map((bhajan) => _buildBhajanCard(bhajan))
+              .toList(),
           SizedBox(height: 12),
           OutlinedButton(
             onPressed: () {
@@ -570,12 +627,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildBhajanCard(Map<String, dynamic> bhajan) {
-    final isCurrentSong = _audioService.currentSong?['title'] == bhajan['title'];
+    final isCurrentSong =
+        _audioService.currentSong?['title'] == bhajan['title'];
     final isPlaying = isCurrentSong && _audioService.isPlaying;
-    
+
     return GestureDetector(
       onTap: () async {
-        final index = AppConstants.bhajans.indexWhere((b) => b['title'] == bhajan['title']);
+        final index = AppConstants.bhajans
+            .indexWhere((b) => b['title'] == bhajan['title']);
         if (index != -1) {
           if (isCurrentSong && _audioService.isPlaying) {
             await _audioService.pause();
@@ -588,11 +647,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         margin: EdgeInsets.only(bottom: 16),
         padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isCurrentSong ? AppTheme.saffron.withOpacity(0.1) : Colors.grey[50],
+          color: isCurrentSong
+              ? AppTheme.saffron.withOpacity(0.1)
+              : Colors.grey[50],
           borderRadius: BorderRadius.circular(16),
-          border: isCurrentSong 
-            ? Border.all(color: AppTheme.saffron, width: 2)
-            : null,
+          border: isCurrentSong
+              ? Border.all(color: AppTheme.saffron, width: 2)
+              : null,
         ),
         child: Row(
           children: [
@@ -634,10 +695,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   Text(
                     bhajan['title']!,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: isCurrentSong ? AppTheme.saffron : null,
-                    ),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: isCurrentSong ? AppTheme.saffron : null,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -645,9 +706,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   Text(
                     bhajan['artist'] ?? 'Divine Chants',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                      fontSize: 13,
-                    ),
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -660,14 +721,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 Text(
                   bhajan['duration'] ?? '5:30',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                  ),
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
                 ),
                 SizedBox(height: 4),
                 Icon(
                   isCurrentSong && isPlaying ? Icons.pause : Icons.play_arrow,
-                  color: isCurrentSong ? AppTheme.saffron : AppTheme.textSecondary,
+                  color:
+                      isCurrentSong ? AppTheme.saffron : AppTheme.textSecondary,
                   size: 24,
                 ),
               ],
@@ -1074,7 +1136,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (AppConstants.recentGatherings.isEmpty) {
       return SizedBox.shrink();
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1083,9 +1145,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           child: Text(
             'Recent Gatherings',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
         ),
         SizedBox(height: 16),
@@ -1104,7 +1166,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     try {
                       // Open YouTube video
                       final uri = Uri.parse(videoUrl);
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
                     } catch (e) {
                       debugPrint('Error launching URL: $e');
                     }
@@ -1134,7 +1197,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             height: 180,
                             width: 300,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(20)),
                               image: DecorationImage(
                                 image: AssetImage(gathering['image']!),
                                 fit: BoxFit.cover,
@@ -1146,7 +1210,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             child: IgnorePointer(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20)),
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
@@ -1183,10 +1248,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             children: [
                               Text(
                                 gathering['title']!,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -1202,11 +1270,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                   Expanded(
                                     child: Text(
                                       gathering['date']!,
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: AppTheme.primary,
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 12,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: AppTheme.primary,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 12,
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -1224,10 +1295,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     Expanded(
                                       child: Text(
                                         gathering['participants']!,
-                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: AppTheme.textSecondary,
+                                              fontSize: 12,
+                                            ),
                                       ),
                                     ),
                                   ],
@@ -1237,11 +1311,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                               Expanded(
                                 child: Text(
                                   gathering['description']!,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                    height: 1.3,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 12,
+                                        height: 1.3,
+                                      ),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1266,7 +1343,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (AppConstants.upcomingEvents.isEmpty) {
       return SizedBox.shrink();
     }
-    
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1275,9 +1352,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           Text(
             'Upcoming Events',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           SizedBox(height: 16),
           ...AppConstants.upcomingEvents.map((event) {
@@ -1302,75 +1379,85 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ],
                 ),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 180,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                      image: DecorationImage(
-                        image: AssetImage(event['imageUrl']!),
-                        fit: BoxFit.cover,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 180,
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(20)),
+                        image: DecorationImage(
+                          image: AssetImage(event['imageUrl']!),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          event['title']!,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event['title']!,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                           ),
-                        ),
-                        SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 16,
-                              color: AppTheme.primary,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              event['date']!,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 16,
                                 color: AppTheme.primary,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13,
                               ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 16,
-                              color: AppTheme.textSecondary,
-                            ),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                event['location']!,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 13,
+                              SizedBox(width: 6),
+                              Text(
+                                event['date']!,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: AppTheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: AppTheme.textSecondary,
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  event['location']!,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 13,
+                                      ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             );
           }).toList(),
         ],

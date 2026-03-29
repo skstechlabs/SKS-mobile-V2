@@ -10,6 +10,14 @@
 .svn/
 migrate_working_dir/
 
+# Environment — never commit real credentials
+.env
+.env.json
+.env.prod.json
+
+# Build script temp files
+web/index.html.bak
+
 # IntelliJ related
 *.iml
 *.ipr

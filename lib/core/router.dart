@@ -1,17 +1,41 @@
 
 import 'package:go_router/go_router.dart';
+import '../features/splash/splash_screen.dart';
+import '../features/auth/login_screen.dart';
+import '../features/auth/profile_setup_screen.dart';
+import '../features/auth/permission_screen.dart';
+import '../features/auth/all_permissions_screen.dart';
 import '../features/home/home_page.dart';
 import '../features/learnings/learnings_page.dart';
 import '../features/guruji_connect/guruji_connect_page.dart';
 import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
+import '../features/notifications/notification_detail_screen.dart';
 import 'widgets/main_scaffold.dart';
-// import 'widgets/permission_screen.dart';
-// import 'utils/permission_checker.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/splash',
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/profile-setup',
+      builder: (context, state) => const ProfileSetupScreen(),
+    ),
+    GoRoute(
+      path: '/permissions',
+      builder: (context, state) => const PermissionScreen(),
+    ),
+    GoRoute(
+      path: '/notification-permission',
+      builder: (context, state) => const AllPermissionsScreen(),
+    ),
     // GoRoute(
     //   path: '/permissions',
     //   builder: (context, state) => const PermissionChecker(),
@@ -72,6 +96,15 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/notifications',
       builder: (context, state) => const NotificationsPage(),
+      routes: [
+        GoRoute(
+          path: ':notificationId',
+          builder: (context, state) {
+            final notificationId = state.pathParameters['notificationId']!;
+            return NotificationDetailScreen(notificationId: notificationId);
+          },
+        ),
+      ],
     ),
   ],
 );

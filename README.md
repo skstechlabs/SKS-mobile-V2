@@ -1,6 +1,30 @@
-# Divine Path - Spiritual Mobile Application
+# SKS - Spiritual Mobile Application
 
 A production-ready spiritual mobile application built with Flutter for Android and iOS.
+
+## 📚 Documentation
+
+**Complete documentation is available in the [docs](docs/) folder.**
+
+### Quick Links
+- **[Setup Guide](docs/setup/INSTALLATION_GUIDE.md)** - Get started with development
+- **[Build APK](docs/guides/BUILD_APK_GUIDE.md)** - Create APK for testing
+- **[Troubleshooting](docs/troubleshooting/)** - Fix common issues
+- **[API Integration](docs/guides/API_INTEGRATION_GUIDE.md)** - Backend integration
+- **[Push Notifications](docs/guides/ONESIGNAL_INTEGRATION_GUIDE.md)** - OneSignal setup
+
+### Documentation Structure
+```
+docs/
+├── setup/              # Installation & configuration guides
+├── guides/             # How-to guides and tutorials
+├── troubleshooting/    # Problem solutions and fixes
+└── reference/          # Technical reference and architecture
+```
+
+**See [docs/README.md](docs/README.md) for complete documentation index.**
+
+---
 
 ## 🌟 Features
 
@@ -11,6 +35,19 @@ A production-ready spiritual mobile application built with Flutter for Android a
 - **Events**: Browse and register for spiritual events
 - **Notifications**: Stay updated with announcements and reminders
 
+### Authentication
+- ✅ Phone OTP authentication (Firebase)
+- ✅ Google Sign-In
+- ✅ Profile setup and management
+- ✅ Guest mode (skip login)
+
+### Push Notifications
+- ✅ OneSignal integration
+- ✅ Mandatory notification permission
+- ✅ Notification storage and display
+- ✅ User tracking and targeting
+- ✅ Tag-based segmentation
+
 ### UI/UX Highlights
 - ✨ Spiritual color palette (saffron, beige, gold, white)
 - 🎨 Smooth gradients and animations
@@ -20,49 +57,20 @@ A production-ready spiritual mobile application built with Flutter for Android a
 - 🎯 Clean, minimal, premium design
 - ♿ Accessibility-friendly
 
-## 🏗️ Architecture
+---
 
-### Clean Architecture Pattern
-```
-lib/
-├── core/
-│   ├── theme/          # App theme, colors, typography
-│   ├── constants/      # App constants and mock data
-│   ├── widgets/        # Reusable widgets
-│   ├── utils/          # Utility functions
-│   └── router.dart     # Navigation configuration
-├── features/
-│   ├── home/           # Home screen
-│   ├── learnings/      # Learnings screen (placeholder)
-│   ├── guruji_connect/ # Connect screen (placeholder)
-│   ├── events/         # Events screen
-│   └── notifications/  # Notifications screen
-└── main.dart           # App entry point
-```
-
-### Tech Stack
-- **Framework**: Flutter 3.0+
-- **State Management**: flutter_bloc (ready for implementation)
-- **Navigation**: go_router
-- **Image Caching**: cached_network_image
-- **UI Components**: carousel_slider, shimmer
-- **Typography**: google_fonts (Playfair Display, Lora, Open Sans)
-- **Audio**: just_audio (ready for implementation)
-- **Sharing**: share_plus
-- **HTTP**: dio (ready for API integration)
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 - Flutter SDK 3.0 or higher
-- Dart SDK 3.0 or higher
-- Android Studio / Xcode for platform-specific builds
+- Android Studio (for Android development)
+- Xcode (for iOS development - Mac only)
 
 ### Installation
 
 1. **Clone the repository**
 ```bash
-cd "e:\Mobile app"
+cd "/path/to/SKS-mobile-V2"
 ```
 
 2. **Install dependencies**
@@ -72,183 +80,174 @@ flutter pub get
 
 3. **Run the app**
 ```bash
-# For Android
+# For Android emulator
 flutter run
 
-# For iOS
-flutter run -d ios
+# For web (limited functionality)
+flutter run -d chrome
 
 # For specific device
 flutter devices
 flutter run -d <device_id>
-cd "/Users/srinath/SKS Techlabs/SKS-mobile-V2" && flutter run -d chrome --web-port 8083 --web-hostname 0.0.0.0
 ```
 
-### Build for Production
+### Build APK
 
-**Android APK**
 ```bash
-flutter build apk --release
+# Debug APK (for testing)
+flutter build apk --debug
+
+# Release APK (optimized)
+flutter build apk --release --split-per-abi
 ```
 
-**Android App Bundle**
-```bash
-flutter build appbundle --release
+**See [Build APK Guide](docs/guides/BUILD_APK_GUIDE.md) for detailed instructions.**
+
+---
+
+## 🏗️ Architecture
+
+### Clean Architecture Pattern
+```
+lib/
+├── core/
+│   ├── theme/          # App theme, colors, typography
+│   ├── constants/      # App constants and configuration
+│   ├── widgets/        # Reusable widgets
+│   ├── services/       # API, OneSignal, storage services
+│   └── router.dart     # Navigation configuration
+├── features/
+│   ├── auth/           # Authentication (login, profile)
+│   ├── home/           # Home screen
+│   ├── learnings/      # Learnings screen
+│   ├── guruji_connect/ # Connect screen
+│   ├── events/         # Events screen
+│   └── notifications/  # Notifications screen
+└── main.dart           # App entry point
 ```
 
-**iOS**
-```bash
-flutter build ios --release
-```
+### Tech Stack
+- **Framework**: Flutter 3.0+
+- **State Management**: flutter_bloc
+- **Navigation**: go_router
+- **Authentication**: Firebase Auth
+- **Push Notifications**: OneSignal
+- **Backend**: REST API (Node.js/Express)
+- **Image Caching**: cached_network_image
+- **Audio**: just_audio
+- **HTTP**: dio
 
-## 🎨 Design System
+**See [Design Architecture](docs/reference/DESIGN_ARCHITECTURE.md) for details.**
 
-### Color Palette
-- **Saffron**: `#FF9933` - Primary brand color
-- **Light Saffron**: `#FFB366` - Gradient accent
-- **Beige**: `#F5E6D3` - Background
-- **White**: `#FFFBF5` - Surface
-- **Gold**: `#D4AF37` - Accent
-- **Dark Brown**: `#4A3728` - Text
+---
 
-### Typography
-- **Display**: Playfair Display (serif, elegant)
-- **Headings**: Lora (serif, spiritual)
-- **Body**: Open Sans (sans-serif, readable)
+## 📱 Current Status
 
-### Components
-- Cards with soft shadows
-- Gradient backgrounds
-- Shimmer loading states
-- Smooth animations (fade, slide)
-- Glow effects on Guruji image
+### ✅ Implemented
+- Phone OTP authentication
+- Google Sign-In
+- Profile setup and management
+- OneSignal push notifications
+- Notification permission flow
+- Notification storage and display
+- Backend API integration
+- Guest mode
+- All core screens
 
-## 📱 Screens Overview
+### ⚠️ Known Issues
+- Backend returns 503 (Firebase Admin SDK not configured)
+- iOS APNs configuration pending
+- reCAPTCHA disabled for testing
 
-### Home Page
-1. **Guruji Section**: Large image with animated glow effect
-2. **About Guruji**: Expandable text section
-3. **Daily Quotes**: Auto-playing carousel with share functionality
-4. **Meditation Music**: Horizontal scrollable list with play controls
-5. **Songs & Bhajans**: Card-based layout with artwork
-6. **Experience Videos**: Video thumbnails with play button
-7. **Recommended**: Personalization-ready section
-8. **Upcoming Programs**: Event cards with registration CTA
+**See [Troubleshooting](docs/troubleshooting/) for solutions.**
 
-### Events Page
-- Filter chips (All, Upcoming, This Month, Past)
-- Event cards with image, date, location
-- Register and Details buttons
-- Formatted dates with intl package
-
-### Notifications Page
-- Categorized notifications (event, content, reminder)
-- Unread indicators
-- Time stamps
-- Empty state design
-
-### Learnings & Guruji's Connect
-- Coming soon placeholders
-- Feature previews
-- Architecture-ready for future implementation
-
-## 🔮 Future-Ready Features
-
-### Authentication (Ready to Implement)
-- Login/Signup screens
-- Firebase Auth integration
-- Role-based access control
-
-### Backend Integration
-- Dio HTTP client configured
-- API service layer ready
-- Mock data easily replaceable
-
-### State Management
-- flutter_bloc dependency added
-- Clean architecture supports BLoC pattern
-- Event-driven state updates
-
-### Analytics
-- Ready for Firebase Analytics
-- Event tracking structure in place
-
-### Multi-language Support
-- Intl package included
-- String externalization ready
-
-### Push Notifications
-- FCM integration ready
-- Notification handling structure in place
-
-## 🎯 Performance Optimizations
-
-- **Image Caching**: CachedNetworkImage for efficient loading
-- **Lazy Loading**: Images load on-demand
-- **Shimmer Effects**: Skeleton loaders for better UX
-- **Optimized Builds**: Minification and shrinking enabled
-- **Smooth Animations**: 60 FPS animations with AnimationController
-- **Efficient Scrolling**: ListView.builder for large lists
-
-## ♿ Accessibility
-
-- Semantic labels on interactive elements
-- Sufficient color contrast ratios
-- Touch targets meet minimum size requirements
-- Font scaling support
-- Screen reader compatible
-
-## 📦 Dependencies
-
-### Production
-```yaml
-flutter_bloc: ^8.1.3          # State management
-go_router: ^12.0.0            # Navigation
-cached_network_image: ^3.3.0  # Image caching
-shimmer: ^3.0.0               # Loading effects
-carousel_slider: ^4.2.1       # Carousels
-google_fonts: ^6.1.0          # Typography
-share_plus: ^7.2.1            # Sharing
-just_audio: ^0.9.36           # Audio playback
-dio: ^5.4.0                   # HTTP client
-get_it: ^7.6.4                # Dependency injection
-```
+---
 
 ## 🔧 Configuration
 
-### Android
-- **Min SDK**: 21 (Android 5.0)
-- **Target SDK**: 34 (Android 14)
-- **Compile SDK**: 34
+### Environment Variables
+Configuration is in `.env.json`:
+```json
+{
+  "API_BASE_URL": "http://localhost:3011",
+  "ONESIGNAL_APP_ID": "your-onesignal-app-id",
+  "FIREBASE_PROJECT_ID": "sks-login-mobile"
+}
+```
 
-### iOS
-- **Deployment Target**: iOS 12.0+
-- **Swift Version**: 5.0
+### Firebase Projects
+1. **sks-login-mobile** - Authentication
+2. **sks-mobile-notifications** - Push notifications
 
-## 📝 Development Guidelines
+**See [Firebase Setup](docs/setup/BACKEND_FIREBASE_SETUP.md) for configuration.**
 
-### Code Style
-- Follow Flutter style guide
-- Use meaningful variable names
-- Add comments for complex logic
-- Keep widgets small and focused
+---
 
-### Git Workflow
-- Feature branches for new features
-- Descriptive commit messages
-- Pull requests for code review
+## 📦 Build Information
 
-### Testing (Ready to Implement)
-- Unit tests for business logic
-- Widget tests for UI components
-- Integration tests for user flows
+### APK Sizes
+- Debug APK: ~218 MB (includes debug symbols)
+- Release APK: ~92 MB (optimized)
+- Release APK (split): ~92 MB per architecture
 
-## 🐛 Known Issues & Limitations
+### Optimization
+- Code minification enabled
+- Resource shrinking enabled
+- ProGuard rules configured
+- Tree-shaking enabled
 
-- Mock data currently used (API integration pending)
-- Audio playback not implemented (structure ready)
-- Video player not implemented (structure ready)
-- Authentication not implemented (architecture ready)
+**See [APK Size Optimization](docs/guides/APK_SIZE_OPTIMIZATION.md) for details.**
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**OneSignal Plugin Exception**
+- Solution: [OneSignal ProGuard Fix](docs/troubleshooting/ONESIGNAL_PROGUARD_FIX.md)
+
+**Login Loop After Google Sign-In**
+- Solution: [Critical Fixes Applied](docs/troubleshooting/CRITICAL_FIXES_APPLIED.md)
+
+**Notification Permission Issues**
+- Solution: [Notification Permission Troubleshooting](docs/troubleshooting/NOTIFICATION_PERMISSION_TROUBLESHOOTING.md)
+
+**Web Platform Issues**
+- Solution: [Web vs Mobile OneSignal](docs/troubleshooting/WEB_VS_MOBILE_ONESIGNAL.md)
+
+**See [Troubleshooting](docs/troubleshooting/) folder for all solutions.**
+
+---
+
+## 📚 Documentation
+
+Complete documentation is organized in the `docs/` folder:
+
+- **[Setup Guides](docs/setup/)** - Installation and configuration
+- **[User Guides](docs/guides/)** - How-to tutorials
+- **[Troubleshooting](docs/troubleshooting/)** - Problem solutions
+- **[Reference](docs/reference/)** - Technical documentation
+
+**Start with [docs/README.md](docs/README.md) for the complete index.**
+
+---
+
+## 🎯 Next Steps
+
+1. **For Development**
+   - Follow [Installation Guide](docs/setup/INSTALLATION_GUIDE.md)
+   - Complete [Setup Checklist](docs/setup/SETUP_CHECKLIST.md)
+
+2. **For Testing**
+   - Build APK: [Build APK Guide](docs/guides/BUILD_APK_GUIDE.md)
+   - Test notifications: [Notification Testing](docs/guides/NOTIFICATION_TESTING_GUIDE.md)
+
+3. **For Deployment**
+   - Configure backend: [Backend Setup](docs/setup/BACKEND_FIREBASE_SETUP.md)
+   - Set up iOS: [Firebase OneSignal Setup](docs/setup/FIREBASE_ONESIGNAL_SETUP_GUIDE.md)
+
+---
 
 ## 📄 License
 
@@ -256,7 +255,10 @@ This project is proprietary and confidential.
 
 ## 👥 Support
 
-For support and queries, contact the development team.
+For support and queries:
+- Check [Documentation](docs/)
+- Review [Troubleshooting](docs/troubleshooting/)
+- Contact the development team
 
 ---
 

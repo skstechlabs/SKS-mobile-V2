@@ -7,11 +7,7 @@ import '../../../core/services/onesignal_service.dart';
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal() {
-    // Disable app verification for testing (removes reCAPTCHA)
-    // WARNING: Only for development! Remove in production
-    _auth.setSettings(appVerificationDisabledForTesting: true);
-  }
+  AuthService._internal();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 

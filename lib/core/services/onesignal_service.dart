@@ -75,23 +75,26 @@ class OneSignalService {
   /// Store notification in local storage
   void _storeNotification(OSNotification notification) {
     try {
-      final notificationId = notification.notificationId ?? 
-          'notif_${DateTime.now().millisecondsSinceEpoch}';
+      // OneSignal SDK guarantees notificationId is never null, but we add fallback for safety
+      final finalNotificationId = notification.notificationId.isEmpty
+          ? 'notif_${DateTime.now().millisecondsSinceEpoch}'
+          : notification.notificationId;
       
       // Get TTL from notification additional data (default 30 days if not specified)
       int ttlDays = 30;
-      if (notification.additionalData != null) {
+      final additionalData = notification.additionalData;
+      if (additionalData != null) {
         // Check for ttl_days, ttl, or expiry_days in additional data
-        final ttlValue = notification.additionalData!['ttl_days'] ?? 
-                        notification.additionalData!['ttl'] ??
-                        notification.additionalData!['expiry_days'];
+        final ttlValue = additionalData['ttl_days'] ?? 
+                        additionalData['ttl'] ??
+                        additionalData['expiry_days'];
         if (ttlValue != null) {
           ttlDays = int.tryParse(ttlValue.toString()) ?? 30;
         }
       }
       
       final notificationModel = NotificationModel(
-        id: notificationId,
+        id: finalNotificationId,
         title: notification.title ?? 'Notification',
         body: notification.body ?? '',
         receivedAt: DateTime.now(),
@@ -116,7 +119,7 @@ class OneSignalService {
     
     // Navigate to notification detail screen
     final notificationId = notification.notificationId;
-    if (notificationId != null && onNavigateToNotification != null) {
+    if (notificationId.isNotEmpty && onNavigateToNotification != null) {
       onNavigateToNotification!(notificationId);
       debugPrint('✅ Navigated to notification detail: $notificationId');
     }

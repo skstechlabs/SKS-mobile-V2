@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/services/audio_player_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/sks_loader.dart';
+
+/// Helper function to get the correct ImageProvider for CDN or asset images
+ImageProvider _getImageProvider(String imageUrl) {
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return CachedNetworkImageProvider(imageUrl);
+  }
+  return AssetImage(imageUrl);
+}
 
 
 class PlaylistScreen extends StatefulWidget {
@@ -95,7 +104,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                           borderRadius: BorderRadius.circular(8),
                           image: song['imageUrl'] != null
                               ? DecorationImage(
-                                  image: AssetImage(song['imageUrl']!),
+                                  image: _getImageProvider(song['imageUrl']!),
                                   fit: BoxFit.cover,
                                 )
                               : null,

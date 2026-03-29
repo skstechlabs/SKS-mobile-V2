@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/audio_player_service.dart';
+
+/// Helper function to get the correct ImageProvider for CDN or asset images
+ImageProvider _getImageProvider(String imageUrl) {
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return CachedNetworkImageProvider(imageUrl);
+  }
+  return AssetImage(imageUrl);
+}
 
 class AllSongsPage extends StatefulWidget {
   const AllSongsPage({Key? key}) : super(key: key);
@@ -185,7 +194,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     image: DecorationImage(
-                      image: AssetImage(song['imageUrl'] ?? 'assets/images/placeholder.png'),
+                      image: _getImageProvider(song['imageUrl'] ?? 'assets/images/placeholder.png'),
                       fit: BoxFit.cover,
                     ),
                   ),

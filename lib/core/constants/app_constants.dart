@@ -1,3 +1,5 @@
+import 'cdn_images.dart';
+
 class AppConstants {
   // App Info
   static const String appName = 'Siva Kundalini Sadhana';
@@ -10,34 +12,34 @@ class AppConstants {
   static const String eventsRoute = '/events';
   static const String notificationsRoute = '/notifications';
   
-  // Image Assets
-  static const String gurujiImageUrl = 'assets/images/Guruji_Meditation.PNG';
-  static const String gurujiLogoUrl = 'assets/images/Guruji_logo.JPG';
-  static const String gurujiSmileUrl = 'assets/images/Guruji_smile.jpeg';
-  static const String kallaBairavaUrl = 'assets/images/kalla_bairava.jpeg';
-  static const String gurujiMainUrl = 'assets/images/Guruji.JPG';
-  static const String kundaliniImageUrl = 'assets/images/kundalini.jpg';
-  static const String meditationImageUrl = 'assets/images/meditation.jpg';
-  static const String chakrasGeneralImageUrl = 'assets/images/chakras.jpg';
+  // Image Assets - Using CDN URLs
+  static const String gurujiImageUrl = CdnImages.guruji;
+  static const String gurujiLogoUrl = CdnImages.gurujiLogo;
+  static const String gurujiSmileUrl = CdnImages.gurujiSmile;
+  static const String kallaBairavaUrl = CdnImages.kallaBairava;
+  static const String gurujiMainUrl = CdnImages.guruji;
+  static const String kundaliniImageUrl = CdnImages.kundalini;
+  static const String meditationImageUrl = CdnImages.meditation;
+  static const String chakrasGeneralImageUrl = CdnImages.chakras;
   
   // Home Page Card Background Images
-  static const String guruJourneyImageUrl = 'assets/images/daily_wisdom_images/Guruji_32.jpeg';
-  static const String kundaliniScienceImageUrl = 'assets/images/kundalini.jpg';
-  static const String benefitsImageUrl = 'assets/images/meditation.jpg';
-  static const String chakrasImageUrl = 'assets/images/chakras.jpg';
+  static const String guruJourneyImageUrl = CdnImages.guruji32;
+  static const String kundaliniScienceImageUrl = CdnImages.kundalini;
+  static const String benefitsImageUrl = CdnImages.meditation;
+  static const String chakrasImageUrl = CdnImages.chakras;
   
   // Guruji Connect Page Images
-  static const String gurujiMeditationHeroImageUrl = 'assets/images/Guruji_Meditation.PNG';
-  static const String gurujiTeachingImageUrl = 'assets/images/Guruji_Meditation.PNG';
+  static const String gurujiMeditationHeroImageUrl = CdnImages.gurujiMeditation;
+  static const String gurujiTeachingImageUrl = CdnImages.gurujiMeditation;
   
   // Chakra Detail Images
-  static const String rootChakraImageUrl = 'assets/images/chakras/Muladhara.png';
-  static const String sacralChakraImageUrl = 'assets/images/chakras/Swadhisthana.png';
-  static const String solarPlexusChakraImageUrl = 'assets/images/chakras/Manipura.png';
-  static const String heartChakraImageUrl = 'assets/images/chakras/Anahatha.png';
-  static const String throatChakraImageUrl = 'assets/images/chakras/Vishuddha.png';
-  static const String thirdEyeChakraImageUrl = 'assets/images/chakras/Ajna.png';
-  static const String crownChakraImageUrl = 'assets/images/chakras/Sahasrara.png';
+  static const String rootChakraImageUrl = CdnImages.muladhara;
+  static const String sacralChakraImageUrl = CdnImages.swadhisthana;
+  static const String solarPlexusChakraImageUrl = CdnImages.manipura;
+  static const String heartChakraImageUrl = CdnImages.anahatha;
+  static const String throatChakraImageUrl = CdnImages.vishuddha;
+  static const String thirdEyeChakraImageUrl = CdnImages.ajna;
+  static const String crownChakraImageUrl = CdnImages.sahasrara;
   
   // Coming Soon Messages
   static const String comingSoonTitle = 'Coming Soon';
@@ -49,18 +51,10 @@ class AppConstants {
 
 Through deep meditation and spiritual practices, our Guru guides disciples on the path of self-realization, helping them awaken their dormant spiritual energy and achieve lasting peace and bliss.''';
   
-  // Daily Wisdom Card Images (one for each quote)
+  // Daily Wisdom Card Images (one for each quote) - Using CDN
   static const List<String> dailyWisdomImages = [
-    'assets/images/daily_wisdom_images/Guruji_25.webp', // Quote 1
-    'assets/images/daily_wisdom_images/Guruji_22.webp', // Quote 2
-    'assets/images/daily_wisdom_images/Guruji_30.webp', // Quote 3
-    'assets/images/daily_wisdom_images/Guruji_24.webp', // Quote 4
-    'assets/images/daily_wisdom_images/Guruji_17.webp', // Quote 5
-    'assets/images/daily_wisdom_images/Guruji_9.webp', // Quote 6
-    'assets/images/daily_wisdom_images/Guruji_4.webp', // Quote 7
-    'assets/images/daily_wisdom_images/Guruji_29.webp', // Quote 8
-    'assets/images/daily_wisdom_images/Guruji_26.webp', // Quote 9
-    'assets/images/daily_wisdom_images/Guruji_5.webp', // Quote 10
+    CdnImages.guruji25, // Quote 1
+    CdnImages.guruji30, // Quote 2
   ];
   
   static const List<String> dailyQuotes = [
@@ -82,12 +76,12 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
   ];
   
   static const List<Map<String, String>> bhajans = [
-    {'title': 'Sri Jeeveswarastakam', 'artist': 'Sai Vijay', 'duration': '5:09', 'imageUrl': 'assets/images/daily_wisdom_images/Guruji_30.webp', 'url': 'assets/audio/Sri_Jeeveswarastakam_song.mp3', 'description': 'Sacred eight-verse hymn glorifying the divine qualities and spiritual teachings of Parama Pujya Sri Jeeveswara Yogi Gurudev'},
-    {'title': 'Gundello Gudi', 'artist': 'Divine Voices', 'duration': '4:23', 'imageUrl': 'assets/images/Guruji_smile.jpeg', 'url': 'assets/audio/Gundello_gudi_song.mp3', 'description': 'Soulful Telugu devotional song celebrating the divine temple within the heart, awakening inner consciousness'},
-    {'title': 'Nirvana Shatkam', 'artist': 'Sacred Sounds', 'duration': '5:47', 'imageUrl': 'assets/images/Guruji_Meditation.PNG', 'url': 'assets/audio/Nirvana_Shatkam_song.mp3', 'description': 'Timeless Advaita composition by Adi Shankaracharya declaring the pure consciousness beyond all dualities'},
-    {'title': 'Jeeveswara Yogi Taluva', 'artist': 'Temple Bells', 'duration': '6:12', 'imageUrl': 'assets/images/Guruji_logo.JPG', 'url': 'assets/audio/Jeeveswara_yogi_taluva_song.mp3', 'description': 'Melodious devotional tribute expressing deep reverence and gratitude to the enlightened master Sri Jeeveswara Yogi'},
-    {'title': 'Pralaya Kala Beekara', 'lyrics' : 'Chitran', 'artist': 'Aravvind Raama', 'duration': '3:58', 'imageUrl': 'assets/images/kalla_bairava.jpeg', 'url': 'assets/audio/Pralaya_kala_beekara_song.mp3', 'description': 'Powerful invocation to Lord Kala Bhairava, the fierce guardian deity who destroys negativity and grants spiritual liberation'},
-    {'title': 'Ni Namamalo Undhi Moksha Dwaram', 'artist': 'Sacred Chants', 'duration': '3:58', 'imageUrl': 'assets/images/daily_wisdom_images/Guruji_26.webp', 'url': 'assets/audio/Ni_Namamalo_Undhi_Moksha_Dwaram_song.mp3', 'description': 'Inspirational Telugu bhajan proclaiming that the gateway to liberation lies within the sacred name of the divine Guru'}
+    {'title': 'Sri Jeeveswarastakam', 'artist': 'Sai Vijay', 'duration': '5:09', 'imageUrl': CdnImages.guruji30, 'url': 'assets/audio/Sri_Jeeveswarastakam_song.mp3', 'description': 'Sacred eight-verse hymn glorifying the divine qualities and spiritual teachings of Parama Pujya Sri Jeeveswara Yogi Gurudev'},
+    {'title': 'Gundello Gudi', 'artist': 'Divine Voices', 'duration': '4:23', 'imageUrl': CdnImages.gurujiSmile, 'url': 'assets/audio/Gundello_gudi_song.mp3', 'description': 'Soulful Telugu devotional song celebrating the divine temple within the heart, awakening inner consciousness'},
+    {'title': 'Nirvana Shatkam', 'artist': 'Sacred Sounds', 'duration': '5:47', 'imageUrl': CdnImages.gurujiMeditation, 'url': 'assets/audio/Nirvana_Shatkam_song.mp3', 'description': 'Timeless Advaita composition by Adi Shankaracharya declaring the pure consciousness beyond all dualities'},
+    {'title': 'Jeeveswara Yogi Taluva', 'artist': 'Temple Bells', 'duration': '6:12', 'imageUrl': CdnImages.gurujiLogo, 'url': 'assets/audio/Jeeveswara_yogi_taluva_song.mp3', 'description': 'Melodious devotional tribute expressing deep reverence and gratitude to the enlightened master Sri Jeeveswara Yogi'},
+    {'title': 'Pralaya Kala Beekara', 'lyrics' : 'Chitran', 'artist': 'Aravvind Raama', 'duration': '3:58', 'imageUrl': CdnImages.kallaBairava, 'url': 'assets/audio/Pralaya_kala_beekara_song.mp3', 'description': 'Powerful invocation to Lord Kala Bhairava, the fierce guardian deity who destroys negativity and grants spiritual liberation'},
+    {'title': 'Ni Namamalo Undhi Moksha Dwaram', 'artist': 'Sacred Chants', 'duration': '3:58', 'imageUrl': CdnImages.guruji26, 'url': 'assets/audio/Ni_Namamalo_Undhi_Moksha_Dwaram_song.mp3', 'description': 'Inspirational Telugu bhajan proclaiming that the gateway to liberation lies within the sacred name of the divine Guru'}
   ];
   
   static const List<Map<String, String>> experienceVideos = [
@@ -165,22 +159,8 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
       'title': 'Maha Shivaratri Celebration',
       'date': '15-02-2026',
       'location': 'SKS Ashram',
-      'imageUrl': 'assets/images/Shivaratri.png',
+      'imageUrl': CdnImages.shivaratri,
       'description': 'Night of divine worship and meditation',
     },
-    // {
-    //   'title': 'Satsang Evening',
-    //   'date': '2024-02-20',
-    //   'location': 'Community Hall',
-    //   'imageUrl': 'https://images.unsplash.com/photo-1447452001602-7090c7ab2db3?w=600',
-    //   'description': 'Evening of spiritual discourse and bhajans',
-    // },
-    // {
-    //   'title': 'Yoga Workshop',
-    //   'date': '2024-02-25',
-    //   'location': 'Wellness Center',
-    //   'imageUrl': 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600',
-    //   'description': 'Learn ancient yoga practices',
-    // },
   ];
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -79,11 +80,27 @@ class GurujiConnectPage extends StatelessWidget {
                           ],
                         ),
                         child: ClipOval(
-                          child: Image.asset(
-                            AppConstants.gurujiLogoUrl,
+                          child: CachedNetworkImage(
+                            imageUrl: AppConstants.gurujiLogoUrl,
                             width: 120,
                             height: 120,
                             fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: AppTheme.beige,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppTheme.saffron,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: AppTheme.beige,
+                              child: const Icon(
+                                Icons.person,
+                                size: 60,
+                                color: AppTheme.primary,
+                              ),
+                            ),
                           ),
                         ),
                       ),

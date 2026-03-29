@@ -27,6 +27,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   bool _notificationGranted = false;
   bool _cameraGranted = false;
   bool _microphoneGranted = false;
+  bool _locationGranted = false;
 
   @override
   void initState() {
@@ -55,17 +56,34 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     final notification = await _oneSignal.hasPermission();
     final camera = await Permission.camera.isGranted;
     final microphone = await Permission.microphone.isGranted;
+    final location = await Permission.location.isGranted;
     
     setState(() {
       _notificationGranted = notification;
       _cameraGranted = camera;
       _microphoneGranted = microphone;
+      _locationGranted = location;
     });
     
     debugPrint('📊 Permission status:');
     debugPrint('   Notifications: $notification');
     debugPrint('   Camera: $camera');
     debugPrint('   Microphone: $microphone');
+    debugPrint('   Location: $location');
+    
+    // If all permissions already granted, skip this screen and go to home
+    if (notification && camera && microphone && location) {
+      debugPrint('✅ All permissions already granted - setting up OneSignal and skipping permissions screen');
+      await _setupOneSignalUser();
+      
+      // Add a small delay to ensure OneSignal subscription is established
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        context.go('/');
+      }
+      return;
+    }
     
     // If notification permission already granted, set up OneSignal user
     if (notification) {
@@ -76,17 +94,33 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
 
   Future<void> _setupOneSignalUser() async {
     try {
+      debugPrint('🔧 Starting OneSignal user setup...');
+      
+      // First, ensure we opt in to push notifications
+      debugPrint('📱 Step 1: Opting in to push notifications...');
       await _oneSignal.optIn();
+      
+      // Wait a moment for opt-in to complete
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Check if permission is actually granted at OS level
+      final hasPermission = await _oneSignal.hasPermission();
+      debugPrint('📱 OS Permission Status: $hasPermission');
       
       final user = _authState.user;
       if (user != null) {
-        debugPrint('👤 Setting OneSignal external user ID: ${user.uid}');
+        debugPrint('👤 Step 2: Setting OneSignal external user ID: ${user.uid}');
         await _oneSignal.setExternalUserId(user.uid);
         
+        // Wait a moment for login to complete
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        debugPrint('🏷️  Step 3: Setting user tags...');
         await _oneSignal.setTags({
           'auth_provider': user.authProvider,
           'has_camera': _cameraGranted.toString(),
           'has_microphone': _microphoneGranted.toString(),
+          'has_location': _locationGranted.toString(),
         });
         debugPrint('✅ OneSignal user identified and tagged');
       } else {
@@ -95,7 +129,34 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           'user_type': 'guest',
           'has_camera': _cameraGranted.toString(),
           'has_microphone': _microphoneGranted.toString(),
+          'has_location': _locationGranted.toString(),
         });
+      }
+      
+      // Wait a bit more for everything to sync
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Verify subscription status
+      final isSubscribed = _oneSignal.isSubscribed;
+      final playerId = _oneSignal.playerId;
+      debugPrint('📊 OneSignal subscription status:');
+      debugPrint('   Subscribed: $isSubscribed');
+      debugPrint('   Player ID: $playerId');
+      
+      if (playerId == null || playerId.isEmpty) {
+        debugPrint('⚠️ WARNING: Player ID is null or empty! Subscription may have failed.');
+      }
+      
+      if (!isSubscribed) {
+        debugPrint('⚠️ WARNING: User is not subscribed! Attempting to opt-in again...');
+        await _oneSignal.optIn();
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        final retrySubscribed = _oneSignal.isSubscribed;
+        final retryPlayerId = _oneSignal.playerId;
+        debugPrint('📊 Retry subscription status:');
+        debugPrint('   Subscribed: $retrySubscribed');
+        debugPrint('   Player ID: $retryPlayerId');
       }
       
       // Save to backend
@@ -111,8 +172,11 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           debugPrint('⚠️ Failed to save permissions: $e');
         }
       }
-    } catch (e) {
-      debugPrint('⚠️ Failed to setup OneSignal user: $e');
+      
+      debugPrint('✅ OneSignal user setup complete');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to setup OneSignal user: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
@@ -125,18 +189,25 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         return;
       }
       
+      debugPrint('🔐 Starting permission request flow...');
+      
       // Request notifications first (only if not already granted)
       if (!_notificationGranted) {
         debugPrint('🔔 Requesting notification permission...');
         final notifGranted = await _oneSignal.requestPermission();
-        debugPrint('🔔 Notification result: $notifGranted');
+        debugPrint('🔔 Notification permission result: $notifGranted');
         
         if (notifGranted) {
           setState(() => _notificationGranted = true);
+          debugPrint('✅ Notification permission granted - setting up OneSignal');
           await _setupOneSignalUser();
+        } else {
+          debugPrint('❌ Notification permission denied');
         }
       } else {
-        debugPrint('✅ Notification permission already granted');
+        debugPrint('✅ Notification permission already granted - ensuring OneSignal setup');
+        // Even if permission already granted, ensure OneSignal is properly set up
+        await _setupOneSignalUser();
       }
       
       // Request camera (only if not already granted)
@@ -155,13 +226,29 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         setState(() => _microphoneGranted = micStatus.isGranted);
       }
       
+      // Request location (only if not already granted)
+      if (!_locationGranted) {
+        debugPrint('📍 Requesting location permission...');
+        final locStatus = await Permission.location.request();
+        debugPrint('📍 Location result: $locStatus');
+        setState(() => _locationGranted = locStatus.isGranted);
+      }
+      
+      debugPrint('🔐 Permission request flow complete');
+      debugPrint('   Notifications: $_notificationGranted');
+      debugPrint('   Camera: $_cameraGranted');
+      debugPrint('   Microphone: $_microphoneGranted');
+      debugPrint('   Location: $_locationGranted');
+      
       // Check if all critical permissions granted
       if (_notificationGranted) {
+        debugPrint('✅ Critical permissions granted - navigating to home');
         // Navigate to home
         if (mounted) {
           context.go('/');
         }
       } else {
+        debugPrint('⚠️ Notification permission not granted - showing mandatory dialog');
         _showMandatoryDialog();
       }
       
@@ -191,7 +278,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         ),
         content: const Text(
           'To connect with Guruji, you must allow notifications. '
-          'Camera and microphone are optional but recommended for full experience.',
+          'Camera, microphone, and location are optional but recommended for full experience.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
         actions: [
@@ -312,6 +399,14 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                       false,
                       _microphoneGranted,
                     ),
+                    const SizedBox(height: 16),
+                    _buildPermissionItem(
+                      Icons.location_on_outlined,
+                      'Location',
+                      'Find nearby events and centers',
+                      false,
+                      _locationGranted,
+                    ),
 
                     const SizedBox(height: 40),
 
@@ -329,7 +424,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Notifications are mandatory. Camera and microphone are optional.',
+                              'Notifications are mandatory. Camera, microphone, and location are optional.',
                               style: TextStyle(
                                 color: Colors.orange.shade900,
                                 fontWeight: FontWeight.w600,

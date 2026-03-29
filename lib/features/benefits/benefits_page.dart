@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -33,11 +34,21 @@ class BenefitsPage extends StatelessWidget {
             Container(
               height: 300,
               width: double.infinity,
-              child: Image.asset(
-                AppConstants.meditationImageUrl,
+              child: CachedNetworkImage(
+                imageUrl: AppConstants.meditationImageUrl,
                 width: double.infinity,
                 height: 300,
                 fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: AppTheme.softGray,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppTheme.saffron),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: AppTheme.softGray,
+                  child: const Icon(Icons.image_not_supported, size: 48),
+                ),
               ),
             ),
             

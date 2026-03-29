@@ -1,4 +1,4 @@
-
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -11,10 +11,72 @@ import '../features/guruji_connect/guruji_connect_page.dart';
 import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/notifications/notification_detail_screen.dart';
+import '../features/profile/profile_screen.dart';
+import '../features/reminders/reminders_screen.dart';
+import '../features/reminders/reminder_form_screen.dart';
+import '../features/meditation/meditation_timer_page.dart';
+import '../features/meditation/meditation_history_page.dart';
 import 'widgets/main_scaffold.dart';
+import 'theme/app_theme.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
+  // Error handling for navigation issues
+  errorBuilder: (context, state) {
+    return Scaffold(
+      body: Container(
+        color: Colors.white,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: AppTheme.saffron,
+                  size: 60,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Page Not Found',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'The page you are looking for does not exist',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+                ElevatedButton(
+                  onPressed: () => context.go('/'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.saffron,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Go to Home',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  },
   routes: [
     GoRoute(
       path: '/splash',
@@ -103,6 +165,41 @@ final GoRouter appRouter = GoRouter(
             final notificationId = state.pathParameters['notificationId']!;
             return NotificationDetailScreen(notificationId: notificationId);
           },
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: '/reminders',
+      builder: (context, state) => const RemindersScreen(),
+      routes: [
+        GoRoute(
+          path: 'add',
+          builder: (context, state) => const ReminderFormScreen(),
+        ),
+        GoRoute(
+          path: 'edit/:reminderId',
+          builder: (context, state) {
+            final reminderId = int.parse(state.pathParameters['reminderId']!);
+            return ReminderFormScreen(reminderId: reminderId);
+          },
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/meditation',
+      redirect: (context, state) => '/meditation/timer',
+      routes: [
+        GoRoute(
+          path: 'timer',
+          builder: (context, state) => const MeditationTimerPage(),
+        ),
+        GoRoute(
+          path: 'history',
+          builder: (context, state) => const MeditationHistoryPage(),
         ),
       ],
     ),

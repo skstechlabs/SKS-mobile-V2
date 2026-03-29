@@ -38,6 +38,7 @@ dependencies:
   
   # Web
   webview_flutter: ^4.4.2
+  youtube_player_flutter: ^9.0.3
   
   # DI
   get_it: ^7.6.4
@@ -56,6 +57,10 @@ dependencies:
   
   # Push Notifications
   onesignal_flutter: ^5.2.5
+  
+  # Local Notifications (temporarily disabled due to build issues)
+  # flutter_local_notifications: ^17.0.0
+  # timezone: ^0.9.2
   
   # Local Storage
   shared_preferences: ^2.2.2

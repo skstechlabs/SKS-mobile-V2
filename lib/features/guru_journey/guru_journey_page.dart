@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_constants.dart';
 
-class GuruJourneyPage extends StatelessWidget {
-  const GuruJourneyPage({Key? key}) : super(key: key);
+class GuruJourneyPage extends StatefulWidget {
+  const GuruJourneyPage({super.key});
+
+  @override
+  State<GuruJourneyPage> createState() => _GuruJourneyPageState();
+}
+
+class _GuruJourneyPageState extends State<GuruJourneyPage> {
+  Future<void> _openYouTubeVideo() async {
+    final Uri youtubeUrl = Uri.parse('https://www.youtube.com/watch?v=6mf3Rmykov4');
+    
+    try {
+      if (await canLaunchUrl(youtubeUrl)) {
+        await launchUrl(
+          youtubeUrl,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open YouTube video'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,10 +49,10 @@ class GuruJourneyPage extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Journey of our Guru',
           style: TextStyle(
             color: Colors.black,
@@ -29,19 +65,101 @@ class GuruJourneyPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Image
-            Container(
-              height: 300,
-              width: double.infinity,
-              child: Image.asset(
-                AppConstants.gurujiSmileUrl,
-                width: double.infinity,
-                height: 300,
-                fit: BoxFit.cover,
+            // YouTube Video Thumbnail with Play Button
+            GestureDetector(
+              onTap: _openYouTubeVideo,
+              child: Container(
+                height: 220,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  image: DecorationImage(
+                    image: NetworkImage(
+                      'https://img.youtube.com/vi/6mf3Rmykov4/maxresdefault.jpg',
+                    ),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Dark overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.3),
+                            Colors.black.withValues(alpha: 0.5),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Play button
+                    Center(
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 50,
+                        ),
+                      ),
+                    ),
+                    // "Tap to watch on YouTube" text
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.play_circle_outline,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Tap to watch on YouTube',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             
             // Content
             Padding(

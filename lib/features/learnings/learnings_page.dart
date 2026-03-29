@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/auth_guard.dart';
 
 class LearningsPage extends StatelessWidget {
   const LearningsPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    return AuthGuard(
+      featureName: 'Classes',
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(20),

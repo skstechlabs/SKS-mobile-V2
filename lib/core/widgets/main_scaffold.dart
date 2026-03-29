@@ -51,27 +51,29 @@ class _MainScaffoldState extends State<MainScaffold> {
       appBar: AppBar(
         titleSpacing: 16,
         centerTitle: false,
-        title: Text(
+        title: const Text(
           'Siva Kundalini Sadhana',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: Colors.black,
+            letterSpacing: 0.3,
           ),
         ),
         actions: [
           Container(
-            margin: EdgeInsets.only(right: 12),
+            margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
               color: AppTheme.saffron.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: Icon(
-                Icons.notifications_outlined,
-                size: 30,
+              icon: const Icon(
+                Icons.person_outline,
+                size: 26,
               ),
-              onPressed: () => context.go('/notifications'),
+              tooltip: 'Profile',
+              onPressed: () => context.push('/profile'),
             ),
           ),
         ],
@@ -105,38 +107,90 @@ class _MainScaffoldState extends State<MainScaffold> {
             BoxShadow(
               color: AppTheme.darkBrown.withValues(alpha: 0.1),
               blurRadius: 8,
-              offset: Offset(0, -2),
+              offset: const Offset(0, -2),
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: widget.currentIndex,
-          onTap: (index) => _onItemTapped(context, index),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppTheme.white,
-          selectedItemColor: AppTheme.saffron,
-          unselectedItemColor: AppTheme.darkBrown.withValues(alpha: 0.6),
-          selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            BottomNavigationBar(
+              currentIndex: widget.currentIndex,
+              onTap: (index) => _onItemTapped(context, index),
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: AppTheme.white,
+              selectedItemColor: AppTheme.saffron,
+              unselectedItemColor: AppTheme.darkBrown.withValues(alpha: 0.6),
+              selectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+              unselectedLabelStyle: const TextStyle(fontSize: 12),
+              selectedFontSize: 12,
+              unselectedFontSize: 12,
+              iconSize: 24,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.school_outlined),
+                  activeIcon: Icon(Icons.school),
+                  label: 'Classes',
+                ),
+                BottomNavigationBarItem(
+                  icon: SizedBox(height: 24), // Placeholder for center button
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.connect_without_contact_outlined),
+                  activeIcon: Icon(Icons.connect_without_contact),
+                  label: 'Contact',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.event_outlined),
+                  activeIcon: Icon(Icons.event),
+                  label: 'Events',
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.school_outlined),
-              activeIcon: Icon(Icons.school),
-              label: 'Classes',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.connect_without_contact_outlined),
-              activeIcon: Icon(Icons.connect_without_contact),
-              label: 'Contact',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.event_outlined),
-              activeIcon: Icon(Icons.event),
-              label: 'Events',
+            // Floating center notification button
+            Positioned(
+              top: -28,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.saffron.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: AppTheme.saffron,
+                  shape: const CircleBorder(),
+                  elevation: 8,
+                  child: InkWell(
+                    onTap: () => context.go('/notifications'),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.notifications,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -153,9 +207,12 @@ class _MainScaffoldState extends State<MainScaffold> {
         context.go('/learnings');
         break;
       case 2:
-        context.go('/guruji-connect');
+        // Center button (notifications) - handled by floating button
         break;
       case 3:
+        context.go('/guruji-connect');
+        break;
+      case 4:
         context.go('/events');
         break;
     }

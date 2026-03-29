@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -200,10 +201,36 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: Image.asset(
-            chakra['image'],
+          child: CachedNetworkImage(
+            imageUrl: chakra['image'],
             fit: BoxFit.contain,
             width: double.infinity,
+            placeholder: (context, url) => Container(
+              color: Colors.white.withValues(alpha: 0.3),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            errorWidget: (context, url, error) => Container(
+              color: Colors.white.withValues(alpha: 0.3),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.image_not_supported,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Image not available',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

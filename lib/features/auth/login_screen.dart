@@ -81,17 +81,37 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     try {
       // Determine auth provider
       String authProvider = 'phone';
+      String mobile = user.phoneNumber ?? '';
+      
       for (var info in user.providerData) {
         if (info.providerId == 'google.com') {
           authProvider = 'google';
+          // For Google sign-in, use email as mobile if phone number is not available
+          if (mobile.isEmpty && user.email != null) {
+            mobile = user.email!;
+          }
           break;
         }
+      }
+
+      // Ensure we have a mobile number
+      if (mobile.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to get user information. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() => _isLoading = false);
+        }
+        return;
       }
 
       // Call backend login API
       final loginResult = await _apiService.login(
         authProvider: authProvider,
-        mobile: user.phoneNumber ?? '',
+        mobile: mobile,
         email: user.email,
         name: user.displayName,
         photo: user.photoURL,
@@ -114,7 +134,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
         if (mounted) {
           // Navigate based on profile completion status
-          if (loginResult['is_new_user'] == true || !userModel.isProfileComplete) {
+          final isNewUser = loginResult['is_new_user'] == true;
+          
+          if (isNewUser || !userModel.isProfileComplete) {
             context.go('/profile-setup');
           } else {
             // Check if notification permission is granted
@@ -126,9 +148,27 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             }
           }
         }
+      } else {
+        // Login failed
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(loginResult['message'] ?? 'Login failed. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error handling existing user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('An error occurred. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

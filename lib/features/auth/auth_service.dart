@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_env.dart';
 import '../../../core/services/onesignal_service.dart';
@@ -198,19 +198,27 @@ class AuthService {
 
   // ── Firebase error code → user-friendly message ───────────────────────────
   String _friendlyFirebaseError(String code) {
+    debugPrint('🔥 Firebase error code: $code');
     switch (code) {
       case 'invalid-phone-number':       return 'Invalid phone number. Please check and try again.';
-      case 'too-many-requests':          return 'Too many attempts. Please try again later.';
-      case 'invalid-verification-code':  return 'Incorrect OTP. Please try again.';
+      case 'too-many-requests':          return 'Too many attempts. Please try again after 1 hour.';
+      case 'invalid-verification-code':  return 'Incorrect OTP. Please check and try again.';
       case 'session-expired':            return 'OTP expired. Please request a new one.';
-      case 'quota-exceeded':             return 'SMS quota exceeded. Please try again later.';
-      case 'network-request-failed':     return 'Network error. Check your connection.';
-      case 'app-not-authorized':         return 'App not authorized. Contact support.';
-      case 'popup-closed-by-user':       return 'Sign-in popup was closed. Please try again.';
-      case 'popup-blocked':              return 'Popup was blocked by browser. Please allow popups.';
+      case 'quota-exceeded':             return 'SMS quota exceeded. Please try again tomorrow.';
+      case 'network-request-failed':     return 'Network error. Check your internet connection.';
+      case 'app-not-authorized':         return 'App not authorized. Please update the app.';
+      case 'popup-closed-by-user':       return 'Sign-in cancelled. Please try again.';
+      case 'popup-blocked':              return 'Popup blocked. Please allow popups and try again.';
       case 'cancelled-popup-request':    return 'Sign-in cancelled.';
       case 'account-exists-with-different-credential': return 'Account already exists with a different sign-in method.';
-      default:                           return 'Something went wrong. Please try again.';
+      case 'invalid-verification-id':    return 'Session expired. Please request OTP again.';
+      case 'missing-verification-code':  return 'Please enter the OTP code.';
+      case 'missing-phone-number':       return 'Please enter your phone number.';
+      case 'credential-already-in-use':  return 'This credential is already associated with another account.';
+      case 'operation-not-allowed':      return 'This sign-in method is not enabled. Contact support.';
+      case 'user-disabled':              return 'Your account has been disabled. Contact support.';
+      case 'web-context-cancelled':      return 'Sign-in cancelled.';
+      default:                           return 'Authentication failed: $code. Please try again.';
     }
   }
 }

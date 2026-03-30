@@ -59,12 +59,18 @@ class _SplashScreenState extends State<SplashScreen>
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
       
-      // Start animation and preloading in parallel
+      // Reduce splash duration for faster app start
       await Future.wait([
-        // Minimum splash duration for smooth animation
-        Future.delayed(const Duration(milliseconds: 2000)),
+        // Minimum splash duration for smooth animation (reduced from 2000ms to 1500ms)
+        Future.delayed(const Duration(milliseconds: 1500)),
         // Preload critical images (don't block if it fails)
-        _preloadImages().catchError((e) {
+        _preloadImages().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            developer.log('⚠️  Image preload timeout (non-blocking)');
+            return null;
+          },
+        ).catchError((e) {
           developer.log('⚠️  Image preload error (non-blocking): $e');
           return null;
         }),
@@ -74,24 +80,40 @@ class _SplashScreenState extends State<SplashScreen>
       setState(() => _isLoading = false);
       
       // Small delay to show loaded state
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 200));
       if (!mounted) return;
 
       // Navigate based on platform
       if (kIsWeb) {
-        final result = await AuthService().getRedirectResult();
-        if (!mounted) return;
-        if (result != null && result['success'] == true) {
-          context.go('/login');
-          return;
+        try {
+          final result = await AuthService().getRedirectResult().timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => null,
+          );
+          if (!mounted) return;
+          if (result != null && result['success'] == true) {
+            context.go('/login');
+            return;
+          }
+        } catch (e) {
+          developer.log('⚠️  Redirect result check failed (non-blocking): $e');
         }
       }
 
+      if (!mounted) return;
+      developer.log('✅ Navigating to login screen');
       context.go('/login');
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('❌ Splash initialization error: $e');
-      // Navigate anyway on error
-      if (mounted) context.go('/login');
+      developer.log('Stack trace: $stackTrace');
+      // Navigate anyway on error - don't leave user stuck on splash
+      if (mounted) {
+        try {
+          context.go('/login');
+        } catch (navError) {
+          developer.log('❌ Navigation error: $navError');
+        }
+      }
     }
   }
 

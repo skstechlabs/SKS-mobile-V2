@@ -12,10 +12,13 @@ import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/notifications/notification_detail_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/profile/profile_edit_screen.dart';
 import '../features/reminders/reminders_screen.dart';
 import '../features/reminders/reminder_form_screen.dart';
 import '../features/meditation/meditation_timer_page.dart';
 import '../features/meditation/meditation_history_page.dart';
+import '../features/learnings/class_days_list_screen.dart';
+import '../features/learnings/day_video_screen.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
@@ -171,6 +174,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (context, state) => const ProfileScreen(),
+      routes: [
+        GoRoute(
+          path: 'edit',
+          builder: (context, state) => const ProfileEditScreen(),
+        ),
+      ],
     ),
     GoRoute(
       path: '/reminders',
@@ -202,6 +211,32 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const MeditationHistoryPage(),
         ),
       ],
+    ),
+    // Classes video streaming routes
+    GoRoute(
+      path: '/classes/:classId/days',
+      builder: (context, state) {
+        final classId = int.parse(state.pathParameters['classId']!);
+        final extra = state.extra as Map<String, dynamic>?;
+        return ClassDaysListScreen(
+          classId: classId,
+          classTitle: extra?['classTitle'] ?? 'Class',
+          level: extra?['level'] ?? 'Level',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/classes/days/:dayId/video',
+      builder: (context, state) {
+        final dayId = int.parse(state.pathParameters['dayId']!);
+        final dayTitle = state.uri.queryParameters['title'] ?? 'Video';
+        final dayNumber = int.parse(state.uri.queryParameters['dayNumber'] ?? '1');
+        return DayVideoScreen(
+          dayId: dayId,
+          dayTitle: dayTitle,
+          dayNumber: dayNumber,
+        );
+      },
     ),
   ],
 );

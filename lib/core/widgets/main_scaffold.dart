@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../services/audio_player_service.dart';
+import '../services/notification_storage_service.dart';
 import 'spiritual_background.dart';
 import 'mini_audio_player.dart';
 
@@ -21,17 +22,22 @@ class MainScaffold extends StatefulWidget {
 
 class _MainScaffoldState extends State<MainScaffold> {
   final AudioPlayerService _audioService = AudioPlayerService();
+  final NotificationStorageService _notificationService = NotificationStorageService();
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _audioService.initialize();
     _audioService.addListener(_onAudioStateChanged);
+    _notificationService.addListener(_onNotificationsChanged);
+    _updateUnreadCount();
   }
 
   @override
   void dispose() {
     _audioService.removeListener(_onAudioStateChanged);
+    _notificationService.removeListener(_onNotificationsChanged);
     super.dispose();
   }
 
@@ -42,6 +48,18 @@ class _MainScaffoldState extends State<MainScaffold> {
       } catch (e) {
         debugPrint('Error updating audio state: $e');
       }
+    }
+  }
+
+  void _onNotificationsChanged(List<NotificationModel> notifications) {
+    _updateUnreadCount();
+  }
+
+  void _updateUnreadCount() {
+    if (mounted) {
+      setState(() {
+        _unreadCount = _notificationService.getUnreadCount();
+      });
     }
   }
 
@@ -171,24 +189,59 @@ class _MainScaffoldState extends State<MainScaffold> {
                     ),
                   ],
                 ),
-                child: Material(
-                  color: AppTheme.saffron,
-                  shape: const CircleBorder(),
-                  elevation: 8,
-                  child: InkWell(
-                    onTap: () => context.go('/notifications'),
-                    customBorder: const CircleBorder(),
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.notifications,
-                        color: Colors.white,
-                        size: 32,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Material(
+                      color: AppTheme.saffron,
+                      shape: const CircleBorder(),
+                      elevation: 8,
+                      child: InkWell(
+                        onTap: () => context.go('/notifications'),
+                        customBorder: const CircleBorder(),
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.notifications,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    // Notification badge
+                    if (_unreadCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          child: Text(
+                            _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

@@ -297,100 +297,116 @@ class _HomePageState extends State<HomePage>
 
         SizedBox(height: 24),
 
-        // Beautiful quote card with fixed size (5 lines)
+        // Elegant quote section - minimal and professional with fixed height
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            height: 240, // Increased height for 5 lines
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: AppTheme.saffron.withValues(alpha: 0.2),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.saffron.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                  spreadRadius: 0,
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
+          child: SizedBox(
+            height: 200, // Fixed height regardless of quote length
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Opening quote icon
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.saffron,
-                        const Color(0xFFFF8A6B),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.saffron.withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                // Subtle decorative line
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppTheme.saffron.withValues(alpha: 0.3),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.format_quote,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 16,
+                        color: AppTheme.saffron.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.saffron.withValues(alpha: 0.3),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 32),
                 
-                // Quote text with fixed height for 5 lines
+                // Quote text - clean and elegant with fixed space
                 Expanded(
                   child: Center(
                     child: Text(
                       AppConstants.dailyQuotes[_currentQuoteIndex],
-                      style: const TextStyle(
-                        fontSize: 17,
-                        height: 1.6,
-                        color: Color(0xFF1A202C),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.2,
+                      style: TextStyle(
+                        fontSize: 18,
+                        height: 1.8,
+                        color: AppTheme.textPrimary.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.3,
+                        fontStyle: FontStyle.italic,
                       ),
                       textAlign: TextAlign.center,
-                      maxLines: 5,
+                      maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
                 
-                const SizedBox(height: 12),
+                const SizedBox(height: 32),
                 
-                // Decorative divider
-                Container(
-                  width: 60,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.saffron,
-                        const Color(0xFFFF8A6B),
-                      ],
+                // Subtle decorative line
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppTheme.saffron.withValues(alpha: 0.3),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 16,
+                        color: AppTheme.saffron.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.saffron.withValues(alpha: 0.3),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

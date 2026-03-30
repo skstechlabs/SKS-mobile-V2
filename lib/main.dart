@@ -12,12 +12,24 @@ import 'core/services/api_service.dart';
 import 'core/services/onesignal_service.dart';
 import 'core/services/notification_storage_service.dart';
 import 'core/constants/app_env.dart';
+import 'core/utils/environment_checker.dart';
 import 'firebase_options.dart';
 
 void main() async {
   // Wrap everything in try-catch to prevent white screen
   try {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // CHECK ENVIRONMENT CONFIGURATION FIRST
+    developer.log('========================================');
+    developer.log('🔍 CHECKING ENVIRONMENT CONFIGURATION');
+    developer.log('========================================');
+    EnvironmentChecker.checkEnvironment();
+    
+    if (!EnvironmentChecker.isConfigured()) {
+      developer.log('⚠️⚠️⚠️ WARNING: Environment not configured! ⚠️⚠️⚠️');
+      developer.log('App will use fallback URL but may not work correctly');
+    }
 
     // Initialize Firebase with error handling
     try {

@@ -1,0 +1,64 @@
+# ============================================
+# CLASSES VIDEO SYSTEM - FIX COMMANDS
+# ============================================
+
+# Step 1: Run Database Migration (REQUIRED)
+cd sks-backend
+node run-migration.js
+
+# Step 2: Verify Database (Optional)
+node verify-database.js
+
+# Step 3: Rebuild Mobile App (REQUIRED)
+cd ../SKS-mobile-V2
+./rebuild-production.sh
+
+# Step 4: Install APK on Device
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+
+# OR Test on Flutter Web
+flutter run -d chrome --dart-define-from-file=.env.prod.json
+
+# ============================================
+# VERIFICATION COMMANDS
+# ============================================
+
+# Test CORS
+cd sks-backend
+./test-cors.sh
+
+# Test API Endpoints
+./test-classes-api.sh <your-firebase-token>
+
+# Check Database
+node verify-database.js
+
+# ============================================
+# WHAT WAS FIXED
+# ============================================
+
+# 1. API Path: Now uses /api prefix correctly
+#    OLD: https://sivakundalini.org/classes/1/days
+#    NEW: https://sivakundalini.org/api/classes/1/days
+
+# 2. CORS: Already working (verified)
+#    Access-Control-Allow-Origin: *
+
+# 3. Database: Migration script ready
+#    Creates 5 tables + 12 class days
+
+# ============================================
+# EXPECTED RESULT
+# ============================================
+
+# After running these commands:
+# ✅ No CORS errors
+# ✅ No "invalid response format" errors
+# ✅ Classes show in "Online Courses"
+# ✅ Enrollment works
+# ✅ Day 1 unlocks
+# ✅ Video player loads
+
+# ============================================
+# TOTAL TIME: 10 minutes
+# ============================================

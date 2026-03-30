@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
 
 class LearningsPage extends StatelessWidget {
-  const LearningsPage({Key? key}) : super(key: key);
+  const LearningsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +42,7 @@ class LearningsPage extends StatelessWidget {
             SizedBox(height: 16),
             _buildLevelCard(
               context,
+              classId: 1,
               level: 'Level 1',
               title: 'Brahmarandhra Opening',
               icon: Icons.looks_one,
@@ -48,21 +50,15 @@ class LearningsPage extends StatelessWidget {
             ),
             _buildLevelCard(
               context,
+              classId: 2,
               level: 'Level 2',
               title: 'Sushumna Nadi Activation',
               icon: Icons.looks_two,
               color: AppTheme.gold,
             ),
-            // _buildLevelCard(
-            //   context,
-            //   level: 'Entrance',
-            //   title: 'Meditation Test',
-            //   icon: Icons.assignment,
-            //   color: AppTheme.saffron,
-            // ),
-            _buildDayTile(context, 'Meditation test'),
             _buildLevelCard(
               context,
+              classId: 3,
               level: 'Level 3',
               title: 'Chakra Activation',
               icon: Icons.looks_3,
@@ -70,6 +66,7 @@ class LearningsPage extends StatelessWidget {
             ),
             _buildLevelCard(
               context,
+              classId: 4,
               level: 'Level 4',
               title: 'Kundalini Activation',
               icon: Icons.looks_4,
@@ -134,13 +131,14 @@ class LearningsPage extends StatelessWidget {
   
   Widget _buildLevelCard(
     BuildContext context, {
+    required int classId,
     required String level,
     required String title,
     required IconData icon,
     required Color color,
   }) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -152,98 +150,91 @@ class LearningsPage extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          leading: Container(
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            context.push(
+              '/classes/$classId/days',
+              extra: {
+                'classTitle': title,
+                'level': level,
+              },
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 32),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        level,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.saffron.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.video_library, size: 14, color: AppTheme.saffron),
+                            SizedBox(width: 4),
+                            Text(
+                              '3 Days',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.saffron,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: AppTheme.textSecondary,
+                ),
+              ],
             ),
-            child: Icon(icon, color: color, size: 24),
           ),
-          title: Text(
-            level,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          subtitle: Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                children: [
-                  _buildDayTile(context, 'Day 1'),
-                  _buildDayTile(context, 'Day 2'),
-                  _buildDayTile(context, 'Day 3'),
-                ],
-              ),
-            ),
-          ],
         ),
-      ),
-    );
-  }
-  
-  Widget _buildDayTile(BuildContext context, String day) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        tileColor: AppTheme.beige.withValues(alpha: 0.3),
-        leading: Icon(
-          Icons.play_circle_outline,
-          color: AppTheme.saffron,
-          size: 28,
-        ),
-        title: Text(
-          day,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.darkBrown,
-          ),
-        ),
-        trailing: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppTheme.gold.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            'Coming Soon',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.gold,
-            ),
-          ),
-        ),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$day video coming soon!'),
-              duration: Duration(seconds: 2),
-              backgroundColor: AppTheme.saffron,
-            ),
-          );
-        },
       ),
     );
   }

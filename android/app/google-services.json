@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "294856785598-df8vfge5hth67cnto41jl604dp3eqkt8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spiritual.app",
+            "certificate_hash": "e86a515c68af408a6148871ef70b4b48ab5fc78a"
+          }
+        },
+        {
           "client_id": "294856785598-qivhqf2ehn5p0rs1830dt9mt030ort9p.apps.googleusercontent.com",
           "client_type": 3
         }

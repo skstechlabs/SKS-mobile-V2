@@ -64,14 +64,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     _fadeController.forward();
     
     // Check if user is already signed in (from Google redirect)
-    _checkExistingUser();
+    // Delay to ensure widget is fully built before checking
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkExistingUser();
+    });
   }
 
   Future<void> _checkExistingUser() async {
-    final user = _authService.currentUser;
-    if (user != null) {
-      // User is already signed in (likely from Google redirect)
-      await _handleExistingUser(user);
+    try {
+      final user = _authService.currentUser;
+      if (user != null && mounted) {
+        // User is already signed in (likely from Google redirect)
+        await _handleExistingUser(user);
+      }
+    } catch (e) {
+      debugPrint('Error checking existing user: $e');
+      // Silently fail - user can still login normally
     }
   }
 
@@ -202,10 +210,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _sendOtp() async {
-    if (_phoneController.text.length != 10) {
+    // Validate phone number
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      _showSnackBar('Please enter your mobile number');
+      return;
+    }
+    if (phone.length != 10) {
       _showSnackBar('Please enter a valid 10-digit mobile number');
       return;
     }
+    if (!RegExp(r'^[6-9]\d{9}$').hasMatch(phone)) {
+      _showSnackBar('Please enter a valid Indian mobile number');
+      return;
+    }
+    
     setState(() => _isLoading = true);
 
     final result = await _authService.sendOtp(
@@ -305,9 +324,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _signInWithGoogle() async {
+    // Don't validate phone number for Google sign-in
     setState(() => _isLoading = true);
 
-    final result = await _authService.signInWithGoogle();
+    try {
+      final result = await _authService.signInWithGoogle();
 
     if (result['success'] == true) {
       // Call backend login API
@@ -353,9 +374,16 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       } else {
         _showSnackBar(loginResult['message'] ?? 'Login failed. Please try again.');
       }
-    } else {
-      setState(() => _isLoading = false);
-      _showSnackBar(result['message'] ?? 'Google sign-in failed.');
+      } else {
+        setState(() => _isLoading = false);
+        _showSnackBar(result['message'] ?? 'Google sign-in failed.');
+      }
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Google sign-in failed. Please try again.');
+      }
     }
   }
 

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../constants/app_env.dart';
 
 class ApiService {
@@ -10,12 +12,21 @@ class ApiService {
   late final Dio _dio;
 
   void initialize() {
+    // Ensure base URL ends with /api
+    String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
+        ? AppEnv.apiBaseUrl 
+        : 'https://sivakundalini.org';
+    
+    // Add /api if not present
+    if (!baseUrl.endsWith('/api')) {
+      baseUrl = '$baseUrl/api';
+    }
+    
     _dio = Dio(BaseOptions(
-      baseUrl: AppEnv.apiBaseUrl.isNotEmpty 
-          ? AppEnv.apiBaseUrl 
-          : 'http://localhost:3012',
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 30), // Increased from 10s
+      receiveTimeout: const Duration(seconds: 30), // Increased from 10s
+      sendTimeout: const Duration(seconds: 30), // Added send timeout
       headers: {
         'Content-Type': 'application/json',
       },
@@ -26,7 +37,33 @@ class ApiService {
       requestBody: true,
       responseBody: true,
       error: true,
+      logPrint: (obj) => debugPrint(obj.toString()),
     ));
+
+    // Add retry interceptor for network failures
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+          if (_shouldRetry(error)) {
+            try {
+              debugPrint('🔄 Retrying request: ${error.requestOptions.path}');
+              final response = await _dio.fetch(error.requestOptions);
+              return handler.resolve(response);
+            } catch (e) {
+              return handler.next(error);
+            }
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+  }
+
+  bool _shouldRetry(DioException error) {
+    // Retry on connection timeout, send timeout, or connection error
+    return error.type == DioExceptionType.connectionTimeout ||
+           error.type == DioExceptionType.sendTimeout ||
+           error.type == DioExceptionType.connectionError;
   }
 
   Future<String?> _getIdToken() async {
@@ -484,6 +521,98 @@ class ApiService {
       );
 
       return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── Generic GET method for authenticated requests ──────────────────────────
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.get(
+        path,
+        queryParameters: queryParameters,
+        options: Options(
+          headers: {'Authorization': 'Bearer $idToken'},
+          responseType: ResponseType.json, // Ensure JSON response
+        ),
+      );
+
+      // Handle response data type
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      } else if (response.data is String) {
+        // Try to parse string as JSON
+        try {
+          final decoded = json.decode(response.data as String);
+          if (decoded is Map<String, dynamic>) {
+            return decoded;
+          }
+        } catch (e) {
+          debugPrint('Failed to parse response as JSON: $e');
+        }
+      }
+      
+      // Fallback: wrap response in a map
+      return {
+        'success': false,
+        'message': 'Invalid response format',
+        'data': response.data,
+      };
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── Generic POST method for authenticated requests ─────────────────────────
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.post(
+        path,
+        data: data,
+        options: Options(
+          headers: {'Authorization': 'Bearer $idToken'},
+          responseType: ResponseType.json, // Ensure JSON response
+        ),
+      );
+
+      // Handle response data type
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      } else if (response.data is String) {
+        // Try to parse string as JSON
+        try {
+          final decoded = json.decode(response.data as String);
+          if (decoded is Map<String, dynamic>) {
+            return decoded;
+          }
+        } catch (e) {
+          debugPrint('Failed to parse response as JSON: $e');
+        }
+      }
+      
+      // Fallback: wrap response in a map
+      return {
+        'success': false,
+        'message': 'Invalid response format',
+        'data': response.data,
+      };
     } on DioException catch (e) {
       return _handleError(e);
     }

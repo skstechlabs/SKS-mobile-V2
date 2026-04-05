@@ -120,10 +120,10 @@ final GoRouter appRouter = GoRouter(
             currentIndex = 1;
             break;
           case '/guruji-connect':
-            currentIndex = 2;
+            currentIndex = 3; // Contact tab is at index 3
             break;
           case '/events':
-            currentIndex = 3;
+            currentIndex = 4; // Events tab is at index 4
             break;
         }
         return MainScaffold(

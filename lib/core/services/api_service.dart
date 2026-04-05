@@ -12,15 +12,10 @@ class ApiService {
   late final Dio _dio;
 
   void initialize() {
-    // Ensure base URL ends with /api
+    // Use base URL as-is, don't modify it
     String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
         ? AppEnv.apiBaseUrl 
         : 'https://sivakundalini.org';
-    
-    // Add /api if not present
-    if (!baseUrl.endsWith('/api')) {
-      baseUrl = '$baseUrl/api';
-    }
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,

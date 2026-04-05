@@ -41,7 +41,7 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
 
     try {
       final response = await _apiService.get(
-        '/classes/${widget.classId}/days',
+        '/api/classes/${widget.classId}/days',
       );
 
       if (response['success'] == true) {
@@ -69,7 +69,7 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
 
     try {
       final response = await _apiService.post(
-        '/classes/${widget.classId}/enroll',
+        '/api/classes/${widget.classId}/enroll',
         {},
       );
 

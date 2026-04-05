@@ -43,7 +43,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> {
   Future<void> _loadVideoConfig() async {
     try {
       final response = await _apiService.get(
-        '/classes/days/${widget.dayId}/video-config',
+        '/api/classes/days/${widget.dayId}/video-config',
       );
 
       if (response['success'] == true) {
@@ -70,7 +70,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> {
     
     try {
       await _apiService.post(
-        '/classes/days/${widget.dayId}/start',
+        '/api/classes/days/${widget.dayId}/start',
         {},
       );
       setState(() => _hasStarted = true);
@@ -89,7 +89,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> {
 
     try {
       final response = await _apiService.post(
-        '/classes/days/${widget.dayId}/track',
+        '/api/classes/days/${widget.dayId}/track',
         {
           'eventType': eventType,
           'positionSeconds': positionSeconds,

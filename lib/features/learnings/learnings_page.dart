@@ -2,9 +2,104 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
+import '../../core/services/api_service.dart';
 
-class LearningsPage extends StatelessWidget {
+class LearningsPage extends StatefulWidget {
   const LearningsPage({super.key});
+
+  @override
+  State<LearningsPage> createState() => _LearningsPageState();
+}
+
+class _LearningsPageState extends State<LearningsPage> {
+  final ApiService _apiService = ApiService();
+  bool _isLoading = true;
+  String? _errorMessage;
+  Map<int, Map<String, dynamic>> _levelAccess = {};
+  Map<String, dynamic>? _meditationTest;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLevelAccess();
+  }
+
+  Future<void> _loadLevelAccess() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      debugPrint('🔍 Loading level access from API...');
+      final response = await _apiService.get('/api/level-progression/access');
+      
+      debugPrint('📦 API Response: $response');
+      
+      if (response['success'] == true) {
+        final accessData = response['levelAccess'];
+        debugPrint('📊 Level Access Data: $accessData');
+        debugPrint('📊 Data Type: ${accessData.runtimeType}');
+        
+        // Handle both Map<String, dynamic> and Map<int, dynamic>
+        final Map<int, Map<String, dynamic>> parsedAccess = {};
+        
+        if (accessData is Map) {
+          accessData.forEach((key, value) {
+            try {
+              final levelNum = key is int ? key : int.parse(key.toString());
+              if (value is Map) {
+                parsedAccess[levelNum] = Map<String, dynamic>.from(value);
+              }
+            } catch (e) {
+              debugPrint('⚠️ Error parsing level $key: $e');
+            }
+          });
+        }
+        
+        debugPrint('✅ Parsed Level Access: $parsedAccess');
+        
+        setState(() {
+          _levelAccess = parsedAccess;
+          _meditationTest = response['meditationTest'] as Map<String, dynamic>?;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+        
+        debugPrint('✅ Level access loaded successfully: ${_levelAccess.length} levels');
+      } else {
+        final errorMsg = response['message'] ?? 'Failed to load classes';
+        debugPrint('❌ API returned success=false: $errorMsg');
+        setState(() {
+          _isLoading = false;
+          _errorMessage = errorMsg;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading level access: $e');
+      debugPrint('Stack trace: $stackTrace');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Unable to load classes. Please check your connection.';
+      });
+    }
+  }
+
+  bool _isLevelUnlocked(int levelNumber) {
+    return _levelAccess[levelNumber]?['unlocked'] == true;
+  }
+
+  bool _isLevelCompleted(int levelNumber) {
+    return _levelAccess[levelNumber]?['completed'] == true;
+  }
+
+  int _getDaysCompleted(int levelNumber) {
+    return (_levelAccess[levelNumber]?['daysCompleted'] as int?) ?? 0;
+  }
+
+  int _getTotalDays(int levelNumber) {
+    return (_levelAccess[levelNumber]?['totalDays'] as int?) ?? 3;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +110,58 @@ class LearningsPage extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Show error message if API failed
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: AppTheme.saffron,
+                size: 60,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Unable to Load Classes',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _errorMessage!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                onPressed: _loadLevelAccess,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.saffron,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -28,21 +175,22 @@ class LearningsPage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'Your path to spiritual evolution',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.textSecondary,
               ),
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             
             // Online Courses Section
             _buildSectionHeader('Online Courses', Icons.video_library),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildLevelCard(
               context,
               classId: 1,
+              levelNumber: 1,
               level: 'Level 1',
               title: 'Brahmarandhra Opening',
               icon: Icons.looks_one,
@@ -51,14 +199,21 @@ class LearningsPage extends StatelessWidget {
             _buildLevelCard(
               context,
               classId: 2,
+              levelNumber: 2,
               level: 'Level 2',
               title: 'Sushumna Nadi Activation',
               icon: Icons.looks_two,
               color: AppTheme.gold,
             ),
+            
+            // Meditation Test (between Level 2 and Level 3)
+            if (_isLevelCompleted(2))
+              _buildMeditationTestCard(context),
+            
             _buildLevelCard(
               context,
               classId: 3,
+              levelNumber: 3,
               level: 'Level 3',
               title: 'Chakra Activation',
               icon: Icons.looks_3,
@@ -67,18 +222,19 @@ class LearningsPage extends StatelessWidget {
             _buildLevelCard(
               context,
               classId: 4,
+              levelNumber: 4,
               level: 'Level 4',
               title: 'Kundalini Activation',
               icon: Icons.looks_4,
               color: AppTheme.saffron,
             ),
             
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
             
             // Residential Courses Section
             _buildSectionHeader('Residential Courses', Icons.home),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               'In-person with Guruji. Available after completing Online Courses.',
               style: TextStyle(
                 fontSize: 14,
@@ -86,7 +242,7 @@ class LearningsPage extends StatelessWidget {
                 fontStyle: FontStyle.italic,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildResidentialCard(
               context,
               level: 'Level 5',
@@ -98,7 +254,7 @@ class LearningsPage extends StatelessWidget {
               description: 'Master level intensive',
             ),
             
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -109,17 +265,17 @@ class LearningsPage extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             gradient: AppTheme.saffronGradient,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: Colors.white, size: 20),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             color: AppTheme.darkBrown,
@@ -132,18 +288,28 @@ class LearningsPage extends StatelessWidget {
   Widget _buildLevelCard(
     BuildContext context, {
     required int classId,
+    required int levelNumber,
     required String level,
     required String title,
     required IconData icon,
     required Color color,
   }) {
+    final isUnlocked = _isLevelUnlocked(levelNumber);
+    final isCompleted = _isLevelCompleted(levelNumber);
+    final daysCompleted = _getDaysCompleted(levelNumber);
+    final totalDays = _getTotalDays(levelNumber);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isUnlocked ? Colors.white : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withValues(alpha: 0.3),
+          color: isCompleted
+              ? AppTheme.saffron.withValues(alpha: 0.5)
+              : isUnlocked
+                  ? color.withValues(alpha: 0.3)
+                  : Colors.grey.shade300,
           width: 2,
         ),
         boxShadow: [
@@ -157,15 +323,17 @@ class LearningsPage extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            context.push(
-              '/classes/$classId/days',
-              extra: {
-                'classTitle': title,
-                'level': level,
-              },
-            );
-          },
+          onTap: isUnlocked
+              ? () {
+                  context.push(
+                    '/classes/$classId/days',
+                    extra: {
+                      'classTitle': title,
+                      'level': level,
+                    },
+                  );
+                }
+              : null,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -174,10 +342,26 @@ class LearningsPage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    color: isCompleted
+                        ? AppTheme.saffron.withValues(alpha: 0.2)
+                        : isUnlocked
+                            ? color.withValues(alpha: 0.1)
+                            : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: color, size: 32),
+                  child: Icon(
+                    isCompleted
+                        ? Icons.check_circle
+                        : isUnlocked
+                            ? icon
+                            : Icons.lock_outline,
+                    color: isCompleted
+                        ? AppTheme.saffron
+                        : isUnlocked
+                            ? color
+                            : Colors.grey.shade400,
+                    size: 32,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -189,52 +373,210 @@ class LearningsPage extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: color,
+                          color: isUnlocked ? color : Colors.grey.shade600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: AppTheme.textPrimary,
+                          color: isUnlocked
+                              ? AppTheme.textPrimary
+                              : Colors.grey.shade500,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.saffron.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
+                      
+                      // Status badge
+                      if (isCompleted)
+                        _buildStatusBadge(
+                          'Completed',
+                          AppTheme.saffron,
+                          Icons.check_circle,
+                        )
+                      else if (isUnlocked && daysCompleted > 0)
+                        _buildStatusBadge(
+                          '$daysCompleted/$totalDays Days',
+                          AppTheme.gold,
+                          Icons.play_circle_outline,
+                        )
+                      else if (isUnlocked)
+                        _buildStatusBadge(
+                          '3 Days',
+                          AppTheme.saffron,
+                          Icons.video_library,
+                        )
+                      else
+                        _buildStatusBadge(
+                          _getLockReason(levelNumber),
+                          Colors.grey.shade600,
+                          Icons.lock_outline,
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.video_library, size: 14, color: AppTheme.saffron),
-                            SizedBox(width: 4),
-                            Text(
-                              '3 Days',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.saffron,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: AppTheme.textSecondary,
-                ),
+                if (isUnlocked)
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: AppTheme.textSecondary,
+                  ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  String _getLockReason(int levelNumber) {
+    if (levelNumber == 1) return 'Available';
+    if (levelNumber == 2) return 'Complete Level 1';
+    if (levelNumber == 3) {
+      if (!_isLevelCompleted(2)) return 'Complete Level 2';
+      if (_meditationTest?['passed'] != true) return 'Pass Meditation Test';
+      return 'Locked';
+    }
+    if (levelNumber == 4) return 'Complete Level 3';
+    return 'Locked';
+  }
+
+  Widget _buildStatusBadge(String text, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMeditationTestCard(BuildContext context) {
+    final testPassed = _meditationTest?['passed'] == true;
+    final testTaken = _meditationTest?['taken'] == true;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.gold.withValues(alpha: 0.2),
+            AppTheme.saffron.withValues(alpha: 0.15),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: testPassed
+              ? AppTheme.saffron.withValues(alpha: 0.5)
+              : AppTheme.gold.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.saffronGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.self_improvement,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Meditation Test',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.saffron,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      testPassed
+                          ? 'Completed - Level 3 Unlocked'
+                          : 'Required to unlock Level 3',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (testPassed)
+                const Icon(
+                  Icons.check_circle,
+                  color: AppTheme.saffron,
+                  size: 32,
+                ),
+            ],
+          ),
+          if (!testPassed) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: testTaken
+                    ? null
+                    : () {
+                        // TODO: Navigate to meditation test
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Meditation test coming soon'),
+                            backgroundColor: AppTheme.gold,
+                          ),
+                        );
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.saffron,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  testTaken ? 'Test Submitted - Awaiting Results' : 'Take Test',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -245,8 +587,8 @@ class LearningsPage extends StatelessWidget {
     required String description,
   }) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -265,40 +607,40 @@ class LearningsPage extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: AppTheme.saffronGradient,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.school,
               color: Colors.white,
               size: 28,
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   level,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.saffron,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppTheme.textSecondary,
                   ),
                 ),
-                SizedBox(height: 8),
-                Row(
+                const SizedBox(height: 8),
+                const Row(
                   children: [
                     Icon(
                       Icons.event_available,

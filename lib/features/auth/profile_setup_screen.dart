@@ -130,7 +130,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen>
 
       _authState.updateProfile(updated);
 
-      if (mounted) context.go('/permissions');
+      if (mounted) context.go('/profile-selection');
     } else {
       _showSnackBar(result['message'] ?? 'Failed to save profile. Please try again.');
     }

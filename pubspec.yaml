@@ -37,8 +37,13 @@ dependencies:
   just_audio: ^0.9.36
   audio_service: ^0.18.12
   
+  # Charts
+  fl_chart: ^0.69.0
+  
   # Web
   webview_flutter: ^4.4.2
+  webview_flutter_android: ^3.12.1
+  webview_flutter_wkwebview: ^3.9.4
   youtube_player_flutter: ^9.0.3
   
   # DI
@@ -62,6 +67,15 @@ dependencies:
   # Local Notifications for Reminders
   flutter_local_notifications: ^17.0.0
   timezone: ^0.9.2
+  
+  # File Picker and Path Provider
+  path_provider: ^2.1.1
+  
+  # Wallpaper Manager
+  flutter_wallpaper_manager: ^0.0.3
+  
+  # Background Work
+  workmanager: ^0.5.2
   
   # Local Storage
   shared_preferences: ^2.2.2

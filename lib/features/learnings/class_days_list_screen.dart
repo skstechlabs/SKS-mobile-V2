@@ -40,25 +40,42 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
     });
 
     try {
+      debugPrint('📚 Loading days for class ${widget.classId}');
       final response = await _apiService.get(
         '/api/classes/${widget.classId}/days',
       );
 
+      debugPrint('📦 Days response: $response');
+
       if (response['success'] == true) {
+        final daysData = response['days'];
+        if (daysData == null) {
+          setState(() {
+            _error = 'No days data received from server';
+            _isLoading = false;
+          });
+          return;
+        }
+        
         setState(() {
-          _days = List<Map<String, dynamic>>.from(response['days'] ?? []);
+          _days = List<Map<String, dynamic>>.from(daysData);
           _isEnrolled = _days.isNotEmpty && _days.any((d) => d['isUnlocked'] == true);
           _isLoading = false;
         });
+        debugPrint('✅ Loaded ${_days.length} days, enrolled: $_isEnrolled');
       } else {
+        final errorMsg = response['message'] ?? 'Failed to load days';
+        debugPrint('❌ Failed to load days: $errorMsg');
         setState(() {
-          _error = response['message'] ?? 'Failed to load days';
+          _error = errorMsg;
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading days: $e');
+      debugPrint('Stack trace: $stackTrace');
       setState(() {
-        _error = 'Error loading days: $e';
+        _error = 'Error loading days. Please check your connection.';
         _isLoading = false;
       });
     }
@@ -72,6 +89,8 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         '/api/classes/${widget.classId}/enroll',
         {},
       );
+
+      if (!mounted) return;
 
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,6 +110,8 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
@@ -98,7 +119,9 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         ),
       );
     } finally {
-      setState(() => _isEnrolling = false);
+      if (mounted) {
+        setState(() => _isEnrolling = false);
+      }
     }
   }
 
@@ -261,7 +284,18 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
   Widget _buildDayCard(Map<String, dynamic> day) {
     final isUnlocked = day['isUnlocked'] == true;
     final isCompleted = day['isCompleted'] == true;
-    final hoursUntilUnlock = day['hoursUntilUnlock'] as int?;
+    
+    // Safe parsing of hoursUntilUnlock - handle both int and string
+    int? hoursUntilUnlock;
+    if (day['hoursUntilUnlock'] != null) {
+      if (day['hoursUntilUnlock'] is int) {
+        hoursUntilUnlock = day['hoursUntilUnlock'] as int;
+      } else if (day['hoursUntilUnlock'] is String) {
+        hoursUntilUnlock = int.tryParse(day['hoursUntilUnlock'] as String);
+      }
+    }
+    
+    // Safe parsing of completionPercentage
     final completionPercentage = (day['completionPercentage'] as num?)?.toDouble() ?? 0.0;
 
     return Container(
@@ -288,8 +322,13 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         child: InkWell(
           onTap: isUnlocked
               ? () {
+                  // Safely get day ID and day number
+                  final dayId = day['id']?.toString() ?? '0';
+                  final dayNumber = day['dayNumber']?.toString() ?? '1';
+                  final title = day['title']?.toString() ?? 'Video';
+                  
                   context.push(
-                    '/classes/days/${day['id']}/video?title=${Uri.encodeComponent(day['title'])}&dayNumber=${day['dayNumber']}',
+                    '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber',
                   );
                 }
               : null,

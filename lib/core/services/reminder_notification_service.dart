@@ -140,7 +140,7 @@ class ReminderNotificationService {
           scheduledDate = scheduledDate.add(const Duration(days: 7));
         }
 
-        // Android notification details
+        // Android notification details with custom sound
         const androidDetails = AndroidNotificationDetails(
           'reminders_channel',
           'Daily Reminders',
@@ -148,16 +148,18 @@ class ReminderNotificationService {
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
+          sound: RawResourceAndroidNotificationSound('sivoham_ringtone'),
           enableVibration: true,
           icon: '@mipmap/ic_launcher',
         );
 
-        // iOS notification details
-        const iosDetails = DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        );
+      // iOS notification details with custom sound
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        sound: 'sivoham_ringtone.mp3',
+      );
 
         const details = NotificationDetails(
           android: androidDetails,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 
@@ -26,6 +27,28 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
   String _selectedPeriod = 'week';
   
   bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
+  
+  // Motivational messages based on streak
+  String get _motivationalMessage {
+    final currentStreak = _parseIntValue(_streak?['current_streak']);
+    final totalSessions = _parseIntValue(_stats?['total_sessions']);
+    
+    if (currentStreak >= 30) {
+      return '🌟 Incredible! 30+ days of dedication. You\'re a meditation master!';
+    } else if (currentStreak >= 21) {
+      return '🎯 Amazing! 21 days - you\'ve built a solid habit!';
+    } else if (currentStreak >= 14) {
+      return '💪 Two weeks strong! Keep the momentum going!';
+    } else if (currentStreak >= 7) {
+      return '🔥 One week streak! You\'re on fire!';
+    } else if (currentStreak >= 3) {
+      return '✨ Great start! Keep building your practice!';
+    } else if (totalSessions > 0) {
+      return '🌱 Every session counts. Keep growing!';
+    } else {
+      return '🧘 Begin your journey to inner peace today!';
+    }
+  }
 
   @override
   void initState() {
@@ -65,6 +88,16 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
           _sessions = [];
           _isLoadingSessions = false;
         });
+        // Show error message if API returned an error
+        if (response['message'] != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unable to load sessions: ${response['message']}'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -72,6 +105,14 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
           _sessions = [];
           _isLoadingSessions = false;
         });
+        // Show generic error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to load meditation sessions. Please try again later.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -214,7 +255,14 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
-        title: const Text('Meditation History'),
+        title: const Text('Meditation Journey'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.timer),
+            onPressed: () => context.push('/meditation/timer'),
+            tooltip: 'Start Meditation',
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
@@ -223,6 +271,11 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Motivational banner
+              _buildMotivationalBanner(),
+              
+              const SizedBox(height: 16),
+              
               // Streak cards
               _buildStreakSection(),
               
@@ -238,6 +291,11 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
               
               const SizedBox(height: 24),
               
+              // Weekly chart
+              _buildWeeklyChart(),
+              
+              const SizedBox(height: 24),
+              
               // Recent sessions
               _buildSessionsSection(),
               
@@ -246,6 +304,327 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
           ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/meditation/timer'),
+        backgroundColor: AppTheme.saffron,
+        icon: const Icon(Icons.self_improvement),
+        label: const Text('Meditate'),
+      ),
+    );
+  }
+  
+  Widget _buildMotivationalBanner() {
+    if (_isLoadingStreak || _isLoadingStats) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.saffron,
+            AppTheme.saffron.withValues(alpha: 0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.saffron.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.emoji_events,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              _motivationalMessage,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildWeeklyChart() {
+    if (_isLoadingSessions) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    if (_sessions.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Last 7 Days',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.softGray),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.bar_chart,
+                      size: 48,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No data to display',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Start meditating to see your progress',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Prepare data for last 7 days
+    final now = DateTime.now();
+    final last7Days = List.generate(7, (index) {
+      return DateTime(now.year, now.month, now.day).subtract(Duration(days: 6 - index));
+    });
+    
+    // Calculate total minutes per day
+    final Map<String, double> dailyMinutes = {};
+    for (var day in last7Days) {
+      dailyMinutes[DateFormat('yyyy-MM-dd').format(day)] = 0;
+    }
+    
+    for (var session in _sessions) {
+      final startTime = session['start_time'] as String?;
+      if (startTime != null) {
+        try {
+          final date = DateTime.parse(startTime);
+          final dateKey = DateFormat('yyyy-MM-dd').format(date);
+          if (dailyMinutes.containsKey(dateKey)) {
+            final durationSeconds = _parseIntValue(session['duration_seconds']);
+            dailyMinutes[dateKey] = (dailyMinutes[dateKey] ?? 0) + (durationSeconds / 60);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Last 7 Days',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.softGray),
+            ),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 200,
+                  child: BarChart(
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: dailyMinutes.values.isEmpty 
+                          ? 10.0 
+                          : (dailyMinutes.values.reduce((a, b) => a > b ? a : b) * 1.2).ceilToDouble().clamp(10.0, double.infinity),
+                      barTouchData: BarTouchData(
+                        enabled: true,
+                        touchTooltipData: BarTouchTooltipData(
+                          getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                            return BarTooltipItem(
+                              '${rod.toY.toInt()} min',
+                              const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) {
+                              if (value.toInt() >= 0 && value.toInt() < last7Days.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    DateFormat('E').format(last7Days[value.toInt()]),
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const Text('');
+                            },
+                          ),
+                        ),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 40,
+                            getTitlesWidget: (value, meta) {
+                              return Text(
+                                '${value.toInt()}m',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                      ),
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: 10,
+                        getDrawingHorizontalLine: (value) {
+                          return FlLine(
+                            color: AppTheme.softGray,
+                            strokeWidth: 1,
+                          );
+                        },
+                      ),
+                      borderData: FlBorderData(show: false),
+                      barGroups: List.generate(last7Days.length, (index) {
+                        final dateKey = DateFormat('yyyy-MM-dd').format(last7Days[index]);
+                        final minutes = dailyMinutes[dateKey] ?? 0;
+                        final isToday = DateFormat('yyyy-MM-dd').format(now) == dateKey;
+                        
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: minutes,
+                              gradient: LinearGradient(
+                                colors: isToday
+                                    ? [AppTheme.saffron, AppTheme.saffron.withValues(alpha: 0.7)]
+                                    : [Colors.purple, Colors.purple.withValues(alpha: 0.7)],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              width: 20,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(6),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildChartLegend('Today', AppTheme.saffron),
+                    const SizedBox(width: 20),
+                    _buildChartLegend('Past Days', Colors.purple),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildChartLegend(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 
@@ -371,10 +750,11 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
       );
     }
     
-    final totalDuration = _stats?['total_duration_seconds'] ?? 0;
-    final totalSessions = _stats?['total_sessions'] ?? 0;
-    final longestSession = _stats?['longest_session_seconds'] ?? 0;
-    final avgDuration = _stats?['avg_daily_duration_seconds'] ?? 0;
+    // Parse values safely, handling both string and int types from API
+    final totalDuration = _parseIntValue(_stats?['total_duration_seconds']);
+    final totalSessions = _parseIntValue(_stats?['total_sessions']);
+    final longestSession = _parseIntValue(_stats?['longest_session_seconds']);
+    final avgDuration = _parseIntValue(_stats?['avg_daily_duration_seconds']);
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -426,6 +806,14 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
         ],
       ),
     );
+  }
+
+  // Helper method to safely parse int values that might be strings or ints
+  int _parseIntValue(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
@@ -541,7 +929,7 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
   }
 
   Widget _buildSessionCard(Map<String, dynamic> session) {
-    final durationSeconds = session['duration_seconds'] as int? ?? 0;
+    final durationSeconds = _parseIntValue(session['duration_seconds']);
     final startTime = session['start_time'] as String?;
     final sessionDate = session['session_date'] as String?;
     

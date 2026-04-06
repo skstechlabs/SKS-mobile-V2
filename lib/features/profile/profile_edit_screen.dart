@@ -50,9 +50,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Only send name, not phone number
       final response = await _apiService.updateProfile({
         'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
       });
 
       if (mounted) {
@@ -165,41 +165,36 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       
                       const SizedBox(height: 20),
                       
-                      // Phone Field
+                      // Phone Field (Read-only)
                       TextFormField(
                         controller: _phoneController,
                         decoration: InputDecoration(
                           labelText: 'Phone Number',
                           hintText: 'Enter your phone number',
                           prefixIcon: const Icon(Icons.phone_outlined),
+                          suffixIcon: const Icon(Icons.lock_outline, size: 20),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: AppTheme.darkBrown.withValues(alpha: 0.3),
+                              color: AppTheme.darkBrown.withValues(alpha: 0.2),
                             ),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: AppTheme.saffron,
-                              width: 2,
-                            ),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          helperText: 'Mobile number cannot be changed',
+                          helperStyle: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
                           ),
                         ),
                         keyboardType: TextInputType.phone,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your phone number';
-                          }
-                          if (value.trim().length < 10) {
-                            return 'Please enter a valid phone number';
-                          }
-                          return null;
-                        },
-                        enabled: !_isSaving,
+                        enabled: false, // Make it non-editable
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                       
                       const SizedBox(height: 40),

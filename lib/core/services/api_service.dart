@@ -654,4 +654,174 @@ class ApiService {
         };
     }
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MULTI-PROFILE SYSTEM APIs
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── 21. GET /api/profiles/config - Get system configuration ───────────────
+  Future<Map<String, dynamic>> getProfilesConfig() async {
+    try {
+      final response = await _dio.get('/api/profiles/config');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 22. GET /api/profiles - Get all profiles for current account ──────────
+  Future<Map<String, dynamic>> getProfiles() async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.get(
+        '/api/profiles',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 23. POST /api/profiles - Create new profile ───────────────────────────
+  Future<Map<String, dynamic>> createProfile({
+    required String profileName,
+    String? profileAvatar,
+    String? dateOfBirth,
+    String? gender,
+  }) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.post(
+        '/api/profiles',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+        data: {
+          'profileName': profileName,
+          if (profileAvatar != null) 'profileAvatar': profileAvatar,
+          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+          if (gender != null) 'gender': gender,
+        },
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 24. PUT /api/profiles/:profileUid - Update profile ────────────────────
+  Future<Map<String, dynamic>> updateProfileById({
+    required String profileUid,
+    String? profileName,
+    String? profileAvatar,
+    String? dateOfBirth,
+    String? gender,
+  }) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.put(
+        '/api/profiles/$profileUid',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+        data: {
+          if (profileName != null) 'profileName': profileName,
+          if (profileAvatar != null) 'profileAvatar': profileAvatar,
+          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+          if (gender != null) 'gender': gender,
+        },
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 25. DELETE /api/profiles/:profileUid - Delete profile ─────────────────
+  Future<Map<String, dynamic>> deleteProfile(String profileUid) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.delete(
+        '/api/profiles/$profileUid',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 26. POST /api/profiles/:profileUid/switch - Switch profile ────────────
+  Future<Map<String, dynamic>> switchProfile(String profileUid) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.post(
+        '/api/profiles/$profileUid/switch',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 27. GET /api/profiles/sessions - Get active sessions ──────────────────
+  Future<Map<String, dynamic>> getProfileSessions() async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.get(
+        '/api/profiles/sessions',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 28. DELETE /api/profiles/sessions/:sessionId - Logout session ─────────
+  Future<Map<String, dynamic>> logoutSession(int sessionId) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.delete(
+        '/api/profiles/sessions/$sessionId',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
 }

@@ -283,13 +283,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           if (loginResult['is_new_user'] == true || !user.isProfileComplete) {
             context.go('/profile-setup');
           } else {
-            // Check if notification permission is granted
-            final hasNotificationPermission = await _oneSignal.hasPermission();
-            if (hasNotificationPermission) {
-              context.go('/');
-            } else {
-              context.go('/notification-permission');
-            }
+            // Navigate to profile selection
+            context.go('/profile-selection');
           }
         }
       } else {
@@ -362,13 +357,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           if (loginResult['is_new_user'] == true || !user.isProfileComplete) {
             context.go('/profile-setup');
           } else {
-            // Check if notification permission is granted
-            final hasNotificationPermission = await _oneSignal.hasPermission();
-            if (hasNotificationPermission) {
-              context.go('/');
-            } else {
-              context.go('/notification-permission');
-            }
+            // Navigate to profile selection
+            context.go('/profile-selection');
           }
         }
       } else {

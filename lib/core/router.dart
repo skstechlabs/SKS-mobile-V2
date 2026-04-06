@@ -13,12 +13,16 @@ import '../features/notifications/notifications_page.dart';
 import '../features/notifications/notification_detail_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/profile/profile_edit_screen.dart';
+import '../features/profile/profiles_list_screen.dart';
+import '../features/profile/profile_selection_screen.dart';
 import '../features/reminders/reminders_screen.dart';
 import '../features/reminders/reminder_form_screen.dart';
 import '../features/meditation/meditation_timer_page.dart';
 import '../features/meditation/meditation_history_page.dart';
 import '../features/learnings/class_days_list_screen.dart';
 import '../features/learnings/day_video_screen.dart';
+import '../features/settings/ringtone_settings_page.dart';
+import '../features/settings/wallpaper_settings_page.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
@@ -84,6 +88,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/splash',
       builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/profile-selection',
+      builder: (context, state) => const ProfileSelectionScreen(),
     ),
     GoRoute(
       path: '/login',
@@ -179,6 +187,10 @@ final GoRouter appRouter = GoRouter(
           path: 'edit',
           builder: (context, state) => const ProfileEditScreen(),
         ),
+        GoRoute(
+          path: 'list',
+          builder: (context, state) => const ProfilesListScreen(),
+        ),
       ],
     ),
     GoRoute(
@@ -199,24 +211,27 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     GoRoute(
-      path: '/meditation',
-      redirect: (context, state) => '/meditation/timer',
-      routes: [
-        GoRoute(
-          path: 'timer',
-          builder: (context, state) => const MeditationTimerPage(),
-        ),
-        GoRoute(
-          path: 'history',
-          builder: (context, state) => const MeditationHistoryPage(),
-        ),
-      ],
+      path: '/meditation/timer',
+      builder: (context, state) => const MeditationTimerPage(),
+    ),
+    GoRoute(
+      path: '/meditation/history',
+      builder: (context, state) => const MeditationHistoryPage(),
+    ),
+    GoRoute(
+      path: '/settings/ringtone',
+      builder: (context, state) => const RingtoneSettingsPage(),
+    ),
+    GoRoute(
+      path: '/settings/wallpaper',
+      builder: (context, state) => const WallpaperSettingsPage(),
     ),
     // Classes video streaming routes
     GoRoute(
       path: '/classes/:classId/days',
       builder: (context, state) {
-        final classId = int.parse(state.pathParameters['classId']!);
+        final classIdStr = state.pathParameters['classId']!;
+        final classId = int.tryParse(classIdStr) ?? 0;
         final extra = state.extra as Map<String, dynamic>?;
         return ClassDaysListScreen(
           classId: classId,
@@ -228,9 +243,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/classes/days/:dayId/video',
       builder: (context, state) {
-        final dayId = int.parse(state.pathParameters['dayId']!);
+        final dayIdStr = state.pathParameters['dayId']!;
+        final dayId = int.tryParse(dayIdStr) ?? 0;
         final dayTitle = state.uri.queryParameters['title'] ?? 'Video';
-        final dayNumber = int.parse(state.uri.queryParameters['dayNumber'] ?? '1');
+        final dayNumberStr = state.uri.queryParameters['dayNumber'] ?? '1';
+        final dayNumber = int.tryParse(dayNumberStr) ?? 1;
         return DayVideoScreen(
           dayId: dayId,
           dayTitle: dayTitle,

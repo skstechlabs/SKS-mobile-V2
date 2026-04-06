@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 
@@ -15,11 +16,14 @@ class MeditationTimerPage extends StatefulWidget {
 class _MeditationTimerPageState extends State<MeditationTimerPage>
     with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
   // Timer state
   Timer? _timer;
   int _seconds = 0;
+  int _targetSeconds = 0; // 0 means no target (free meditation)
   bool _isRunning = false;
+  bool _hasStarted = false; // Track if meditation has started (to prevent start sound on resume)
   DateTime? _startTime;
   
   // Auth state
@@ -46,20 +50,96 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   void dispose() {
     _timer?.cancel();
     _breathingController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
-  void _startTimer() {
+  Future<void> _playStartSound() async {
+    try {
+      debugPrint('Attempting to play meditation sound...');
+      debugPrint('Loading asset: assets/audio/Meditation_start.mp3');
+      
+      // Use AudioSource.asset instead of setAsset
+      await _audioPlayer.setAudioSource(
+        AudioSource.asset('assets/audio/Meditation_start.mp3'),
+      );
+      
+      debugPrint('Meditation sound loaded successfully');
+      
+      // Set volume to maximum
+      await _audioPlayer.setVolume(1.0);
+      
+      // Play the audio
+      await _audioPlayer.play();
+      
+      debugPrint('Meditation sound playing successfully');
+    } catch (e, stackTrace) {
+      debugPrint('Error playing meditation sound: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
+  }
+
+  Future<void> _playEndSound() async {
+    try {
+      debugPrint('Attempting to play meditation end sound...');
+      debugPrint('Loading asset: assets/audio/Meditation_end.mp3');
+      
+      // Use Meditation_end.mp3 for end sound
+      await _audioPlayer.setAudioSource(
+        AudioSource.asset('assets/audio/Meditation_end.mp3'),
+      );
+      
+      debugPrint('Meditation end sound loaded successfully');
+      
+      // Set volume to maximum
+      await _audioPlayer.setVolume(1.0);
+      
+      // Play the audio and wait for it to complete
+      await _audioPlayer.play();
+      
+      // Wait for the audio to finish playing
+      await _audioPlayer.playerStateStream.firstWhere(
+        (state) => state.processingState == ProcessingState.completed,
+      );
+      
+      debugPrint('Meditation end sound completed');
+    } catch (e, stackTrace) {
+      debugPrint('Error playing meditation end sound: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
+  }
+
+  Future<void> _startTimer() async {
     if (_isRunning) return;
     
     setState(() {
       _isRunning = true;
-      _startTime = DateTime.now();
+      _startTime = _startTime ?? DateTime.now();
+      if (_targetSeconds > 0 && _seconds == 0) {
+        _seconds = _targetSeconds;
+      }
     });
+    
+    // Play start sound only on first start, resume audio if paused
+    if (!_hasStarted) {
+      _hasStarted = true;
+      _playStartSound(); // Fire and forget
+    } else if (_audioPlayer.processingState == ProcessingState.ready) {
+      // Resume audio if it was paused
+      _audioPlayer.play();
+    }
     
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
-        _seconds++;
+        if (_targetSeconds > 0) {
+          _seconds--;
+          if (_seconds <= 0) {
+            _seconds = 0;
+            _completeTimer();
+          }
+        } else {
+          _seconds++;
+        }
       });
     });
   }
@@ -72,15 +152,141 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     });
     
     _timer?.cancel();
+    
+    // Pause the audio if it's playing
+    if (_audioPlayer.playing) {
+      _audioPlayer.pause();
+    }
+  }
+
+  Future<void> _completeTimer() async {
+    _timer?.cancel();
+    
+    setState(() {
+      _isRunning = false;
+    });
+    
+    final endTime = DateTime.now();
+    final actualDuration = _targetSeconds > 0 ? _targetSeconds : _seconds;
+    final startTime = _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
+    
+    // Play end sound and wait for it to complete
+    await _playEndSound();
+    
+    // Now show the dialog after sound completes
+    if (!mounted) return;
+    
+    // Auto-save for logged-in users
+    if (_isLoggedIn) {
+      await _saveMeditationSession(startTime, endTime, actualDuration);
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 12),
+                Expanded(child: Text('Meditation Complete!')),
+              ],
+            ),
+            content: Text(
+              'Congratulations! You meditated for ${_formatDuration(actualDuration)}.\n\n'
+              'Your session has been saved.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push('/meditation/history');
+                },
+                child: const Text('View History'),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      // Show login prompt for non-logged-in users
+      if (mounted) {
+        final shouldLogin = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 12),
+                Expanded(child: Text('Meditation Complete!')),
+              ],
+            ),
+            content: Text(
+              'Congratulations! You meditated for ${_formatDuration(actualDuration)}.\n\n'
+              'Login to save your meditation sessions and track your progress over time.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Skip'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Login'),
+              ),
+            ],
+          ),
+        );
+        
+        if (shouldLogin == true && mounted) {
+          context.push('/login');
+        }
+      }
+    }
+    
+    // Reset timer
+    setState(() {
+      _seconds = 0;
+      _startTime = null;
+      _hasStarted = false;
+    });
+  }
+
+  void _resetTimer() {
+    // Cancel timer
+    _timer?.cancel();
+    
+    // Reset all state
+    setState(() {
+      _seconds = 0;
+      _targetSeconds = 0;
+      _isRunning = false;
+      _hasStarted = false;
+      _startTime = null;
+    });
   }
 
   Future<void> _stopTimer() async {
-    if (_seconds == 0) return;
+    if (_seconds == 0 && _targetSeconds == 0) return;
     
+    // Stop timer immediately
     _timer?.cancel();
     
+    setState(() {
+      _isRunning = false;
+    });
+    
     final endTime = DateTime.now();
-    final startTime = _startTime ?? endTime.subtract(Duration(seconds: _seconds));
+    final actualDuration = _targetSeconds > 0 ? (_targetSeconds - _seconds) : _seconds;
+    final startTime = _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
+    
+    // Play end sound and wait for it to complete
+    await _playEndSound();
+    
+    if (!mounted) return;
     
     // Check if user is logged in
     if (!_isLoggedIn) {
@@ -88,15 +294,15 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       final shouldLogin = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Row(
+          title: const Row(
             children: [
               Icon(Icons.info_outline, color: AppTheme.saffron),
-              const SizedBox(width: 12),
-              const Expanded(child: Text('Login Required')),
+              SizedBox(width: 12),
+              Expanded(child: Text('Login Required')),
             ],
           ),
           content: Text(
-            'You meditated for ${_formatDuration(_seconds)}.\n\n'
+            'You meditated for ${_formatDuration(actualDuration)}.\n\n'
             'Login to save your meditation sessions and track your progress over time.',
           ),
           actions: [
@@ -119,8 +325,8 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       // Reset timer
       setState(() {
         _seconds = 0;
-        _isRunning = false;
         _startTime = null;
+        _hasStarted = false;
       });
       return;
     }
@@ -131,7 +337,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       builder: (context) => AlertDialog(
         title: const Text('Save Meditation Session?'),
         content: Text(
-          'You meditated for ${_formatDuration(_seconds)}.\nWould you like to save this session?',
+          'You meditated for ${_formatDuration(actualDuration)}.\nWould you like to save this session?',
         ),
         actions: [
           TextButton(
@@ -147,14 +353,14 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     );
     
     if (shouldSave == true) {
-      await _saveMeditationSession(startTime, endTime, _seconds);
+      await _saveMeditationSession(startTime, endTime, actualDuration);
     }
     
     // Reset timer
     setState(() {
       _seconds = 0;
-      _isRunning = false;
       _startTime = null;
+      _hasStarted = false;
     });
   }
 
@@ -164,10 +370,79 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     int durationSeconds,
   ) async {
     try {
+      // Ask for journal entry
+      String? journalEntry;
+      if (mounted) {
+        journalEntry = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            final controller = TextEditingController();
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Icon(Icons.edit_note, color: AppTheme.saffron),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Journal Your Experience')),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'How was your meditation? Share your thoughts, feelings, or insights.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    maxLines: 4,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      hintText: 'I felt peaceful and calm...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppTheme.saffron, width: 2),
+                      ),
+                    ),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, ''),
+                  child: const Text('Skip'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, controller.text.trim()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.saffron,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+      
+      if (!mounted) return;
+      
       final response = await _apiService.recordMeditationSession(
         startTime: startTime.toIso8601String(),
         endTime: endTime.toIso8601String(),
         durationSeconds: durationSeconds,
+        notes: journalEntry?.isNotEmpty == true ? journalEntry : null,
       );
       
       if (response['success'] == true && mounted) {
@@ -208,95 +483,166 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.white,
-      appBar: AppBar(
-        title: const Text('Meditation Timer'),
+  Future<void> _showDurationPicker() async {
+    final durations = [
+      {'label': 'Free meditation', 'seconds': 0},
+      {'label': '5 minutes', 'seconds': 300},
+      {'label': '10 minutes', 'seconds': 600},
+      {'label': '15 minutes', 'seconds': 900},
+      {'label': '20 minutes', 'seconds': 1200},
+      {'label': '30 minutes', 'seconds': 1800},
+      {'label': '45 minutes', 'seconds': 2700},
+      {'label': '60 minutes', 'seconds': 3600},
+    ];
+
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Set Meditation Duration'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: durations.map((duration) {
+              final isSelected = _targetSeconds == duration['seconds'];
+              return ListTile(
+                title: Text(duration['label'] as String),
+                trailing: isSelected
+                    ? const Icon(Icons.check_circle, color: AppTheme.saffron)
+                    : null,
+                selected: isSelected,
+                onTap: () => Navigator.pop(context, duration['seconds'] as int),
+              );
+            }).toList(),
+          ),
+        ),
         actions: [
-          if (_isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.history),
-              onPressed: () => context.push('/meditation/history'),
-              tooltip: 'View History',
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive sizing
-            final isSmallScreen = constraints.maxHeight < 600;
-            final circleSize = isSmallScreen ? 200.0 : 240.0;
-            final outerCircleSize = isSmallScreen ? 240.0 : 280.0;
-            final fontSize = isSmallScreen ? 36.0 : 48.0;
-            
-            return Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight - 200,
+    );
+
+    if (selected != null) {
+      setState(() {
+        _targetSeconds = selected;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+    
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFFFF8E1), // Light saffron/cream
+              const Color(0xFFFFECB3), // Warm golden
+              const Color(0xFFFFF8E1),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header with back button and history
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: AppTheme.saffron),
+                      onPressed: () => context.pop(),
+                    ),
+                    if (_isLoggedIn)
+                      IconButton(
+                        icon: Icon(Icons.history, color: AppTheme.saffron),
+                        onPressed: () => context.push('/meditation/history'),
+                        tooltip: 'View History',
                       ),
-                      child: Center(
+                  ],
+                ),
+              ),
+              
+              // Main content - Flexible to fit available space
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final availableHeight = constraints.maxHeight;
+                    final imageSize = isSmallScreen ? 200.0 : (availableHeight * 0.4).clamp(200.0, 280.0);
+                    final timerFontSize = isSmallScreen ? 42.0 : 56.0;
+                    
+                    return Center(
+                      child: SingleChildScrollView(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(height: isSmallScreen ? 20 : 40),
+                            SizedBox(height: isSmallScreen ? 10 : 20),
                             
-                            // Breathing circle animation
+                            // Guruji Meditation Image in Circle
                             AnimatedBuilder(
                               animation: _breathingAnimation,
                               builder: (context, child) {
                                 return Transform.scale(
                                   scale: _isRunning ? _breathingAnimation.value : 1.0,
                                   child: Container(
-                                    width: outerCircleSize,
-                                    height: outerCircleSize,
+                                    width: imageSize,
+                                    height: imageSize,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       gradient: RadialGradient(
                                         colors: [
-                                          AppTheme.saffron.withValues(alpha: 0.3),
+                                          Colors.white.withValues(alpha: 0.0),
                                           AppTheme.saffron.withValues(alpha: 0.1),
-                                          Colors.transparent,
+                                          AppTheme.saffron.withValues(alpha: 0.3),
                                         ],
+                                        stops: const [0.7, 0.9, 1.0],
                                       ),
-                                    ),
-                                    child: Center(
-                                      child: Container(
-                                        width: circleSize,
-                                        height: circleSize,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                            colors: [
-                                              AppTheme.saffron,
-                                              const Color(0xFFFF8A6B),
-                                            ],
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: AppTheme.saffron.withValues(alpha: 0.4),
-                                              blurRadius: 30,
-                                              spreadRadius: 5,
-                                            ),
-                                          ],
+                                      boxShadow: _isRunning ? [] : [
+                                        BoxShadow(
+                                          color: AppTheme.saffron.withValues(alpha: 0.4),
+                                          blurRadius: 40,
+                                          spreadRadius: 10,
                                         ),
-                                        child: Center(
-                                          child: Text(
-                                            _formatDuration(_seconds),
-                                            style: TextStyle(
-                                              fontSize: fontSize,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              letterSpacing: 2,
-                                            ),
-                                          ),
+                                        BoxShadow(
+                                          color: Colors.white.withValues(alpha: 0.8),
+                                          blurRadius: 20,
+                                          spreadRadius: -5,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'assets/images/Guruji_Meditation.PNG',
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    AppTheme.saffron,
+                                                    AppTheme.saffron.withValues(alpha: 0.7),
+                                                  ],
+                                                ),
+                                              ),
+                                              child: Icon(
+                                                Icons.self_improvement,
+                                                size: imageSize * 0.4,
+                                                color: Colors.white,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -305,142 +651,288 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                               },
                             ),
                             
-                            SizedBox(height: isSmallScreen ? 30 : 60),
+                            SizedBox(height: isSmallScreen ? 20 : 30),
+                            
+                            // Timer Display
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSmallScreen ? 24 : 32,
+                                vertical: isSmallScreen ? 12 : 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(30),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.saffron.withValues(alpha: 0.2),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                _formatDuration(_seconds),
+                                style: TextStyle(
+                                  fontSize: timerFontSize,
+                                  fontWeight: FontWeight.w300,
+                                  color: AppTheme.saffron,
+                                  letterSpacing: 4,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            
+                            SizedBox(height: isSmallScreen ? 12 : 20),
                             
                             // Status text
                             Text(
                               _isRunning ? 'Meditating...' : 'Ready to begin',
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                color: AppTheme.textSecondary,
-                                fontSize: isSmallScreen ? 18 : 20,
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 16 : 20,
+                                color: AppTheme.saffron.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 1,
                               ),
                             ),
                             
                             if (_isRunning) ...[
-                              SizedBox(height: isSmallScreen ? 8 : 16),
-                              Text(
-                                'Breathe in... Breathe out...',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: isSmallScreen ? 14 : 16,
-                                  fontStyle: FontStyle.italic,
+                              SizedBox(height: isSmallScreen ? 6 : 12),
+                              // Text(
+                              //   'Breathe in... Breathe out...',
+                              //   style: TextStyle(
+                              //     fontSize: isSmallScreen ? 13 : 16,
+                              //     color: AppTheme.textSecondary,
+                              //     fontStyle: FontStyle.italic,
+                              //   ),
+                              // ),
+                            ],
+                            
+                            // Duration info
+                            if (_targetSeconds > 0 && !_isRunning && _seconds == 0) ...[
+                              SizedBox(height: isSmallScreen ? 12 : 20),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isSmallScreen ? 16 : 20,
+                                  vertical: isSmallScreen ? 8 : 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.saffron.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: AppTheme.saffron.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Duration: ${_formatDuration(_targetSeconds)}',
+                                  style: TextStyle(
+                                    color: AppTheme.saffron,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                  ),
                                 ),
                               ),
                             ],
                             
-                            SizedBox(height: isSmallScreen ? 20 : 40),
+                            SizedBox(height: isSmallScreen ? 10 : 20),
                           ],
                         ),
                       ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Control buttons - Compact on small screens
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  isSmallScreen ? 12 : 16,
+                  20,
+                  isSmallScreen ? 16 : 24,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, -5),
                     ),
-                  ),
+                  ],
                 ),
-                
-                // Control buttons - Fixed layout
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Buttons row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_seconds > 0) ...[
-                            // Stop button
-                            FloatingActionButton(
-                              onPressed: _stopTimer,
-                              backgroundColor: Colors.red,
-                              heroTag: 'stop',
-                              child: const Icon(Icons.stop, size: 28),
-                            ),
-                            const SizedBox(width: 20),
-                          ],
-                          
-                          // Start/Pause button
-                          FloatingActionButton.large(
-                            onPressed: _isRunning ? _pauseTimer : _startTimer,
-                            backgroundColor: AppTheme.saffron,
-                            heroTag: 'play',
-                            child: Icon(
-                              _isRunning ? Icons.pause : Icons.play_arrow,
-                              size: 40,
-                            ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Buttons row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Duration picker button
+                        if (!_isRunning && _seconds == 0) ...[
+                          _buildControlButton(
+                            icon: Icons.timer_outlined,
+                            onPressed: _showDurationPicker,
+                            color: AppTheme.saffron.withValues(alpha: 0.2),
+                            iconColor: AppTheme.saffron,
+                            size: isSmallScreen ? 50 : 60,
                           ),
+                          SizedBox(width: isSmallScreen ? 12 : 16),
                         ],
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Login message or tips
-                      if (!_isLoggedIn && _seconds == 0)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.blue.withValues(alpha: 0.3),
-                            ),
+                        
+                        // Reset button
+                        if (!_isRunning && (_seconds > 0 || _targetSeconds > 0)) ...[
+                          _buildControlButton(
+                            icon: Icons.refresh,
+                            onPressed: _resetTimer,
+                            color: Colors.grey.shade200,
+                            iconColor: Colors.grey.shade600,
+                            size: isSmallScreen ? 50 : 60,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: Colors.blue,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Login to save your meditation sessions',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.blue.shade700,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                          SizedBox(width: isSmallScreen ? 12 : 16),
+                        ],
+                        
+                        // Stop button
+                        if (_isRunning) ...[
+                          _buildControlButton(
+                            icon: Icons.stop,
+                            onPressed: _stopTimer,
+                            color: Colors.red.shade50,
+                            iconColor: Colors.red,
+                            size: isSmallScreen ? 50 : 60,
+                          ),
+                          SizedBox(width: isSmallScreen ? 12 : 16),
+                        ],
+                        
+                        // Start/Pause button (larger)
+                        Container(
+                          width: isSmallScreen ? 70 : 80,
+                          height: isSmallScreen ? 70 : 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                AppTheme.saffron,
+                                AppTheme.saffron.withValues(alpha: 0.8),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.saffron.withValues(alpha: 0.4),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
                               ),
                             ],
                           ),
-                        )
-                      else
-                        // Quick tips
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.saffron.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppTheme.saffron.withValues(alpha: 0.3),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _isRunning ? _pauseTimer : _startTimer,
+                              customBorder: const CircleBorder(),
+                              child: Icon(
+                                _isRunning ? Icons.pause : Icons.play_arrow,
+                                size: isSmallScreen ? 38 : 44,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.lightbulb_outline,
-                                color: AppTheme.saffron,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Find a quiet space, sit comfortably, and focus on your breath',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                         ),
-                    ],
-                  ),
+                      ],
+                    ),
+                    
+                    SizedBox(height: isSmallScreen ? 10 : 16),
+                    
+                    // Info message - Compact on small screens
+                    if (!_isLoggedIn && _seconds == 0)
+                      _buildInfoCard(
+                        icon: Icons.info_outline,
+                        message: 'Login to save your meditation sessions',
+                        color: Colors.blue,
+                        isSmall: isSmallScreen,
+                      )
+                    // else
+                    //   _buildInfoCard(
+                    //     icon: Icons.lightbulb_outline,
+                    //     message: 'Find a quiet space, sit comfortably, and focus on your breath',
+                    //     color: AppTheme.saffron,
+                    //     isSmall: isSmallScreen,
+                    //   ),
+                  ],
                 ),
-              ],
-            );
-          },
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+  
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    required Color iconColor,
+    double size = 60,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Icon(icon, size: size * 0.47, color: iconColor),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String message,
+    required Color color,
+    bool isSmall = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isSmall ? 10 : 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: isSmall ? 18 : 22),
+          SizedBox(width: isSmall ? 8 : 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.9),
+                fontSize: isSmall ? 11 : 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

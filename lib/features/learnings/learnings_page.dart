@@ -94,11 +94,19 @@ class _LearningsPageState extends State<LearningsPage> {
   }
 
   int _getDaysCompleted(int levelNumber) {
-    return (_levelAccess[levelNumber]?['daysCompleted'] as int?) ?? 0;
+    final value = _levelAccess[levelNumber]?['daysCompleted'];
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 
   int _getTotalDays(int levelNumber) {
-    return (_levelAccess[levelNumber]?['totalDays'] as int?) ?? 3;
+    final value = _levelAccess[levelNumber]?['totalDays'];
+    if (value == null) return 3;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 3;
+    return 3;
   }
 
   @override

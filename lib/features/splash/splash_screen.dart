@@ -83,6 +83,16 @@ class _SplashScreenState extends State<SplashScreen>
       await Future.delayed(const Duration(milliseconds: 200));
       if (!mounted) return;
 
+      // Check if user is already logged in
+      final user = AuthService().currentUser;
+      
+      if (user != null) {
+        // User is logged in, go to profile selection
+        developer.log('✅ User logged in, navigating to profile selection');
+        context.go('/profile-selection');
+        return;
+      }
+
       // Navigate based on platform
       if (kIsWeb) {
         try {

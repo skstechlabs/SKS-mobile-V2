@@ -22,14 +22,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = false;
   UserModel? _user;
+  String? _lastLoadedProfileUid;
+  bool _hasLoadedOnce = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
   }
+  
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload when widget is updated (e.g., after navigation)
+    if (_hasLoadedOnce) {
+      _loadProfile();
+    }
+  }
 
   Future<void> _loadProfile() async {
+    // Prevent duplicate loads
+    if (_isLoading) return;
+    
     setState(() => _isLoading = true);
 
     try {
@@ -37,9 +51,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       if (result['success'] == true && result['user'] != null) {
         final user = UserModel.fromJson(result['user']);
+        
+        // Check if profile actually changed
+        final profileUid = result['user']['profile_uid'] as String?;
+        if (_lastLoadedProfileUid != profileUid) {
+          debugPrint('🔄 Profile changed from $_lastLoadedProfileUid to $profileUid');
+          _lastLoadedProfileUid = profileUid;
+        }
+        
         setState(() {
           _user = user;
           _authState.setUser(user);
+          _hasLoadedOnce = true;
         });
       } else {
         // Check if it's an authentication error
@@ -50,6 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // User is not logged in
           setState(() {
             _user = null;
+            _hasLoadedOnce = true;
           });
         } else {
           _showError(message.isNotEmpty ? message : 'Failed to load profile');
@@ -60,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Don't show error for auth issues
       setState(() {
         _user = null;
+        _hasLoadedOnce = true;
       });
     } finally {
       setState(() => _isLoading = false);
@@ -388,6 +413,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildSection(
             title: 'Account',
             children: [
+              _buildActionTile(
+                icon: Icons.people_outline,
+                label: 'Manage Profiles',
+                onTap: () => context.push('/profile/list'),
+              ),
               _buildActionTile(
                 icon: Icons.edit,
                 label: 'Edit Profile',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/localization_service.dart';
 
 class BenefitsPage extends StatelessWidget {
   const BenefitsPage({Key? key}) : super(key: key);
@@ -18,8 +19,8 @@ class BenefitsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Benefits of Kundalini Sadhana',
-          style: TextStyle(
+          context.tr('benefits_title'),
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -61,64 +62,64 @@ class BenefitsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Benefits of Kundalini Sadhana',
-                    style: TextStyle(
+                    context.tr('benefits_title'),
+                    style: const TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.darkBrown,
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   
                   _buildBenefit(
                     icon: Icons.bolt,
-                    title: 'Enhanced Energy',
-                    description: 'Experience unlimited cosmic energy flowing through your being.',
+                    title: context.tr('benefit_enhanced_energy'),
+                    description: context.tr('benefit_enhanced_energy_desc'),
                   ),
                   
                   _buildBenefit(
                     icon: Icons.psychology,
-                    title: 'Mental Clarity',
-                    description: 'Achieve crystal clear focus and enhanced cognitive abilities.',
+                    title: context.tr('benefit_mental_clarity'),
+                    description: context.tr('benefit_mental_clarity_desc'),
                   ),
                   
                   _buildBenefit(
                     icon: Icons.mood,
-                    title: 'Emotional Balance',
-                    description: 'Reduces stress, fear, and negativity, creating inner peace.',
+                    title: context.tr('benefit_emotional_balance'),
+                    description: context.tr('benefit_emotional_balance_desc'),
                   ),
                   
                   _buildBenefit(
                     icon: Icons.circle,
-                    title: 'Chakra Activation',
-                    description: 'Aligns and energizes the body\'s subtle energy centers.',
+                    title: context.tr('benefit_chakra_activation'),
+                    description: context.tr('benefit_chakra_activation_desc'),
                   ),
                   
                   _buildBenefit(
                     icon: Icons.auto_awesome,
-                    title: 'Spiritual Awakening',
-                    description: 'Expands consciousness and deepens connection with the Divine.',
+                    title: context.tr('benefit_spiritual_awakening'),
+                    description: context.tr('benefit_spiritual_awakening_desc'),
                   ),
                   
                   _buildBenefit(
                     icon: Icons.transform,
-                    title: 'Inner Transformation',
-                    description: 'Brings self-realization and a purposeful, harmonious life.',
+                    title: context.tr('benefit_inner_transformation'),
+                    description: context.tr('benefit_inner_transformation_desc'),
                   ),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
                   // Decorative bottom element
                   Center(
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: AppTheme.saffronGradient,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(
-                        '✨ Transform Your Life ✨',
-                        style: TextStyle(
+                        context.tr('transform_your_life'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

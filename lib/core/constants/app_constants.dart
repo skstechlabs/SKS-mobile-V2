@@ -71,8 +71,8 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
   ];
   
   static const List<Map<String, String>> meditationMusic = [
-    {'title': 'Daily Meditation (15 min)', 'duration': '15:00', 'url': 'assets/audio/Sivoham_Mantra_15min_guided_Meditation.mp3', 'description': 'Guided meditation with Sivoham mantra'},
-    {'title': 'Daily Meditation (10 min)', 'duration': '10:00', 'url': 'assets/audio/Sivoham_Mantra_10min_guided_Meditation.mp3', 'description': 'Short guided meditation session'},
+    {'title': 'Sivoham Chanting (15 min)', 'duration': '15:00', 'url': 'assets/audio/Sivoham_Mantra_15min_guided_Meditation.mp3', 'description': 'Sivoham Chanting with Sivoham mantra'},
+    {'title': 'Sivoham Chanting (10 min)', 'duration': '10:00', 'url': 'assets/audio/Sivoham_Mantra_10min_guided_Meditation.mp3', 'description': 'Short gSivoham Chanting session'},
   ];
   
   static const List<Map<String, String>> bhajans = [

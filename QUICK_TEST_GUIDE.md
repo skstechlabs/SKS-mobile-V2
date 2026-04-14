@@ -1,160 +1,269 @@
-# Quick Test Guide - White Screen & Google Login Fix
+# Quick Test Guide - Day Video Completion Fix
 
 ## 🚀 Quick Start
 
-### 1. Rebuild APK
 ```bash
 cd SKS-mobile-V2
-./rebuild-production.sh
+flutter clean
+flutter pub get
+flutter run
 ```
 
-### 2. Install on Device
-```bash
-adb install build/app/outputs/flutter-apk/app-release.apk
-```
+## ✅ Test Checklist (5 minutes)
 
-### 3. Test Flow
-
-#### Test 1: Splash to Login (White Screen Fix)
+### Test 1: Back Button Visibility (30 seconds)
 1. Open app
-2. **Expected**: Splash screen shows Guruji logo with animation
-3. **Expected**: After ~1.5 seconds, login screen appears
-4. **Expected**: NO white screen between splash and login
-5. **Expected**: Login screen shows:
-   - Guruji logo at top
-   - "Welcome" text
-   - Phone number input field
-   - "Send OTP" button
-   - "OR" divider
-   - "Continue with Google" button
+2. Go to Classes → Select any class → Select Day 1
+3. **CHECK**: White back button visible in top-left corner
+4. Tap back button
+5. **CHECK**: Returns to class days list
 
-**✅ PASS**: Login screen appears immediately after splash
-**❌ FAIL**: White screen appears, or app crashes
+**Expected**: ✅ White arrow clearly visible on black background
 
-#### Test 2: Google Login Button (Validation Fix)
-1. On login screen, click "Continue with Google"
-2. **Expected**: Google account picker appears
-3. **Expected**: NO error about "valid mobile number required"
-4. Select a Google account
-5. **Expected**: Login succeeds and navigates to home/profile setup
+---
 
-**✅ PASS**: Google login works without phone validation error
-**❌ FAIL**: Shows "valid mobile number required" error
+### Test 2: Video Duration Display (30 seconds)
+1. Open any day video
+2. **CHECK**: Below video player, see "🕐 Video Length: XX:XX"
+3. Verify time format is MM:SS (e.g., "15:30" for 15 minutes 30 seconds)
 
-#### Test 3: OTP Login (Validation Improvement)
-1. Enter phone number: `9876543210`
-2. Click "Send OTP"
-3. **Expected**: OTP sent successfully
-4. Enter received OTP
-5. **Expected**: Login succeeds
+**Expected**: ✅ Duration displayed in dark bar below video
 
-**Test Invalid Numbers**:
-- Try `123456789` (9 digits) → Should show error
-- Try `0123456789` (starts with 0) → Should show error
-- Try `5123456789` (starts with 5) → Should show error
-- Try `9876543210` (valid) → Should work
+---
 
-**✅ PASS**: Validation works correctly
-**❌ FAIL**: Invalid numbers are accepted or valid numbers are rejected
+### Test 3: Progress Tracking (2 minutes)
+1. Start watching Day 1 (play for 10 seconds)
+2. Go back to class days list
+3. **CHECK**: Day 1 shows "▶️ X% watched"
+4. **CHECK**: Shows "Started: Today"
+5. **CHECK**: Shows "Watch time: Xs" or "Xm"
 
-## 🔍 Debug Commands
+**Expected**: ✅ Progress percentage, start date, and watch time visible
 
-### Check Environment Variables
-```bash
-# After opening app
-adb logcat | grep "API Base URL"
-# Should show: https://sivakundalini.org
+---
+
+### Test 4: Completion Status (2 minutes)
+1. Watch Day 1 video to completion (or skip to end if allowed)
+2. Wait for completion dialog
+3. Tap "Continue" to go back
+4. **CHECK**: Day 1 shows "✅ Completed" badge
+5. **CHECK**: Shows "Completed: Today"
+6. **CHECK**: Shows total watch time
+
+**Expected**: ✅ Green checkmark, completion date, and total watch time
+
+---
+
+### Test 5: Stats Persistence (1 minute)
+1. After completing Day 1, close app completely
+2. Reopen app
+3. Navigate to Classes → Select class
+4. **CHECK**: Day 1 still shows "✅ Completed"
+5. **CHECK**: Stats still visible (date, watch time)
+
+**Expected**: ✅ All stats persist after app restart
+
+---
+
+## 🎯 What to Look For
+
+### Day Card States
+
+#### Not Started
+```
+▶️ Day 1: Welcome
+    ▶️ Start watching
 ```
 
-### Monitor App Logs
-```bash
-adb logcat | grep -E "Flutter|SKS|Firebase"
+#### In Progress (10% watched)
+```
+▶️ Day 1: Welcome
+    ▶️ 10% watched
+    Started: Today
+    Watch time: 1m
 ```
 
-### Check for Errors
-```bash
-adb logcat | grep -E "ERROR|Exception"
+#### In Progress (50% watched)
+```
+▶️ Day 1: Welcome
+    ▶️ 50% watched
+    Started: Today
+    Watch time: 5m
 ```
 
-## ⚠️ Common Issues
-
-### White Screen Still Appears
-**Possible Causes**:
-1. Firebase not initialized properly
-2. Missing google-services.json
-3. App crashed during initialization
-
-**Solution**:
-```bash
-# Check logs for errors
-adb logcat | grep -E "ERROR|Exception|Firebase"
-
-# Reinstall app
-adb uninstall com.spiritual.app
-adb install build/app/outputs/flutter-apk/app-release.apk
+#### Completed
+```
+✅ Day 1: Welcome
+    ✅ Completed
+    Completed: Today
+    Watch time: 15m
 ```
 
-### Google Login Not Working
-**Possible Causes**:
-1. SHA-1 certificate not added to Firebase Console
-2. Google sign-in not enabled in Firebase
-
-**Solution**:
-1. Generate SHA-1: `./generate-sha1.sh`
-2. Add to Firebase Console
-3. Rebuild APK
-4. Reinstall
-
-### "Session Expired" on OTP
-**Possible Causes**:
-1. Firebase phone auth not enabled
-2. Too many requests (rate limited)
-
-**Solution**:
-1. Check Firebase Console > Authentication > Phone
-2. Wait 1 hour if rate limited
-3. Try different phone number
-
-### API Calls Not Working
-**Possible Causes**:
-1. APK built without environment variables
-2. Backend not running
-3. Wrong API URL
-
-**Solution**:
-```bash
-# Verify backend is running
-curl https://sivakundalini.org/api/gatherings
-
-# Check if environment variables were injected
-adb logcat | grep "API Base URL"
-
-# Rebuild with correct flag
-./rebuild-production.sh
+#### Locked (Day 2 before Day 1 complete)
+```
+🔒 Day 2: Introduction
+    🔒 Locked
 ```
 
-## ✅ Success Criteria
+#### Ready to Unlock (Day 2 after Day 1 complete, <24h)
+```
+🔒 Day 2: Introduction
+    🔒 Unlocks in 18h
+```
 
-All tests should pass:
-- [x] Splash screen navigates to login without white screen
-- [x] Google login button works without phone validation error
-- [x] OTP login validates phone numbers correctly
-- [x] Invalid phone numbers show appropriate errors
-- [x] App handles network errors gracefully
-- [x] No crashes during authentication flow
+---
 
-## 📝 Report Issues
+## 🐛 Common Issues & Solutions
 
-If any test fails, provide:
-1. Which test failed
-2. Error message shown (if any)
-3. Logcat output: `adb logcat | grep -E "ERROR|Exception"`
-4. Screenshot of the issue
+### Issue: Back button not visible
+**Solution**: Check AppBar background is black and icon color is white
 
-## 🎯 Next Steps After Testing
+### Issue: Video duration not showing
+**Solution**: Check `videoDurationSeconds` is being parsed from API response
 
-Once all tests pass:
-1. Test reminder notifications
-2. Test profile editing
-3. Test all main features
-4. Deploy to production
+### Issue: Stats not showing
+**Solution**: Check API response includes `completionPercentage`, `watchTimeSeconds`, `startedAt`, `completedAt`
+
+### Issue: Completion status not updating
+**Solution**: 
+1. Check backend `/api/classes/days/:dayId/track` is being called
+2. Check `eventType: 'complete'` is sent when video ends
+3. Verify backend sets `is_completed = TRUE` in database
+
+---
+
+## 📊 Backend Verification
+
+### Check Database
+```sql
+-- Check user progress
+SELECT 
+  day_number,
+  is_completed,
+  completion_percentage,
+  watch_time_seconds,
+  started_at,
+  completed_at
+FROM user_day_progress
+WHERE user_uid = 'YOUR_USER_UID'
+ORDER BY day_number;
+```
+
+### Check API Response
+```bash
+# Get days with progress
+curl -X GET "http://your-api/api/classes/1/days" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Expected response:
+```json
+{
+  "success": true,
+  "days": [
+    {
+      "dayNumber": 1,
+      "isCompleted": true,
+      "completionPercentage": 100,
+      "watchTimeSeconds": 900,
+      "startedAt": "2026-04-08T10:00:00Z",
+      "completedAt": "2026-04-08T10:15:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 🎨 UI Elements to Verify
+
+### Video Player Screen
+- [ ] White back button (top-left)
+- [ ] Video player (center)
+- [ ] Duration bar below video: "🕐 Video Length: XX:XX"
+- [ ] Video info section (scrollable)
+- [ ] Security warning banner
+
+### Class Days List
+- [ ] Day cards with proper spacing
+- [ ] Status badges (▶️ for unlocked, ✅ for completed, 🔒 for locked)
+- [ ] Progress percentage for in-progress videos
+- [ ] Date information (Started/Completed)
+- [ ] Watch time information
+- [ ] Arrow icon on right for unlocked days
+
+---
+
+## 📱 Device Testing
+
+### Test on Different Devices
+- [ ] Android phone (physical device)
+- [ ] Android tablet
+- [ ] Different screen sizes
+- [ ] Different Android versions
+
+### Test Different Scenarios
+- [ ] First time user (no progress)
+- [ ] User with partial progress
+- [ ] User with completed days
+- [ ] User with multiple classes
+
+---
+
+## 🔍 Debug Mode
+
+### Enable Debug Logging
+The app already has debug prints. Check logs:
+
+```bash
+# Android
+adb logcat | grep -E "📚|📹|✅|❌"
+
+# Look for:
+# 📚 Loading days for class...
+# 📹 Video config request...
+# ✅ Day completed
+# ❌ Error messages
+```
+
+### Key Log Messages
+- `📚 Loading days for class X, user: Y`
+- `📊 Found X days for class Y`
+- `📹 Video config request - User: X, Day ID: Y`
+- `✅ Returning video config for Day X`
+- `🎬 Initializing video player`
+- `▶️ Video started playing`
+- `✅ Video completed`
+
+---
+
+## ✨ Success Criteria
+
+All tests pass if:
+1. ✅ Back button is clearly visible and works
+2. ✅ Video duration shows below player
+3. ✅ Progress percentage updates as you watch
+4. ✅ Started date shows when you begin watching
+5. ✅ Watch time accumulates correctly
+6. ✅ Completion status shows after finishing
+7. ✅ Completed date shows after finishing
+8. ✅ All stats persist after app restart
+
+---
+
+## 📞 Support
+
+If any test fails:
+1. Check console logs for errors
+2. Verify backend API is responding correctly
+3. Check database has correct data
+4. Review the fix documentation:
+   - `DAY_VIDEO_COMPLETION_TRACKING_FIXED.md`
+   - `CLASSES_COMPLETION_FIX_SUMMARY.md`
+   - `BEFORE_AFTER_DAY_VIDEO_FIX.md`
+
+---
+
+**Testing Time**: ~5 minutes  
+**Expected Result**: All tests pass ✅  
+**Status**: Ready for testing

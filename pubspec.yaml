@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   
   # Permissions
   permission_handler: ^11.0.1
@@ -28,7 +30,7 @@ dependencies:
   google_fonts: ^6.1.0
   
   # Utilities
-  intl: ^0.18.1
+  intl: ^0.20.2
   share_plus: ^7.2.1
   url_launcher: ^6.2.1
   uuid: ^4.5.1
@@ -70,12 +72,15 @@ dependencies:
   
   # File Picker and Path Provider
   path_provider: ^2.1.1
+  image_picker: ^1.0.7
   
-  # Wallpaper Manager
-  flutter_wallpaper_manager: ^0.0.3
+  # Wallpaper Manager - Using alternative approach
+  # flutter_wallpaper_manager: ^0.0.3  # Has compatibility issues
+  # Using native Android implementation instead
   
-  # Background Work
-  workmanager: ^0.5.2
+  # Background Work - Using alternative approach
+  # workmanager: ^0.5.2  # Has compatibility issues
+  # Using native Android AlarmManager instead
   
   # Local Storage
   shared_preferences: ^2.2.2
@@ -96,8 +101,10 @@ flutter:
     - assets/images/daily_wisdom_images/
     - assets/images/chakras/
     - assets/images/recentGatherings/
+    - assets/translations/
     - assets/icons/
     - assets/audio/
+    - assets/translations/
 
 flutter_launcher_icons:
   android: true

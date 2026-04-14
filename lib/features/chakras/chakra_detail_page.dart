@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/localization_service.dart';
 
 class ChakraDetailPage extends StatefulWidget {
   final int initialIndex;
@@ -16,85 +17,87 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
   late PageController _pageController;
   late int _currentIndex;
 
-  final List<Map<String, dynamic>> chakras = [
-    {
-      'name': 'Root Chakra',
-      'sanskritName': 'Mooladhara',
-      'image': AppConstants.rootChakraImageUrl,
-      'location': 'Base of spine',
-      'color': 'Red',
-      'element': 'Earth',
-      'mantra': 'LAM',
-      'description': 'The Root Chakra represents our foundation and feeling of being grounded. It affects our survival instincts, security, and basic needs. When balanced, you feel safe, stable, and confident in facing life\'s challenges.',
-      'backgroundColor': Color(0xFFB85C5C),
-    },
-    {
-      'name': 'Sacral Chakra',
-      'sanskritName': 'Swadhisthana',
-      'image': AppConstants.sacralChakraImageUrl,
-      'location': 'Lower abdomen',
-      'color': 'Orange',
-      'element': 'Water',
-      'mantra': 'VAM',
-      'description': 'The Sacral Chakra governs creativity, sexuality, and emotions. It represents pleasure, joy, and passion. When balanced, you experience healthy relationships, creativity flows naturally, and you embrace change with ease.',
-      'backgroundColor': Color(0xFFD17842),
-    },
-    {
-      'name': 'Solar Plexus Chakra',
-      'sanskritName': 'Manipura',
-      'image': AppConstants.solarPlexusChakraImageUrl,
-      'location': 'Upper abdomen',
-      'color': 'Yellow',
-      'element': 'Fire',
-      'mantra': 'RAM',
-      'description': 'The Solar Plexus Chakra is your power center, governing self-esteem, confidence, and personal power. It influences your sense of control and willpower. When balanced, you feel confident, motivated, and have a strong sense of purpose.',
-      'backgroundColor': Color(0xFFE8B84D),
-    },
-    {
-      'name': 'Heart Chakra',
-      'sanskritName': 'Anahata',
-      'image': AppConstants.heartChakraImageUrl,
-      'location': 'Center of chest',
-      'color': 'Green',
-      'element': 'Air',
-      'mantra': 'YAM',
-      'description': 'The Heart Chakra represents love, compassion, and connection. It bridges physical and spiritual realms. When balanced, you experience unconditional love, forgiveness, empathy, and deep connections with others.',
-      'backgroundColor': Color(0xFF5FA777),
-    },
-    {
-      'name': 'Throat Chakra',
-      'sanskritName': 'Vishuddha',
-      'image': AppConstants.throatChakraImageUrl,
-      'location': 'Throat',
-      'color': 'Blue',
-      'element': 'Ether',
-      'mantra': 'HAM',
-      'description': 'The Throat Chakra governs communication, self-expression, and truth. It allows you to speak your authentic truth. When balanced, you communicate clearly, listen actively, and express yourself confidently.',
-      'backgroundColor': Color(0xFF5B9BD5),
-    },
-    {
-      'name': 'Third Eye Chakra',
-      'sanskritName': 'Ajna',
-      'image': AppConstants.thirdEyeChakraImageUrl,
-      'location': 'Between eyebrows',
-      'color': 'Indigo',
-      'element': 'Light',
-      'mantra': 'OM',
-      'description': 'The Third Eye Chakra represents intuition, wisdom, and inner vision. It governs insight and spiritual awareness. When balanced, you trust your intuition, see beyond the physical, and have clarity of thought.',
-      'backgroundColor': Color(0xFF4B5D8F),
-    },
-    {
-      'name': 'Crown Chakra',
-      'sanskritName': 'Sahasrara',
-      'image': AppConstants.crownChakraImageUrl,
-      'location': 'Top of head',
-      'color': 'Violet/White',
-      'element': 'Cosmic Energy',
-      'mantra': 'AH',
-      'description': 'The Crown Chakra connects you to divine consciousness and universal energy. It represents enlightenment and spiritual connection. When balanced, you experience inner peace, wisdom, and a sense of oneness with all.',
-      'backgroundColor': Color(0xFF9B59B6),
-    },
-  ];
+  List<Map<String, dynamic>> _getChakras(BuildContext context) {
+    return [
+      {
+        'name': context.tr('chakra_root'),
+        'sanskritName': context.tr('chakra_mooladhara'),
+        'image': AppConstants.rootChakraImageUrl,
+        'location': context.tr('chakra_root_location'),
+        'color': context.tr('chakra_root_color'),
+        'element': context.tr('chakra_root_element'),
+        'mantra': context.tr('chakra_root_mantra'),
+        'description': context.tr('chakra_root_desc'),
+        'backgroundColor': const Color(0xFFB85C5C),
+      },
+      {
+        'name': context.tr('chakra_sacral'),
+        'sanskritName': context.tr('chakra_swadhisthana'),
+        'image': AppConstants.sacralChakraImageUrl,
+        'location': context.tr('chakra_sacral_location'),
+        'color': context.tr('chakra_sacral_color'),
+        'element': context.tr('chakra_sacral_element'),
+        'mantra': context.tr('chakra_sacral_mantra'),
+        'description': context.tr('chakra_sacral_desc'),
+        'backgroundColor': const Color(0xFFD17842),
+      },
+      {
+        'name': context.tr('chakra_solar_plexus'),
+        'sanskritName': context.tr('chakra_manipura'),
+        'image': AppConstants.solarPlexusChakraImageUrl,
+        'location': context.tr('chakra_solar_plexus_location'),
+        'color': context.tr('chakra_solar_plexus_color'),
+        'element': context.tr('chakra_solar_plexus_element'),
+        'mantra': context.tr('chakra_solar_plexus_mantra'),
+        'description': context.tr('chakra_solar_plexus_desc'),
+        'backgroundColor': const Color(0xFFE8B84D),
+      },
+      {
+        'name': context.tr('chakra_heart'),
+        'sanskritName': context.tr('chakra_anahata'),
+        'image': AppConstants.heartChakraImageUrl,
+        'location': context.tr('chakra_heart_location'),
+        'color': context.tr('chakra_heart_color'),
+        'element': context.tr('chakra_heart_element'),
+        'mantra': context.tr('chakra_heart_mantra'),
+        'description': context.tr('chakra_heart_desc'),
+        'backgroundColor': const Color(0xFF5FA777),
+      },
+      {
+        'name': context.tr('chakra_throat'),
+        'sanskritName': context.tr('chakra_vishuddha'),
+        'image': AppConstants.throatChakraImageUrl,
+        'location': context.tr('chakra_throat_location'),
+        'color': context.tr('chakra_throat_color'),
+        'element': context.tr('chakra_throat_element'),
+        'mantra': context.tr('chakra_throat_mantra'),
+        'description': context.tr('chakra_throat_desc'),
+        'backgroundColor': const Color(0xFF5B9BD5),
+      },
+      {
+        'name': context.tr('chakra_third_eye'),
+        'sanskritName': context.tr('chakra_ajna'),
+        'image': AppConstants.thirdEyeChakraImageUrl,
+        'location': context.tr('chakra_third_eye_location'),
+        'color': context.tr('chakra_third_eye_color'),
+        'element': context.tr('chakra_third_eye_element'),
+        'mantra': context.tr('chakra_third_eye_mantra'),
+        'description': context.tr('chakra_third_eye_desc'),
+        'backgroundColor': const Color(0xFF4B5D8F),
+      },
+      {
+        'name': context.tr('chakra_crown'),
+        'sanskritName': context.tr('chakra_sahasrara'),
+        'image': AppConstants.crownChakraImageUrl,
+        'location': context.tr('chakra_crown_location'),
+        'color': context.tr('chakra_crown_color'),
+        'element': context.tr('chakra_crown_element'),
+        'mantra': context.tr('chakra_crown_mantra'),
+        'description': context.tr('chakra_crown_desc'),
+        'backgroundColor': const Color(0xFF9B59B6),
+      },
+    ];
+  }
 
   @override
   void initState() {
@@ -111,6 +114,8 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chakras = _getChakras(context);
+    
     return Scaffold(
       body: PageView.builder(
         controller: _pageController,
@@ -121,13 +126,13 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
         },
         itemCount: chakras.length,
         itemBuilder: (context, index) {
-          return _buildChakraPage(chakras[index]);
+          return _buildChakraPage(chakras[index], chakras.length);
         },
       ),
     );
   }
 
-  Widget _buildChakraPage(Map<String, dynamic> chakra) {
+  Widget _buildChakraPage(Map<String, dynamic> chakra, int totalChakras) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -270,23 +275,23 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
           Row(
             children: [
               Expanded(
-                child: _buildInfoCard('LOCATION', chakra['location']),
+                child: _buildInfoCard('location', chakra['location'], context),
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               Expanded(
-                child: _buildInfoCard('COLOR', chakra['color']),
+                child: _buildInfoCard('color', chakra['color'], context),
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: _buildInfoCard('ELEMENT', chakra['element']),
+                child: _buildInfoCard('element', chakra['element'], context),
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               Expanded(
-                child: _buildInfoCard('MANTRA', chakra['mantra']),
+                child: _buildInfoCard('mantra', chakra['mantra'], context),
               ),
             ],
           ),
@@ -295,9 +300,9 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
     );
   }
 
-  Widget _buildInfoCard(String label, String value) {
+  Widget _buildInfoCard(String label, String value, BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -305,7 +310,7 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
       child: Column(
         children: [
           Text(
-            label,
+            context.tr('chakra_$label'),
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[600],
@@ -313,10 +318,10 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
               letterSpacing: 1,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.black,
@@ -332,7 +337,7 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Container(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -341,14 +346,14 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'About ${chakra['name']}',
-              style: TextStyle(
+              '${context.tr('chakra_about')} ${chakra['name']}',
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               chakra['description'],
               style: TextStyle(
@@ -364,6 +369,8 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
   }
 
   Widget _buildNavigationDots() {
+    final chakras = _getChakras(context);
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 32),
       padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),

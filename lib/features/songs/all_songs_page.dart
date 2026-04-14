@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/audio_player_service.dart';
+import '../../core/services/localization_service.dart';
 
 /// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
@@ -67,7 +68,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
         title: Column(
           children: [
             Text(
-              'All Songs & Bhajans',
+              context.tr('all_songs'),
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 18,
@@ -75,7 +76,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
               ),
             ),
             Text(
-              '${AppConstants.bhajans.length} tracks',
+              '${AppConstants.bhajans.length} ${context.tr('songs').toLowerCase()}',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 12,
@@ -120,7 +121,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
                   Icon(Icons.play_arrow, color: Colors.white),
                   SizedBox(width: 8),
                   Text(
-                    'Play All',
+                    context.tr('play'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -149,6 +150,19 @@ class _AllSongsPageState extends State<AllSongsPage> {
   Widget _buildSongCard(Map<String, dynamic> song, int index) {
     final isCurrentSong = _audioService.currentSong?['title'] == song['title'];
     final isPlaying = isCurrentSong && _audioService.isPlaying;
+    
+    // Get translated song title
+    String getSongTitle(String originalTitle) {
+      final titleMap = {
+        'Sri Jeeveswarastakam': 'song_sri_jeeveswarastakam',
+        'Gundello Gudi': 'song_gundello_gudi',
+        'Nirvana Shatkam': 'song_nirvana_shatkam',
+        'Jeeveswara Yogi Taluva': 'song_jeeveswara_yogi_taluva',
+        'Pralaya Kala Beekara': 'song_pralaya_kala_beekara',
+        'Ni Namamalo Undhi Moksha Dwaram': 'song_ni_namamalo',
+      };
+      return context.tr(titleMap[originalTitle] ?? originalTitle);
+    }
     
     return GestureDetector(
       onTap: () async {
@@ -222,7 +236,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    song['title'] ?? 'Untitled',
+                    getSongTitle(song['title'] ?? 'Untitled'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

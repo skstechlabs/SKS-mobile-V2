@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/localization_service.dart';
+import '../../core/services/api_service.dart';
 import '../auth/auth_service.dart';
+import '../auth/auth_state.dart';
+import '../auth/user_model.dart';
 import '../../core/services/image_preloader_service.dart';
 import 'dart:developer' as developer;
 
@@ -59,37 +64,81 @@ class _SplashScreenState extends State<SplashScreen>
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
       
-      // Reduce splash duration for faster app start
-      await Future.wait([
-        // Minimum splash duration for smooth animation (reduced from 2000ms to 1500ms)
-        Future.delayed(const Duration(milliseconds: 1500)),
-        // Preload critical images (don't block if it fails)
-        _preloadImages().timeout(
-          const Duration(seconds: 3),
-          onTimeout: () {
-            developer.log('⚠️  Image preload timeout (non-blocking)');
-            return null;
-          },
-        ).catchError((e) {
-          developer.log('⚠️  Image preload error (non-blocking): $e');
+      // IMPORTANT: Wait for localization to initialize
+      developer.log('⏳ Waiting for localization service...');
+      while (!LocalizationService().isInitialized) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (!mounted) return;
+      }
+      developer.log('✅ Localization service ready');
+      
+      // Preload critical images (don't block navigation)
+      _preloadImages().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          developer.log('⚠️  Image preload timeout (non-blocking)');
           return null;
-        }),
-      ]);
+        },
+      ).catchError((e) {
+        developer.log('⚠️  Image preload error (non-blocking): $e');
+        return null;
+      });
       
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      
-      // Small delay to show loaded state
-      await Future.delayed(const Duration(milliseconds: 200));
       if (!mounted) return;
 
-      // Check if user is already logged in
-      final user = AuthService().currentUser;
+      // Check if language is selected (first-time setup)
+      final isLanguageSelected = await LocalizationService.isLanguageSelected();
+      developer.log('📱 Language selected: $isLanguageSelected');
       
-      if (user != null) {
-        // User is logged in, go to profile selection
-        developer.log('✅ User logged in, navigating to profile selection');
-        context.go('/profile-selection');
+      if (!isLanguageSelected) {
+        developer.log('✅ First time user, navigating to language selection');
+        if (mounted) context.go('/language-selection');
+        return;
+      }
+
+      // Check if user is already logged in
+      // First check Firebase Auth, then check cached user data
+      User? firebaseUser;
+      try {
+        firebaseUser = AuthService().currentUser;
+      } catch (e) {
+        developer.log('⚠️  Firebase not ready yet: $e');
+        firebaseUser = null;
+      }
+      
+      // Wait for AuthState to initialize
+      final authState = AuthState();
+      if (!authState.isInitialized) {
+        developer.log('⏳ Waiting for AuthState to initialize...');
+        await authState.initialize();
+      }
+      
+      // Check if we have cached user data
+      final cachedUser = authState.user;
+      
+      if (firebaseUser != null || cachedUser != null) {
+        // User is logged in (either Firebase or cached)
+        developer.log('✅ User logged in (Firebase: ${firebaseUser != null}, Cached: ${cachedUser != null})');
+        
+        // If we have Firebase user but no cached data, fetch from backend
+        if (firebaseUser != null && cachedUser == null) {
+          developer.log('🔄 Fetching user profile from backend...');
+          try {
+            final apiService = ApiService();
+            final result = await apiService.getProfile();
+            if (result['success'] == true && mounted) {
+              final userData = result['user'] as Map<String, dynamic>;
+              final userModel = UserModel.fromJson(userData);
+              await authState.setUser(userModel);
+              developer.log('✅ User profile loaded and cached');
+            }
+          } catch (e) {
+            developer.log('⚠️  Failed to fetch user profile: $e');
+            // Continue anyway with Firebase user
+          }
+        }
+        
+        if (mounted) context.go('/');
         return;
       }
 

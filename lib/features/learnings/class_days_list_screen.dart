@@ -63,6 +63,53 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
           _isLoading = false;
         });
         debugPrint('✅ Loaded ${_days.length} days, enrolled: $_isEnrolled');
+      } else if (response['isBlocked'] == true) {
+        // User is blocked from accessing classes
+        setState(() {
+          _isLoading = false;
+          _error = null;
+        });
+        
+        if (mounted) {
+          _showUserBlockedDialog(
+            reason: response['blockInfo']?['reason'] ?? 'Your account has been blocked',
+            blockType: response['blockInfo']?['type'] ?? 'permanent',
+            expiresAt: response['blockInfo']?['expiresAt'],
+          );
+        }
+      } else if (response['isRestricted'] == true) {
+        // User is restricted from this specific class
+        setState(() {
+          _isLoading = false;
+          _error = null;
+        });
+        
+        if (mounted) {
+          _showClassRestrictedDialog(
+            reason: response['restrictionInfo']?['reason'] ?? 'You are restricted from accessing this class',
+            restrictionType: response['restrictionInfo']?['type'] ?? 'specific_class',
+            expiresAt: response['restrictionInfo']?['expiresAt'],
+          );
+        }
+      } else if (response['levelLocked'] == true) {
+        // Level is locked due to level_unlock_minutes timing
+        final minutesUntilUnlock = response['minutesUntilUnlock'] ?? 0;
+        final hoursUntilUnlock = response['hoursUntilUnlock'] ?? 0;
+        final levelUnlockMinutes = response['levelUnlockMinutes'] ?? 1440;
+        
+        setState(() {
+          _isLoading = false;
+          _error = null;
+        });
+        
+        // Show level locked dialog
+        if (mounted) {
+          _showLevelLockedDialog(
+            minutesUntilUnlock: minutesUntilUnlock,
+            hoursUntilUnlock: hoursUntilUnlock,
+            levelUnlockMinutes: levelUnlockMinutes,
+          );
+        }
       } else {
         final errorMsg = response['message'] ?? 'Failed to load days';
         debugPrint('❌ Failed to load days: $errorMsg');
@@ -78,6 +125,276 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         _error = 'Error loading days. Please check your connection.';
         _isLoading = false;
       });
+    }
+  }
+
+  void _showUserBlockedDialog({
+    required String reason,
+    required String blockType,
+    String? expiresAt,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.block, color: Colors.red, size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Account Blocked'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your account has been blocked from accessing classes.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reason:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    reason,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  if (blockType == 'temporary' && expiresAt != null) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Block Type:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Temporary (expires: ${_formatDateTime(expiresAt)})',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Block Type: Permanent',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'If you believe this is a mistake, please contact support.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.pop(); // Go back to classes list
+            },
+            child: const Text('Go Back'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClassRestrictedDialog({
+    required String reason,
+    required String restrictionType,
+    String? expiresAt,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.orange, size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Access Restricted'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You are restricted from accessing this class.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reason:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    reason,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  if (expiresAt != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Restriction expires: ${_formatDateTime(expiresAt)}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'This is a permanent restriction.',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Please contact support for more information.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.pop(); // Go back to classes list
+            },
+            child: const Text('Go Back'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateTime(String isoString) {
+    try {
+      final dateTime = DateTime.parse(isoString);
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return isoString;
+    }
+  }
+
+  void _showLevelLockedDialog({
+    required int minutesUntilUnlock,
+    required int hoursUntilUnlock,
+    required int levelUnlockMinutes,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.lock_clock, color: AppTheme.gold, size: 32),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Level Locked'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This level is not yet accessible.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You must wait ${_formatUnlockTime(minutesUntilUnlock)} after completing the previous level before accessing this content.',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.beige.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppTheme.gold.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, color: AppTheme.gold, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Unlocks in: ${_formatUnlockTime(minutesUntilUnlock)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkBrown,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This waiting period is designed to give you time to integrate the teachings from the previous level.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.pop(); // Go back to classes list
+            },
+            child: const Text('Go Back'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatUnlockTime(int minutes) {
+    if (minutes < 60) {
+      return '$minutes minutes';
+    } else {
+      final hours = (minutes / 60).floor();
+      final remainingMinutes = minutes % 60;
+      if (remainingMinutes == 0) {
+        return '$hours ${hours == 1 ? 'hour' : 'hours'}';
+      } else {
+        return '$hours ${hours == 1 ? 'hour' : 'hours'} $remainingMinutes minutes';
+      }
     }
   }
 
@@ -295,8 +612,11 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
       }
     }
     
-    // Safe parsing of completionPercentage
+    // Safe parsing of stats
     final completionPercentage = (day['completionPercentage'] as num?)?.toDouble() ?? 0.0;
+    final watchTimeSeconds = (day['watchTimeSeconds'] as num?)?.toInt() ?? 0;
+    final completedAt = day['completedAt'] as String?;
+    final startedAt = day['startedAt'] as String?;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -391,15 +711,41 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                         ),
                       const SizedBox(height: 8),
 
-                      // Status badge
+                      // Status badge and stats
                       if (isCompleted)
-                        _buildStatusBadge(
-                          'Completed',
-                          AppTheme.saffron,
-                          Icons.check_circle,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildStatusBadge(
+                              'Completed',
+                              AppTheme.saffron,
+                              Icons.check_circle,
+                            ),
+                            if (completedAt != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Completed: ${_formatDate(completedAt)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                            if (watchTimeSeconds > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Watch time: ${_formatWatchTime(watchTimeSeconds)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ],
                         )
                       else if (isUnlocked)
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (completionPercentage > 0)
                               _buildStatusBadge(
@@ -413,6 +759,26 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                                 AppTheme.gold,
                                 Icons.play_circle_outline,
                               ),
+                            if (startedAt != null && completionPercentage > 0) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Started: ${_formatDate(startedAt)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                            if (watchTimeSeconds > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Watch time: ${_formatWatchTime(watchTimeSeconds)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
                           ],
                         )
                       else if (hoursUntilUnlock != null)
@@ -469,5 +835,39 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         ],
       ),
     );
+  }
+  
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      
+      if (diff.inDays == 0) {
+        return 'Today';
+      } else if (diff.inDays == 1) {
+        return 'Yesterday';
+      } else if (diff.inDays < 7) {
+        return '${diff.inDays} days ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+  
+  String _formatWatchTime(int seconds) {
+    if (seconds < 60) {
+      return '${seconds}s';
+    } else if (seconds < 3600) {
+      final minutes = seconds ~/ 60;
+      return '${minutes}m';
+    } else {
+      final hours = seconds ~/ 3600;
+      final minutes = (seconds % 3600) ~/ 60;
+      return '${hours}h ${minutes}m';
+    }
   }
 }

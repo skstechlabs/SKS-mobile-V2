@@ -932,6 +932,8 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     final durationSeconds = _parseIntValue(session['duration_seconds']);
     final startTime = session['start_time'] as String?;
     final sessionDate = session['session_date'] as String?;
+    final notes = session['notes'] as String?;
+    final hasNotes = notes != null && notes.isNotEmpty;
     
     DateTime? dateTime;
     if (startTime != null) {
@@ -944,64 +946,289 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.softGray),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
+        child: InkWell(
+          onTap: hasNotes ? () => _showSessionDetails(session) : null,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.saffron,
-                  AppTheme.saffron.withValues(alpha: 0.7),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.softGray),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(
-              Icons.self_improvement,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  _formatDuration(durationSeconds),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.saffron,
+                        AppTheme.saffron.withValues(alpha: 0.7),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.self_improvement,
+                    color: Colors.white,
+                    size: 28,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  dateTime != null
-                      ? DateFormat('MMM dd, yyyy • hh:mm a').format(dateTime)
-                      : sessionDate ?? 'Unknown date',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            _formatDuration(durationSeconds),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          if (hasNotes) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.edit_note, size: 14, color: Colors.blue),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Journal',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        dateTime != null
+                            ? DateFormat('MMM dd, yyyy • hh:mm a').format(dateTime)
+                            : sessionDate ?? 'Unknown date',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                    if (hasNotes) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-          Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 24,
+        ),
+      ),
+    );
+  }
+
+  void _showSessionDetails(Map<String, dynamic> session) {
+    final durationSeconds = _parseIntValue(session['duration_seconds']);
+    final startTime = session['start_time'] as String?;
+    final endTime = session['end_time'] as String?;
+    final notes = session['notes'] as String?;
+    
+    DateTime? startDateTime;
+    DateTime? endDateTime;
+    
+    if (startTime != null) {
+      try {
+        startDateTime = DateTime.parse(startTime);
+      } catch (e) {
+        // Ignore
+      }
+    }
+    
+    if (endTime != null) {
+      try {
+        endDateTime = DateTime.parse(endTime);
+      } catch (e) {
+        // Ignore
+      }
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.saffron,
+                    AppTheme.saffron.withValues(alpha: 0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.self_improvement,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Meditation Session')),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Duration
+              _buildDetailRow(
+                Icons.timer,
+                'Duration',
+                _formatDuration(durationSeconds),
+                AppTheme.saffron,
+              ),
+              const SizedBox(height: 12),
+              
+              // Start time
+              if (startDateTime != null)
+                _buildDetailRow(
+                  Icons.play_circle_outline,
+                  'Started',
+                  DateFormat('MMM dd, yyyy • hh:mm a').format(startDateTime),
+                  Colors.green,
+                ),
+              
+              if (startDateTime != null) const SizedBox(height: 12),
+              
+              // End time
+              if (endDateTime != null)
+                _buildDetailRow(
+                  Icons.stop_circle_outlined,
+                  'Ended',
+                  DateFormat('MMM dd, yyyy • hh:mm a').format(endDateTime),
+                  Colors.red,
+                ),
+              
+              if (endDateTime != null) const SizedBox(height: 16),
+              
+              // Journal entry
+              if (notes != null && notes.isNotEmpty) ...[
+                const Divider(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.edit_note, color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Journal Entry',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    notes,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      height: 1.5,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

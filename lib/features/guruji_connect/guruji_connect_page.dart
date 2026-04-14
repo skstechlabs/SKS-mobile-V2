@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/localization_service.dart';
 
 class GurujiConnectPage extends StatelessWidget {
   const GurujiConnectPage({Key? key}) : super(key: key);
@@ -19,15 +20,15 @@ class GurujiConnectPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Guruji Connect',
+                  context.tr('guruji_connect'),
                   style: Theme.of(context).textTheme.displayMedium?.copyWith(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Direct spiritual guidance',
+                  context.tr('direct_spiritual_guidance'),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -35,13 +36,13 @@ class GurujiConnectPage extends StatelessWidget {
               ],
             ),
           ),
-          _buildContactFooter(),
+          _buildContactFooter(context),
         ],
       ),
     );
   }
 
-  Widget _buildContactFooter() {
+  Widget _buildContactFooter(BuildContext context) {
     return Container(
       margin: EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
@@ -137,7 +138,7 @@ class GurujiConnectPage extends StatelessWidget {
                 
                 // Contact Info Section
                 Text(
-                  'Contact Us',
+                  context.tr('contact_us'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -219,7 +220,7 @@ class GurujiConnectPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Call Us',
+                                context.tr('call_us'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textSecondary,
@@ -274,7 +275,7 @@ class GurujiConnectPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'WhatsApp Us',
+                                context.tr('whatsapp_us'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textSecondary,
@@ -337,7 +338,7 @@ class GurujiConnectPage extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        'Connect With Us',
+                        context.tr('connect_with_us'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -474,7 +475,7 @@ class GurujiConnectPage extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                '© ${DateTime.now().year} Siva Kundalini Sadhana. All rights reserved.',
+                '© ${DateTime.now().year} ${AppConstants.organizationName}. ${context.tr('all_rights_reserved')}',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppTheme.textSecondary,

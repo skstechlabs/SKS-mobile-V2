@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import '../../core/widgets/auth_guard.dart';
 import '../auth/auth_service.dart';
 
@@ -58,8 +59,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (mounted) {
         if (response['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile updated successfully'),
+            SnackBar(
+              content: Text(context.tr('profile_updated')),
               backgroundColor: Colors.green,
             ),
           );
@@ -67,7 +68,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Failed to update profile'),
+              content: Text(response['message'] ?? context.tr('failed_update_profile')),
               backgroundColor: Colors.red,
             ),
           );
@@ -76,8 +77,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Network error. Please try again.'),
+          SnackBar(
+            content: Text(context.tr('network_error_check_connection')),
             backgroundColor: Colors.red,
           ),
         );
@@ -101,14 +102,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return AuthGuard(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Edit Profile'),
+          title: Text(context.tr('edit_profile')),
           actions: [
             if (!_isLoading && !_isSaving)
               TextButton(
                 onPressed: _saveProfile,
-                child: const Text(
-                  'Save',
-                  style: TextStyle(
+                child: Text(
+                  context.tr('save'),
+                  style: const TextStyle(
                     color: AppTheme.saffron,
                     fontWeight: FontWeight.bold,
                   ),
@@ -131,8 +132,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       TextFormField(
                         controller: _nameController,
                         decoration: InputDecoration(
-                          labelText: 'Full Name',
-                          hintText: 'Enter your full name',
+                          labelText: context.tr('full_name'),
+                          hintText: context.tr('enter_full_name'),
                           prefixIcon: const Icon(Icons.person_outline),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -153,10 +154,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your name';
+                            return context.tr('please_enter_name');
                           }
                           if (value.trim().length < 2) {
-                            return 'Name must be at least 2 characters';
+                            return context.tr('name_min_2_chars');
                           }
                           return null;
                         },
@@ -169,8 +170,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       TextFormField(
                         controller: _phoneController,
                         decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          hintText: 'Enter your phone number',
+                          labelText: context.tr('phone_number'),
+                          hintText: context.tr('enter_phone_number'),
                           prefixIcon: const Icon(Icons.phone_outlined),
                           suffixIcon: const Icon(Icons.lock_outline, size: 20),
                           border: OutlineInputBorder(
@@ -184,15 +185,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           ),
                           filled: true,
                           fillColor: Colors.grey.shade100,
-                          helperText: 'Mobile number cannot be changed',
-                          helperStyle: TextStyle(
+                          helperText: context.tr('mobile_cannot_change'),
+                          helperStyle: const TextStyle(
                             color: AppTheme.textSecondary,
                             fontSize: 12,
                           ),
                         ),
                         keyboardType: TextInputType.phone,
                         enabled: false, // Make it non-editable
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppTheme.textSecondary,
                         ),
                       ),
@@ -221,9 +222,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                   ),
                                 )
-                              : const Text(
-                                  'Save Changes',
-                                  style: TextStyle(
+                              : Text(
+                                  context.tr('save_changes'),
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,

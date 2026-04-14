@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
@@ -11,8 +12,10 @@ import 'core/services/audio_handler.dart';
 import 'core/services/api_service.dart';
 import 'core/services/onesignal_service.dart';
 import 'core/services/notification_storage_service.dart';
+import 'core/services/localization_service.dart';
 import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
+import 'features/auth/auth_state.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -37,9 +40,11 @@ void main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       developer.log('✅ Firebase initialized successfully');
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('❌ Firebase initialization failed: $e');
-      // Continue anyway - app can work without Firebase initially
+      developer.log('Stack trace: $stackTrace');
+      // Don't throw - app can work without Firebase initially
+      // User will see login screen and can authenticate there
     }
     
     // Initialize API Service with error handling
@@ -56,6 +61,22 @@ void main() async {
       developer.log('✅ Notification Storage initialized successfully');
     } catch (e) {
       developer.log('❌ Notification Storage initialization failed: $e');
+    }
+    
+    // Initialize Localization Service with error handling
+    try {
+      await LocalizationService().initialize();
+      developer.log('✅ Localization Service initialized successfully');
+    } catch (e) {
+      developer.log('❌ Localization Service initialization failed: $e');
+    }
+    
+    // Initialize AuthState (load cached user data) with error handling
+    try {
+      await AuthState().initialize();
+      developer.log('✅ AuthState initialized successfully');
+    } catch (e) {
+      developer.log('❌ AuthState initialization failed: $e');
     }
     
     // Initialize AudioService for background playback
@@ -150,8 +171,31 @@ void main() async {
   }
 }
 
-class SpiritualApp extends StatelessWidget {
+class SpiritualApp extends StatefulWidget {
   const SpiritualApp({Key? key}) : super(key: key);
+
+  @override
+  State<SpiritualApp> createState() => _SpiritualAppState();
+}
+
+class _SpiritualAppState extends State<SpiritualApp> {
+  final LocalizationService _localizationService = LocalizationService();
+
+  @override
+  void initState() {
+    super.initState();
+    _localizationService.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    _localizationService.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +203,15 @@ class SpiritualApp extends StatelessWidget {
       title: 'SKS',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      locale: _localizationService.currentLocale,
+      supportedLocales: LocalizationService.supportedLocales,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // Force router to rebuild when locale changes by using a key
+      key: ValueKey(_localizationService.currentLocale.languageCode),
       routerConfig: appRouter,
       // Performance optimizations
       showPerformanceOverlay: false,

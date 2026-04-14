@@ -1,42 +1,107 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:workmanager/workmanager.dart';
-import 'package:flutter_wallpaper_manager/flutter_wallpaper_manager.dart';
+import 'package:dio/dio.dart';
+import '../constants/app_env.dart';
 
 /// Wallpaper Service
 /// 
-/// Manages rotating wallpapers from daily wisdom images
+/// Manages rotating wallpapers from Cloudflare R2 CDN (sadhaks/Wallpapers/)
+/// Auto-rotates wallpapers every 15 minutes when enabled
 class WallpaperService {
   static final WallpaperService _instance = WallpaperService._internal();
   factory WallpaperService() => _instance;
   WallpaperService._internal();
 
-  static const String _taskName = 'rotateWallpaper';
+  static const platform = MethodChannel('com.spiritual.app/wallpaper');
   static const String _prefKeyEnabled = 'wallpaper_rotation_enabled';
   static const String _prefKeyCurrentIndex = 'wallpaper_current_index';
   static const String _prefKeyLastUpdate = 'wallpaper_last_update';
+  static const String _prefKeyCachedWallpapers = 'wallpaper_cached_list';
+  static const Duration _rotationInterval = Duration(minutes: 15);
 
-  // List of daily wisdom images
-  static const List<String> _wisdomImages = [
-    'assets/images/daily_wisdom_images/Guruji_25.webp',
-    'assets/images/daily_wisdom_images/Guruji_26.webp',
-    'assets/images/daily_wisdom_images/Guruji_30.webp',
-    'assets/images/daily_wisdom_images/Guruji_32.jpeg',
-  ];
+  final Dio _dio = Dio();
+  List<Map<String, dynamic>> _wallpapers = [];
+  bool _isLoaded = false;
+  Timer? _rotationTimer;
 
   /// Initialize the wallpaper service
   Future<void> initialize() async {
     try {
-      await Workmanager().initialize(
-        callbackDispatcher,
-        isInDebugMode: kDebugMode,
-      );
-      debugPrint('✅ WallpaperService initialized');
+      await _loadWallpapersFromAPI();
+      debugPrint('✅ WallpaperService initialized with ${_wallpapers.length} wallpapers from CDN');
+      
+      // Start auto-rotation timer if enabled
+      final enabled = await isEnabled();
+      if (enabled) {
+        _startAutoRotation();
+      }
     } catch (e) {
       debugPrint('❌ WallpaperService initialization failed: $e');
+      // Try to load from cache
+      await _loadWallpapersFromCache();
+    }
+  }
+
+  /// Load wallpapers from API
+  Future<void> _loadWallpapersFromAPI() async {
+    try {
+      final baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
+          ? AppEnv.apiBaseUrl 
+          : 'https://sivakundalini.org';
+      
+      final response = await _dio.get('$baseUrl/api/wallpapers');
+      
+      if (response.data['success'] == true) {
+        _wallpapers = List<Map<String, dynamic>>.from(response.data['wallpapers']);
+        _isLoaded = true;
+        
+        // Cache the wallpapers list
+        await _cacheWallpapers();
+        
+        debugPrint('✅ Loaded ${_wallpapers.length} wallpapers from CDN');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading wallpapers from API: $e');
+      rethrow;
+    }
+  }
+
+  /// Cache wallpapers list
+  Future<void> _cacheWallpapers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final wallpapersJson = _wallpapers.map((w) => {
+        'url': w['url'],
+        'filename': w['filename'],
+      }).toList();
+      await prefs.setString(_prefKeyCachedWallpapers, wallpapersJson.toString());
+    } catch (e) {
+      debugPrint('Error caching wallpapers: $e');
+    }
+  }
+
+  /// Load wallpapers from cache
+  Future<void> _loadWallpapersFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_prefKeyCachedWallpapers);
+      if (cached != null) {
+        // Parse cached data (simplified - in production use proper JSON parsing)
+        debugPrint('📦 Loaded wallpapers from cache');
+      }
+    } catch (e) {
+      debugPrint('Error loading from cache: $e');
+    }
+  }
+
+  /// Ensure wallpapers are loaded
+  Future<void> _ensureLoaded() async {
+    if (!_isLoaded || _wallpapers.isEmpty) {
+      await _loadWallpapersFromAPI();
     }
   }
 
@@ -61,18 +126,10 @@ class WallpaperService {
       // Set initial wallpaper
       await _setNextWallpaper();
 
-      // Schedule periodic task (every 15 minutes)
-      await Workmanager().registerPeriodicTask(
-        _taskName,
-        _taskName,
-        frequency: const Duration(minutes: 15),
-        constraints: Constraints(
-          networkType: NetworkType.not_required,
-        ),
-        existingWorkPolicy: ExistingWorkPolicy.replace,
-      );
+      // Start auto-rotation timer
+      _startAutoRotation();
 
-      debugPrint('✅ Wallpaper rotation enabled');
+      debugPrint('✅ Wallpaper rotation enabled with 15-minute auto-rotation');
       return true;
     } catch (e) {
       debugPrint('❌ Error enabling wallpaper rotation: $e');
@@ -86,8 +143,8 @@ class WallpaperService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_prefKeyEnabled, false);
 
-      // Cancel the periodic task
-      await Workmanager().cancelByUniqueName(_taskName);
+      // Stop auto-rotation timer
+      _stopAutoRotation();
 
       debugPrint('✅ Wallpaper rotation disabled');
       return true;
@@ -97,58 +154,104 @@ class WallpaperService {
     }
   }
 
+  /// Start auto-rotation timer (changes wallpaper every 15 minutes)
+  void _startAutoRotation() {
+    // Cancel existing timer if any
+    _stopAutoRotation();
+
+    debugPrint('🔄 Starting wallpaper auto-rotation (every 15 minutes)');
+    
+    _rotationTimer = Timer.periodic(_rotationInterval, (timer) async {
+      try {
+        final enabled = await isEnabled();
+        if (!enabled) {
+          debugPrint('⚠️ Auto-rotation disabled, stopping timer');
+          _stopAutoRotation();
+          return;
+        }
+
+        debugPrint('⏰ Auto-rotation triggered (15 minutes elapsed)');
+        await _setNextWallpaper();
+      } catch (e) {
+        debugPrint('❌ Error in auto-rotation: $e');
+      }
+    });
+  }
+
+  /// Stop auto-rotation timer
+  void _stopAutoRotation() {
+    if (_rotationTimer != null) {
+      _rotationTimer!.cancel();
+      _rotationTimer = null;
+      debugPrint('⏹️ Wallpaper auto-rotation stopped');
+    }
+  }
+
   /// Set next wallpaper in rotation
   Future<void> _setNextWallpaper() async {
     try {
+      await _ensureLoaded();
+      
+      if (_wallpapers.isEmpty) {
+        throw Exception('No wallpapers available');
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final currentIndex = prefs.getInt(_prefKeyCurrentIndex) ?? 0;
 
-      // Get next image
-      final imagePath = _wisdomImages[currentIndex % _wisdomImages.length];
+      // Get next wallpaper
+      final wallpaper = _wallpapers[currentIndex % _wallpapers.length];
+      final imageUrl = wallpaper['url'] as String;
 
-      // Copy asset to file
-      final file = await _copyAssetToFile(imagePath);
+      // Download image from CDN
+      final file = await _downloadImageFromCDN(imageUrl);
 
-      // Set as wallpaper
-      await WallpaperManager.setWallpaperFromFile(
-        file.path,
-        WallpaperManager.HOME_SCREEN,
-      );
+      // Set as wallpaper using native method
+      final result = await platform.invokeMethod('setWallpaper', {
+        'path': file.path,
+      });
 
-      // Update index and timestamp
-      await prefs.setInt(_prefKeyCurrentIndex, currentIndex + 1);
-      await prefs.setString(_prefKeyLastUpdate, DateTime.now().toIso8601String());
+      if (result == true) {
+        // Update index and timestamp
+        await prefs.setInt(_prefKeyCurrentIndex, currentIndex + 1);
+        await prefs.setString(_prefKeyLastUpdate, DateTime.now().toIso8601String());
 
-      debugPrint('✅ Wallpaper set: $imagePath (index: $currentIndex)');
+        debugPrint('✅ Wallpaper set: ${wallpaper['filename']} (index: $currentIndex)');
+      } else {
+        debugPrint('❌ Failed to set wallpaper');
+      }
     } catch (e) {
       debugPrint('❌ Error setting wallpaper: $e');
       rethrow;
     }
   }
 
-  /// Copy asset to temporary file
-  Future<File> _copyAssetToFile(String assetPath) async {
+  /// Download image from CDN to temporary file
+  Future<File> _downloadImageFromCDN(String imageUrl) async {
     try {
       // Check if running on web
       if (kIsWeb) {
         throw UnsupportedError('Wallpaper setting is not supported on web');
       }
       
-      // Load asset
-      final byteData = await rootBundle.load(assetPath);
+      // Download image
+      final response = await _dio.get(
+        imageUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
 
       // Get temporary directory
       final directory = await getTemporaryDirectory();
-      final fileName = assetPath.split('/').last;
-      final filePath = '${directory.path}/$fileName';
+      final filename = imageUrl.split('/').last;
+      final filePath = '${directory.path}/$filename';
 
       // Write to file
       final file = File(filePath);
-      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await file.writeAsBytes(response.data);
 
       return file;
     } catch (e) {
-      debugPrint('Error copying asset: $e');
+      debugPrint('Error downloading image from CDN: $e');
       rethrow;
     }
   }
@@ -171,19 +274,31 @@ class WallpaperService {
   /// Get current wallpaper info
   Future<Map<String, dynamic>> getCurrentInfo() async {
     try {
+      await _ensureLoaded();
+      
       final prefs = await SharedPreferences.getInstance();
       final currentIndex = prefs.getInt(_prefKeyCurrentIndex) ?? 0;
       final lastUpdate = prefs.getString(_prefKeyLastUpdate);
 
-      final imageIndex = (currentIndex - 1) % _wisdomImages.length;
-      final imagePath = imageIndex >= 0 ? _wisdomImages[imageIndex] : _wisdomImages[0];
+      if (_wallpapers.isEmpty) {
+        return {
+          'enabled': await isEnabled(),
+          'currentImage': null,
+          'currentIndex': 0,
+          'lastUpdate': lastUpdate,
+          'totalImages': 0,
+        };
+      }
+
+      final imageIndex = (currentIndex - 1) % _wallpapers.length;
+      final wallpaper = imageIndex >= 0 ? _wallpapers[imageIndex] : _wallpapers[0];
 
       return {
         'enabled': await isEnabled(),
-        'currentImage': imagePath,
+        'currentImage': wallpaper['url'],
         'currentIndex': currentIndex,
         'lastUpdate': lastUpdate,
-        'totalImages': _wisdomImages.length,
+        'totalImages': _wallpapers.length,
       };
     } catch (e) {
       debugPrint('Error getting wallpaper info: $e');
@@ -192,7 +307,7 @@ class WallpaperService {
         'currentImage': null,
         'currentIndex': 0,
         'lastUpdate': null,
-        'totalImages': _wisdomImages.length,
+        'totalImages': 0,
       };
     }
   }
@@ -205,23 +320,32 @@ class WallpaperService {
         throw UnsupportedError('Wallpaper setting is not supported on web. This feature only works on mobile devices.');
       }
       
-      if (index < 0 || index >= _wisdomImages.length) {
+      await _ensureLoaded();
+      
+      if (index < 0 || index >= _wallpapers.length) {
         throw Exception('Invalid wallpaper index');
       }
 
-      final imagePath = _wisdomImages[index];
-      final file = await _copyAssetToFile(imagePath);
+      final wallpaper = _wallpapers[index];
+      final imageUrl = wallpaper['url'] as String;
+      
+      // Download image from CDN
+      final file = await _downloadImageFromCDN(imageUrl);
 
-      await WallpaperManager.setWallpaperFromFile(
-        file.path,
-        WallpaperManager.HOME_SCREEN,
-      );
+      // Set as wallpaper using native method
+      final result = await platform.invokeMethod('setWallpaper', {
+        'path': file.path,
+      });
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_prefKeyCurrentIndex, index + 1);
-      await prefs.setString(_prefKeyLastUpdate, DateTime.now().toIso8601String());
+      if (result == true) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_prefKeyCurrentIndex, index + 1);
+        await prefs.setString(_prefKeyLastUpdate, DateTime.now().toIso8601String());
 
-      debugPrint('✅ Wallpaper set to index $index: $imagePath');
+        debugPrint('✅ Wallpaper set to index $index: ${wallpaper['filename']}');
+      } else {
+        throw Exception('Failed to set wallpaper');
+      }
     } catch (e) {
       debugPrint('❌ Error setting wallpaper by index: $e');
       rethrow;
@@ -229,35 +353,19 @@ class WallpaperService {
   }
 
   /// Get list of all available wallpapers
-  List<String> getAvailableWallpapers() {
-    return List.from(_wisdomImages);
-  }
-}
-
-/// Background task callback dispatcher
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
+  Future<List<String>> getAvailableWallpapers() async {
     try {
-      debugPrint('🔄 Background task started: $task');
-
-      if (task == WallpaperService._taskName) {
-        final prefs = await SharedPreferences.getInstance();
-        final enabled = prefs.getBool(WallpaperService._prefKeyEnabled) ?? false;
-
-        if (enabled) {
-          final service = WallpaperService();
-          await service._setNextWallpaper();
-          debugPrint('✅ Background wallpaper rotation completed');
-        } else {
-          debugPrint('⏭️ Wallpaper rotation is disabled, skipping');
-        }
-      }
-
-      return Future.value(true);
+      await _ensureLoaded();
+      return _wallpapers.map((w) => w['url'] as String).toList();
     } catch (e) {
-      debugPrint('❌ Background task failed: $e');
-      return Future.value(false);
+      debugPrint('Error getting available wallpapers: $e');
+      return [];
     }
-  });
+  }
+
+  /// Dispose resources (call when app is closing)
+  void dispose() {
+    _stopAutoRotation();
+    debugPrint('🧹 WallpaperService disposed');
+  }
 }

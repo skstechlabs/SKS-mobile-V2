@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/otp_input_widget.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
+import '../../core/services/localization_service.dart';
 import 'auth_service.dart';
 import 'auth_state.dart';
 import 'user_model.dart';
@@ -128,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       if (loginResult['success'] == true) {
         final userData = loginResult['user'] as Map<String, dynamic>;
         final userModel = UserModel.fromJson(userData);
-        _authState.setUser(userModel);
+        await _authState.setUser(userModel); // Now persists to cache
 
         // Set OneSignal external user ID
         await _oneSignal.setExternalUserId(userModel.uid);
@@ -227,22 +228,32 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     
     setState(() => _isLoading = true);
 
-    final result = await _authService.sendOtp(
-      _phoneController.text,
-      onError: (error) {
+    try {
+      final result = await _authService.sendOtp(
+        _phoneController.text,
+        onError: (error) {
+          // Error callback - will be called if verification fails
+          debugPrint('OTP Error callback: $error');
+        },
+      );
+
+      if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackBar(error);
-      },
-    );
 
-    setState(() => _isLoading = false);
-
-    if (result['success'] == true) {
-      setState(() => _showOtpField = true);
-      _startResendTimer();
-      _showSnackBar('OTP sent to +91 ${_phoneController.text}');
-    } else {
-      _showSnackBar(result['message'] ?? 'Failed to send OTP');
+        if (result['success'] == true) {
+          setState(() => _showOtpField = true);
+          _startResendTimer();
+          _showSnackBar('OTP sent to +91 ${_phoneController.text}');
+        } else {
+          _showSnackBar(result['message'] ?? 'Failed to send OTP');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error sending OTP: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Failed to send OTP. Please try again.');
+      }
     }
   }
 
@@ -267,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       if (loginResult['success'] == true) {
         final userData = loginResult['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userData);
-        _authState.setUser(user);
+        await _authState.setUser(user); // Now persists to cache
 
         // Set OneSignal external user ID
         await _oneSignal.setExternalUserId(user.uid);
@@ -280,11 +291,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
         if (mounted) {
           // Navigate based on profile completion status
-          if (loginResult['is_new_user'] == true || !user.isProfileComplete) {
+          final isNewUser = loginResult['is_new_user'] == true;
+          
+          if (isNewUser || !user.isProfileComplete) {
             context.go('/profile-setup');
           } else {
-            // Navigate to profile selection
-            context.go('/profile-selection');
+            // Check if notification permission is granted
+            final hasNotificationPermission = await _oneSignal.hasPermission();
+            if (hasNotificationPermission) {
+              context.go('/');
+            } else {
+              context.go('/notification-permission');
+            }
           }
         }
       } else {
@@ -300,21 +318,30 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     if (!_canResend) return;
     setState(() => _isLoading = true);
 
-    final result = await _authService.resendOtp(
-      _phoneController.text,
-      onError: (error) {
+    try {
+      final result = await _authService.resendOtp(
+        _phoneController.text,
+        onError: (error) {
+          debugPrint('Resend OTP Error callback: $error');
+        },
+      );
+
+      if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackBar(error);
-      },
-    );
 
-    setState(() => _isLoading = false);
-
-    if (result['success'] == true) {
-      _startResendTimer();
-      _showSnackBar('OTP resent successfully');
-    } else {
-      _showSnackBar(result['message'] ?? 'Failed to resend OTP');
+        if (result['success'] == true) {
+          _startResendTimer();
+          _showSnackBar('OTP resent successfully');
+        } else {
+          _showSnackBar(result['message'] ?? 'Failed to resend OTP');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error resending OTP: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Failed to resend OTP. Please try again.');
+      }
     }
   }
 
@@ -340,7 +367,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       if (loginResult['success'] == true) {
         final userData = loginResult['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userData);
-        _authState.setUser(user);
+        await _authState.setUser(user); // Now persists to cache
 
         // Set OneSignal external user ID
         await _oneSignal.setExternalUserId(user.uid);
@@ -354,11 +381,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
         if (mounted) {
           // Navigate based on profile completion status
-          if (loginResult['is_new_user'] == true || !user.isProfileComplete) {
+          final isNewUser = loginResult['is_new_user'] == true;
+          
+          if (isNewUser || !user.isProfileComplete) {
             context.go('/profile-setup');
           } else {
-            // Navigate to profile selection
-            context.go('/profile-selection');
+            // Check if notification permission is granted
+            final hasNotificationPermission = await _oneSignal.hasPermission();
+            if (hasNotificationPermission) {
+              context.go('/');
+            } else {
+              context.go('/notification-permission');
+            }
           }
         }
       } else {
@@ -448,7 +482,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             const SizedBox(height: 28),
 
                             Text(
-                              _showOtpField ? 'Verify OTP' : 'Welcome',
+                              _showOtpField ? context.tr('verify_otp') : context.tr('welcome'),
                               style: Theme.of(context).textTheme.displayMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.primary,
@@ -459,8 +493,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
                             Text(
                               _showOtpField
-                                  ? 'Enter the 6-digit OTP sent to\n+91 ${_phoneController.text}'
-                                  : 'Sign in to continue your spiritual journey',
+                                  ? '${context.tr('enter_otp')}\n+91 ${_phoneController.text}'
+                                  : context.tr('login_subtitle'),
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: AppTheme.textSecondary,
                                   ),
@@ -485,7 +519,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                     LengthLimitingTextInputFormatter(10),
                                   ],
                                   decoration: InputDecoration(
-                                    hintText: 'Enter mobile number',
+                                    hintText: context.tr('enter_mobile_number'),
                                     prefixIcon: Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                       child: Text(
@@ -512,7 +546,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               const SizedBox(height: 24),
 
                               // Send OTP Button
-                              _buildPrimaryButton('Send OTP', _isLoading ? null : _sendOtp),
+                              _buildPrimaryButton(context.tr('send_otp'), _isLoading ? null : _sendOtp),
 
                               const SizedBox(height: 32),
 
@@ -522,7 +556,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                   Expanded(child: Divider(color: AppTheme.softGray)),
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    child: Text('OR',
+                                    child: Text(context.tr('or'),
                                         style: TextStyle(
                                             color: AppTheme.textSecondary,
                                             fontWeight: FontWeight.w500)),
@@ -547,7 +581,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               const SizedBox(height: 32),
 
                               // Verify Button
-                              _buildPrimaryButton('Verify OTP', _isLoading ? null : _verifyOtp),
+                              _buildPrimaryButton(context.tr('verify_otp'), _isLoading ? null : _verifyOtp),
 
                               const SizedBox(height: 20),
 
@@ -556,14 +590,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    "Didn't receive OTP? ",
+                                    context.tr('didnt_receive_otp'),
                                     style: TextStyle(color: AppTheme.textSecondary),
                                   ),
+                                  const SizedBox(width: 4),
                                   _canResend
                                       ? GestureDetector(
                                           onTap: _resendOtp,
                                           child: Text(
-                                            'Resend',
+                                            context.tr('resend'),
                                             style: TextStyle(
                                               color: AppTheme.primary,
                                               fontWeight: FontWeight.w600,
@@ -571,7 +606,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                           ),
                                         )
                                       : Text(
-                                          'Resend in ${_resendCountdown}s',
+                                          '${context.tr('resend_in')} ${_resendCountdown}s',
                                           style: TextStyle(
                                             color: AppTheme.textSecondary,
                                             fontWeight: FontWeight.w500,
@@ -586,7 +621,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               TextButton(
                                 onPressed: _isLoading ? null : _goBackToPhone,
                                 child: Text(
-                                  'Change mobile number',
+                                  context.tr('change_mobile_number'),
                                   style: TextStyle(
                                     color: AppTheme.primary,
                                     fontWeight: FontWeight.w500,
@@ -607,7 +642,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       child: TextButton(
                         onPressed: () => context.go('/notification-permission'),
                         child: Text(
-                          'Skip for now',
+                          context.tr('skip_for_now'),
                           style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
                         ),
                       ),

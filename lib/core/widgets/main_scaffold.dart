@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../services/audio_player_service.dart';
 import '../services/notification_storage_service.dart';
+import '../services/localization_service.dart';
 import 'spiritual_background.dart';
 import 'mini_audio_player.dart';
 
@@ -69,12 +70,12 @@ class _MainScaffoldState extends State<MainScaffold> {
       appBar: AppBar(
         titleSpacing: 16,
         centerTitle: false,
-        title: const Text(
-          'Siva Kundalini Sadhana',
-          style: TextStyle(
+        title: Text(
+          context.tr('app_full_name'),
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: Color(0xFFD84315),
             letterSpacing: 0.3,
           ),
         ),
@@ -90,7 +91,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 Icons.person_outline,
                 size: 26,
               ),
-              tooltip: 'Profile',
+              tooltip: context.tr('profile_tooltip'),
               onPressed: () => context.push('/profile'),
             ),
           ),
@@ -148,30 +149,30 @@ class _MainScaffoldState extends State<MainScaffold> {
               selectedFontSize: 12,
               unselectedFontSize: 12,
               iconSize: 24,
-              items: const [
+              items: [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.home_outlined),
-                  activeIcon: Icon(Icons.home),
-                  label: 'Home',
+                  icon: const Icon(Icons.home_outlined),
+                  activeIcon: const Icon(Icons.home),
+                  label: context.tr('home'),
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.school_outlined),
-                  activeIcon: Icon(Icons.school),
-                  label: 'Classes',
+                  icon: const Icon(Icons.school_outlined),
+                  activeIcon: const Icon(Icons.school),
+                  label: context.tr('classes'),
                 ),
-                BottomNavigationBarItem(
+                const BottomNavigationBarItem(
                   icon: SizedBox(height: 24), // Placeholder for center button
                   label: '',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.connect_without_contact_outlined),
-                  activeIcon: Icon(Icons.connect_without_contact),
-                  label: 'Contact',
+                  icon: const Icon(Icons.connect_without_contact_outlined),
+                  activeIcon: const Icon(Icons.connect_without_contact),
+                  label: context.tr('contact'),
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.event_outlined),
-                  activeIcon: Icon(Icons.event),
-                  label: 'Events',
+                  icon: const Icon(Icons.event_outlined),
+                  activeIcon: const Icon(Icons.event),
+                  label: context.tr('events'),
                 ),
               ],
             ),

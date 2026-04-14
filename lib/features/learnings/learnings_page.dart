@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 
 class LearningsPage extends StatefulWidget {
   const LearningsPage({super.key});
@@ -112,7 +113,7 @@ class _LearningsPageState extends State<LearningsPage> {
   @override
   Widget build(BuildContext context) {
     return AuthGuard(
-      featureName: 'Classes',
+      featureName: context.tr('learnings_title'),
       child: _buildContent(context),
     );
   }
@@ -137,14 +138,14 @@ class _LearningsPageState extends State<LearningsPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Unable to Load Classes',
+                context.tr('unable_to_load_classes'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
               Text(
-                _errorMessage!,
+                context.tr('unable_to_load_classes_desc'),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -154,7 +155,7 @@ class _LearningsPageState extends State<LearningsPage> {
               ElevatedButton.icon(
                 onPressed: _loadLevelAccess,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                label: Text(context.tr('retry')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.saffron,
                   foregroundColor: Colors.white,
@@ -177,7 +178,7 @@ class _LearningsPageState extends State<LearningsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Learnings',
+              context.tr('learnings_title'),
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -185,7 +186,7 @@ class _LearningsPageState extends State<LearningsPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Your path to spiritual evolution',
+              context.tr('learnings_subtitle'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -193,14 +194,14 @@ class _LearningsPageState extends State<LearningsPage> {
             const SizedBox(height: 24),
             
             // Online Courses Section
-            _buildSectionHeader('Online Courses', Icons.video_library),
+            _buildSectionHeader(context.tr('online_courses'), Icons.video_library),
             const SizedBox(height: 16),
             _buildLevelCard(
               context,
               classId: 1,
               levelNumber: 1,
-              level: 'Level 1',
-              title: 'Brahmarandhra Opening',
+              level: context.tr('level_1'),
+              title: context.tr('brahmarandhra_opening'),
               icon: Icons.looks_one,
               color: AppTheme.saffron,
             ),
@@ -208,8 +209,8 @@ class _LearningsPageState extends State<LearningsPage> {
               context,
               classId: 2,
               levelNumber: 2,
-              level: 'Level 2',
-              title: 'Sushumna Nadi Activation',
+              level: context.tr('level_2'),
+              title: context.tr('sushumna_nadi_activation'),
               icon: Icons.looks_two,
               color: AppTheme.gold,
             ),
@@ -222,8 +223,8 @@ class _LearningsPageState extends State<LearningsPage> {
               context,
               classId: 3,
               levelNumber: 3,
-              level: 'Level 3',
-              title: 'Chakra Activation',
+              level: context.tr('level_3'),
+              title: context.tr('chakra_activation'),
               icon: Icons.looks_3,
               color: AppTheme.gold,
             ),
@@ -231,8 +232,8 @@ class _LearningsPageState extends State<LearningsPage> {
               context,
               classId: 4,
               levelNumber: 4,
-              level: 'Level 4',
-              title: 'Kundalini Activation',
+              level: context.tr('level_4'),
+              title: context.tr('kundalini_activation'),
               icon: Icons.looks_4,
               color: AppTheme.saffron,
             ),
@@ -240,11 +241,11 @@ class _LearningsPageState extends State<LearningsPage> {
             const SizedBox(height: 32),
             
             // Residential Courses Section
-            _buildSectionHeader('Residential Courses', Icons.home),
+            _buildSectionHeader(context.tr('residential_courses'), Icons.home),
             const SizedBox(height: 8),
-            const Text(
-              'In-person with Guruji. Available after completing Online Courses.',
-              style: TextStyle(
+            Text(
+              context.tr('residential_courses_desc'),
+              style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.textSecondary,
                 fontStyle: FontStyle.italic,
@@ -253,13 +254,13 @@ class _LearningsPageState extends State<LearningsPage> {
             const SizedBox(height: 16),
             _buildResidentialCard(
               context,
-              level: 'Level 5',
-              description: 'Advanced practice with Guruji',
+              level: context.tr('level_5'),
+              description: context.tr('advanced_practice_guruji'),
             ),
             _buildResidentialCard(
               context,
-              level: 'Level 5.1',
-              description: 'Master level intensive',
+              level: context.tr('level_5_1'),
+              description: context.tr('master_level_intensive'),
             ),
             
             const SizedBox(height: 32),
@@ -306,6 +307,8 @@ class _LearningsPageState extends State<LearningsPage> {
     final isCompleted = _isLevelCompleted(levelNumber);
     final daysCompleted = _getDaysCompleted(levelNumber);
     final totalDays = _getTotalDays(levelNumber);
+    final minutesUntilNextLevelUnlock = _getMinutesUntilNextLevelUnlock(levelNumber);
+    final levelUnlockMinutes = _getLevelUnlockMinutes(levelNumber);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -398,26 +401,47 @@ class _LearningsPageState extends State<LearningsPage> {
                       
                       // Status badge
                       if (isCompleted)
-                        _buildStatusBadge(
-                          'Completed',
-                          AppTheme.saffron,
-                          Icons.check_circle,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildStatusBadge(
+                              context.tr('completed'),
+                              AppTheme.saffron,
+                              Icons.check_circle,
+                            ),
+                            // Show unlock timing for next level
+                            if (minutesUntilNextLevelUnlock != null && minutesUntilNextLevelUnlock > 0) ...[
+                              const SizedBox(height: 6),
+                              _buildStatusBadge(
+                                '${context.tr('next_level_unlocks_in')} ${_formatUnlockTime(minutesUntilNextLevelUnlock, context)}',
+                                AppTheme.gold,
+                                Icons.lock_clock,
+                              ),
+                            ] else if (minutesUntilNextLevelUnlock != null && minutesUntilNextLevelUnlock == 0) ...[
+                              const SizedBox(height: 6),
+                              _buildStatusBadge(
+                                context.tr('next_level_ready'),
+                                AppTheme.saffron,
+                                Icons.lock_open,
+                              ),
+                            ],
+                          ],
                         )
                       else if (isUnlocked && daysCompleted > 0)
                         _buildStatusBadge(
-                          '$daysCompleted/$totalDays Days',
+                          '$daysCompleted/$totalDays ${context.tr('days')}',
                           AppTheme.gold,
                           Icons.play_circle_outline,
                         )
                       else if (isUnlocked)
                         _buildStatusBadge(
-                          '3 Days',
+                          '3 ${context.tr('days')}',
                           AppTheme.saffron,
                           Icons.video_library,
                         )
                       else
                         _buildStatusBadge(
-                          _getLockReason(levelNumber),
+                          _getLockReason(levelNumber, context),
                           Colors.grey.shade600,
                           Icons.lock_outline,
                         ),
@@ -438,16 +462,48 @@ class _LearningsPageState extends State<LearningsPage> {
     );
   }
 
-  String _getLockReason(int levelNumber) {
-    if (levelNumber == 1) return 'Available';
-    if (levelNumber == 2) return 'Complete Level 1';
-    if (levelNumber == 3) {
-      if (!_isLevelCompleted(2)) return 'Complete Level 2';
-      if (_meditationTest?['passed'] != true) return 'Pass Meditation Test';
-      return 'Locked';
+  String _formatUnlockTime(int minutes, BuildContext context) {
+    if (minutes < 60) {
+      return '$minutes ${context.tr('min')}';
+    } else {
+      final hours = (minutes / 60).floor();
+      final remainingMinutes = minutes % 60;
+      if (remainingMinutes == 0) {
+        return '$hours ${context.tr('hours')}';
+      } else {
+        return '$hours ${context.tr('hours')} $remainingMinutes ${context.tr('min')}';
+      }
     }
-    if (levelNumber == 4) return 'Complete Level 3';
-    return 'Locked';
+  }
+
+  int? _getMinutesUntilNextLevelUnlock(int levelNumber) {
+    final value = _levelAccess[levelNumber]?['minutesUntilNextLevelUnlock'];
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is double) return value.toInt();
+    return null;
+  }
+
+  int _getLevelUnlockMinutes(int levelNumber) {
+    final value = _levelAccess[levelNumber]?['levelUnlockMinutes'];
+    if (value == null) return 1440;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 1440;
+    if (value is double) return value.toInt();
+    return 1440;
+  }
+
+  String _getLockReason(int levelNumber, BuildContext context) {
+    if (levelNumber == 1) return context.tr('available');
+    if (levelNumber == 2) return context.tr('complete_level_1');
+    if (levelNumber == 3) {
+      if (!_isLevelCompleted(2)) return context.tr('complete_level_2');
+      if (_meditationTest?['passed'] != true) return context.tr('pass_meditation_test');
+      return context.tr('locked');
+    }
+    if (levelNumber == 4) return context.tr('complete_level_3');
+    return context.tr('locked');
   }
 
   Widget _buildStatusBadge(String text, Color color, IconData icon) {
@@ -521,9 +577,9 @@ class _LearningsPageState extends State<LearningsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Meditation Test',
-                      style: TextStyle(
+                    Text(
+                      context.tr('meditation_test'),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.saffron,
@@ -532,8 +588,8 @@ class _LearningsPageState extends State<LearningsPage> {
                     const SizedBox(height: 4),
                     Text(
                       testPassed
-                          ? 'Completed - Level 3 Unlocked'
-                          : 'Required to unlock Level 3',
+                          ? context.tr('meditation_test_completed')
+                          : context.tr('meditation_test_required'),
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppTheme.textSecondary,
@@ -560,8 +616,8 @@ class _LearningsPageState extends State<LearningsPage> {
                     : () {
                         // TODO: Navigate to meditation test
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Meditation test coming soon'),
+                          SnackBar(
+                            content: Text(context.tr('meditation_test_coming_soon')),
                             backgroundColor: AppTheme.gold,
                           ),
                         );
@@ -574,7 +630,7 @@ class _LearningsPageState extends State<LearningsPage> {
                   ),
                 ),
                 child: Text(
-                  testTaken ? 'Test Submitted - Awaiting Results' : 'Take Test',
+                  testTaken ? context.tr('test_submitted') : context.tr('take_test'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -648,17 +704,17 @@ class _LearningsPageState extends State<LearningsPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.event_available,
                       size: 16,
                       color: AppTheme.gold,
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
-                      'Apply via event notification',
-                      style: TextStyle(
+                      context.tr('apply_via_event'),
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
                         fontStyle: FontStyle.italic,

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/splash/splash_screen.dart';
+import '../features/language/language_selection_screen.dart';
 import '../features/auth/login_screen.dart';
-import '../features/auth/profile_setup_screen.dart';
+import '../features/auth/enhanced_profile_setup_screen.dart';
 import '../features/auth/permission_screen.dart';
 import '../features/auth/all_permissions_screen.dart';
 import '../features/home/home_page.dart';
@@ -23,11 +24,13 @@ import '../features/learnings/class_days_list_screen.dart';
 import '../features/learnings/day_video_screen.dart';
 import '../features/settings/ringtone_settings_page.dart';
 import '../features/settings/wallpaper_settings_page.dart';
+import 'services/localization_service.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
+  refreshListenable: LocalizationService(),
   // Error handling for navigation issues
   errorBuilder: (context, state) {
     return Scaffold(
@@ -90,6 +93,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const SplashScreen(),
     ),
     GoRoute(
+      path: '/language-selection',
+      builder: (context, state) => const LanguageSelectionScreen(),
+    ),
+    GoRoute(
       path: '/profile-selection',
       builder: (context, state) => const ProfileSelectionScreen(),
     ),
@@ -99,7 +106,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile-setup',
-      builder: (context, state) => const ProfileSetupScreen(),
+      builder: (context, state) => const EnhancedProfileSetupScreen(),
     ),
     GoRoute(
       path: '/permissions',
@@ -194,6 +201,10 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     GoRoute(
+      path: '/edit-profile',
+      builder: (context, state) => const EnhancedProfileSetupScreen(isEditMode: true),
+    ),
+    GoRoute(
       path: '/reminders',
       builder: (context, state) => const RemindersScreen(),
       routes: [
@@ -225,6 +236,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/wallpaper',
       builder: (context, state) => const WallpaperSettingsPage(),
+    ),
+    GoRoute(
+      path: '/settings/language',
+      builder: (context, state) => const LanguageSelectionScreen(isFromSettings: true),
     ),
     // Classes video streaming routes
     GoRoute(

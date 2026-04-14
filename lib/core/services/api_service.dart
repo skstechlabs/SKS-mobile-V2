@@ -1,8 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http_parser/http_parser.dart' show MediaType;
 import '../constants/app_env.dart';
+
+// Type alias for MediaType to avoid conflicts
+typedef DioMediaType = MediaType;
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -103,10 +108,21 @@ class ApiService {
   Future<Map<String, dynamic>> completeProfile({
     required String name,
     required String gender,
-    required String dateOfBirth,
-    required String address,
-    required String state,
-    required String pincode,
+    required int age,
+    required String city,
+    required String profession,
+    required String preferredLanguage,
+    required String country,
+    String? dateOfBirth,
+    String? address,
+    String? state,
+    String? pincode,
+    String? howDidYouKnow,
+    String? howDidYouKnowOther,
+    String? referrerName,
+    String? referrerMobile,
+    String? fullAddress,
+    String? comments,
   }) async {
     try {
       final idToken = await _getIdToken();
@@ -120,10 +136,21 @@ class ApiService {
         data: {
           'name': name,
           'gender': gender,
-          'date_of_birth': dateOfBirth,
-          'address': address,
-          'state': state,
-          'pincode': pincode,
+          'age': age,
+          'city': city,
+          'profession': profession,
+          'preferred_language': preferredLanguage,
+          'country': country,
+          if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
+          if (address != null) 'address': address,
+          if (state != null) 'state': state,
+          if (pincode != null) 'pincode': pincode,
+          if (howDidYouKnow != null) 'how_did_you_know': howDidYouKnow,
+          if (howDidYouKnowOther != null) 'how_did_you_know_other': howDidYouKnowOther,
+          if (referrerName != null) 'referrer_name': referrerName,
+          if (referrerMobile != null) 'referrer_mobile': referrerMobile,
+          if (fullAddress != null) 'full_address': fullAddress,
+          if (comments != null) 'comments': comments,
         },
       );
 
@@ -819,6 +846,73 @@ class ApiService {
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
 
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 29. POST /api/user/upload-profile-photo - Upload profile photo ────────
+  Future<Map<String, dynamic>> uploadProfilePhoto(File imageFile) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      // Read file as bytes
+      final bytes = await imageFile.readAsBytes();
+      final filename = imageFile.path.split('/').last;
+
+      // Create form data
+      final formData = FormData.fromMap({
+        'photo': MultipartFile.fromBytes(
+          bytes,
+          filename: filename,
+          contentType: DioMediaType('image', filename.split('.').last),
+        ),
+      });
+
+      final response = await _dio.post(
+        '/api/user/upload-profile-photo',
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $idToken',
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 30. DELETE /api/user/profile-photo - Delete profile photo ─────────────
+  Future<Map<String, dynamic>> deleteProfilePhoto() async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.delete(
+        '/api/user/profile-photo',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 31. GET /api/quotes - Get all quotes ──────────────────────────────────
+  Future<Map<String, dynamic>> getQuotes() async {
+    try {
+      final response = await _dio.get('/api/quotes');
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       return _handleError(e);

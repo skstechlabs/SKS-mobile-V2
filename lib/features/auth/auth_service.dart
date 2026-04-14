@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_env.dart';
@@ -9,7 +11,22 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseAuth? _authInstance;
+  
+  FirebaseAuth get _auth {
+    // Lazy initialization - only access Firebase when needed
+    if (_authInstance == null) {
+      try {
+        // Check if Firebase is initialized
+        Firebase.app();
+        _authInstance = FirebaseAuth.instance;
+      } catch (e) {
+        debugPrint('⚠️  Firebase not initialized yet: $e');
+        rethrow;
+      }
+    }
+    return _authInstance!;
+  }
 
   // On web: clientId must be passed explicitly
   // On Android/iOS: clientId is read from google-services.json / GoogleService-Info.plist
@@ -32,54 +49,133 @@ class AuthService {
     required void Function(String error) onError,
   }) async {
     try {
+      debugPrint('📱 Sending OTP to +91$phoneNumber');
+      
+      // Clear any existing session
+      _verificationId = null;
+      _resendToken = null;
+      
+      // Use Completer to wait for callbacks
+      final completer = Completer<Map<String, dynamic>>();
+      bool isCompleted = false;
+      
+      // Set a timeout to prevent hanging forever
+      Timer(const Duration(seconds: 60), () {
+        if (!isCompleted && !completer.isCompleted) {
+          isCompleted = true;
+          debugPrint('⏱️ OTP request timeout after 60 seconds');
+          completer.complete({
+            'success': false,
+            'message': 'Request timeout. Please check your connection and try again.'
+          });
+        }
+      });
+      
       await _auth.verifyPhoneNumber(
         phoneNumber: '+91$phoneNumber',
-        timeout: const Duration(seconds: 60),
-
+        timeout: const Duration(seconds: 120),
+        
         // Auto-retrieval on Android (SMS auto-read)
         verificationCompleted: (PhoneAuthCredential credential) async {
-          await _auth.signInWithCredential(credential);
+          debugPrint('✅ Auto-verification completed');
+          try {
+            await _auth.signInWithCredential(credential);
+            if (!isCompleted && !completer.isCompleted) {
+              isCompleted = true;
+              completer.complete({
+                'success': true,
+                'message': 'Auto-verified successfully',
+                'auto_verified': true,
+              });
+            }
+          } catch (e) {
+            debugPrint('❌ Auto sign-in failed: $e');
+          }
         },
 
         verificationFailed: (FirebaseAuthException e) {
-          onError(_friendlyFirebaseError(e.code));
+          debugPrint('❌ Verification failed: ${e.code} - ${e.message}');
+          if (!isCompleted && !completer.isCompleted) {
+            isCompleted = true;
+            final errorMsg = _friendlyFirebaseError(e.code);
+            onError(errorMsg);
+            completer.complete({
+              'success': false,
+              'message': errorMsg,
+            });
+          }
         },
 
         codeSent: (String verificationId, int? resendToken) {
+          debugPrint('✅ Code sent successfully, verification ID: ${verificationId.substring(0, 10)}...');
           _verificationId = verificationId;
-          _resendToken    = resendToken;
+          _resendToken = resendToken;
+          
+          if (!isCompleted && !completer.isCompleted) {
+            isCompleted = true;
+            completer.complete({
+              'success': true,
+              'message': 'OTP sent successfully',
+            });
+          }
         },
 
         codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint('⏱️ Auto-retrieval timeout');
           _verificationId = verificationId;
+          // This is called after codeSent, so don't complete here
         },
 
         forceResendingToken: _resendToken,
       );
 
-      return {'success': true, 'message': 'OTP sent successfully'};
+      // Wait for one of the callbacks to complete
+      final result = await completer.future;
+      debugPrint('📱 OTP send result: ${result['success']}');
+      return result;
+      
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ Firebase exception: ${e.code} - ${e.message}');
       return {'success': false, 'message': _friendlyFirebaseError(e.code)};
-    } catch (_) {
-      return {'success': false, 'message': 'Failed to send OTP. Please try again.'};
+    } catch (e, stackTrace) {
+      debugPrint('❌ Unexpected error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return {'success': false, 'message': 'Failed to send OTP. Please check your connection and try again.'};
     }
   }
 
   // ── Step 2: Verify OTP entered by user ────────────────────────────────────
   Future<Map<String, dynamic>> verifyOtp(String otp) async {
-    if (_verificationId == null) {
+    debugPrint('🔐 Verifying OTP: $otp');
+    
+    if (_verificationId == null || _verificationId!.isEmpty) {
+      debugPrint('❌ No verification ID found');
       return {'success': false, 'message': 'Session expired. Please request OTP again.'};
     }
+    
+    if (otp.length != 6) {
+      return {'success': false, 'message': 'Please enter a valid 6-digit OTP.'};
+    }
+    
     try {
+      debugPrint('🔐 Creating credential with verification ID: ${_verificationId!.substring(0, 10)}...');
+      
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
         smsCode: otp,
       );
 
+      debugPrint('🔐 Signing in with credential...');
       final userCredential = await _auth.signInWithCredential(credential);
       final user = userCredential.user;
 
       if (user != null) {
+        debugPrint('✅ OTP verified successfully for user: ${user.uid}');
+        
+        // Clear session after successful verification
+        _verificationId = null;
+        _resendToken = null;
+        
         return {
           'success': true,
           'mobile': user.phoneNumber ?? '',
@@ -87,10 +183,23 @@ class AuthService {
           'message': 'OTP verified successfully',
         };
       }
+      
+      debugPrint('❌ No user returned after sign-in');
       return {'success': false, 'message': 'Verification failed. Please try again.'};
+      
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ Firebase exception during verification: ${e.code} - ${e.message}');
+      
+      // Don't clear verification ID on invalid code - allow retry
+      if (e.code != 'invalid-verification-code') {
+        _verificationId = null;
+        _resendToken = null;
+      }
+      
       return {'success': false, 'message': _friendlyFirebaseError(e.code)};
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ Unexpected error during verification: $e');
+      debugPrint('Stack trace: $stackTrace');
       return {'success': false, 'message': 'Verification failed. Please try again.'};
     }
   }

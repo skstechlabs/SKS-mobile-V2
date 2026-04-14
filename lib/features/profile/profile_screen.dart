@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
+import '../../core/services/localization_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
@@ -61,9 +62,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         
         setState(() {
           _user = user;
-          _authState.setUser(user);
           _hasLoadedOnce = true;
         });
+        
+        // Update auth state with cache
+        await _authState.setUser(user);
       } else {
         // Check if it's an authentication error
         final message = result['message'] ?? '';
@@ -96,17 +99,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(context.tr('logout')),
+        content: Text(context.tr('logout_confirmation')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
+            child: Text(context.tr('logout')),
           ),
         ],
       ),
@@ -126,8 +129,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Sign out from Firebase
       await _authService.signOut();
 
-      // Clear auth state
-      _authState.logout();
+      // Clear auth state and cache
+      await _authState.logout();
 
       // Navigate to login
       if (mounted) {
@@ -160,26 +163,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/'),
         ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(
+        title: Text(
+          context.tr('profile'),
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          if (_user != null) // Only show edit button when logged in
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.black),
-              onPressed: () {
-                // Navigate to edit profile
-                context.push('/profile/edit');
-              },
-            ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -209,16 +202,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Not Logged In',
-              style: TextStyle(
+            Text(
+              context.tr('not_logged_in'),
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Please login to view your profile',
+              context.tr('please_login'),
               style: TextStyle(
                 fontSize: 16,
                 color: AppTheme.textSecondary,
@@ -229,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton.icon(
               onPressed: () => context.go('/login'),
               icon: const Icon(Icons.login),
-              label: const Text('Login'),
+              label: Text(context.tr('login')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.saffron,
                 foregroundColor: Colors.white,
@@ -307,7 +300,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Name
           Text(
-            user.name.isNotEmpty ? user.name : 'User',
+            user.name.isNotEmpty ? user.name : context.tr('profile'),
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -339,7 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  user.authProvider == 'google' ? 'Google' : 'Phone',
+                  user.authProvider == 'google' ? context.tr('google') : context.tr('phone'),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -356,29 +349,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Profile Information
           _buildSection(
-            title: 'Personal Information',
+            title: context.tr('personal_information'),
             children: [
               _buildInfoTile(
                 icon: Icons.phone,
-                label: 'Mobile',
+                label: context.tr('mobile'),
                 value: user.mobile,
               ),
               if (user.email.isNotEmpty)
                 _buildInfoTile(
                   icon: Icons.email,
-                  label: 'Email',
+                  label: context.tr('email'),
                   value: user.email,
                 ),
               if (user.gender != null)
                 _buildInfoTile(
                   icon: Icons.person_outline,
-                  label: 'Gender',
+                  label: context.tr('gender'),
                   value: user.gender!,
                 ),
               if (user.dateOfBirth != null)
                 _buildInfoTile(
                   icon: Icons.cake,
-                  label: 'Date of Birth',
+                  label: context.tr('date_of_birth'),
                   value: user.dateOfBirth!,
                 ),
             ],
@@ -386,24 +379,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           if (user.address != null || user.state != null || user.pincode != null)
             _buildSection(
-              title: 'Address',
+              title: context.tr('address_info'),
               children: [
                 if (user.address != null)
                   _buildInfoTile(
                     icon: Icons.home,
-                    label: 'Address',
+                    label: context.tr('address'),
                     value: user.address!,
                   ),
                 if (user.state != null)
                   _buildInfoTile(
                     icon: Icons.location_on,
-                    label: 'State',
+                    label: context.tr('state'),
                     value: user.state!,
                   ),
                 if (user.pincode != null)
                   _buildInfoTile(
                     icon: Icons.pin_drop,
-                    label: 'Pincode',
+                    label: context.tr('pincode'),
                     value: user.pincode!,
                   ),
               ],
@@ -411,28 +404,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Account Actions
           _buildSection(
-            title: 'Account',
+            title: context.tr('account'),
             children: [
               _buildActionTile(
-                icon: Icons.people_outline,
-                label: 'Manage Profiles',
+                icon: Icons.edit,
+                label: context.tr('edit_profile'),
+                onTap: () => context.push('/edit-profile'),
+              ),
+              _buildActionTile(
+                icon: Icons.people,
+                label: context.tr('manage_profiles'),
                 onTap: () => context.push('/profile/list'),
               ),
               _buildActionTile(
-                icon: Icons.edit,
-                label: 'Edit Profile',
-                onTap: () => context.push('/profile/edit'),
+                icon: Icons.language,
+                label: context.tr('change_language'),
+                onTap: () => context.push('/settings/language'),
               ),
               _buildActionTile(
                 icon: Icons.help_outline,
-                label: 'Help & Support',
+                label: context.tr('help_support'),
                 onTap: () {
-                  _showError('Feature coming soon');
+                  _showError(context.tr('feature_coming_soon'));
                 },
               ),
               _buildActionTile(
                 icon: Icons.logout,
-                label: 'Logout',
+                label: context.tr('logout'),
                 onTap: _handleLogout,
                 isDestructive: true,
               ),

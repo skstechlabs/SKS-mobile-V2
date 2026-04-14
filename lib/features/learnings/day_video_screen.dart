@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import 'widgets/cloudflare_video_player.dart';
 import 'widgets/secure_screen_wrapper.dart';
 
@@ -118,34 +119,34 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.security, color: Colors.red, size: 32),
-            SizedBox(width: 12),
-            Text('Security Warning'),
+            const Icon(Icons.security, color: Colors.red, size: 32),
+            const SizedBox(width: 12),
+            Text(context.tr('security_warning')),
           ],
         ),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Screen recording or screenshot detected.',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              context.tr('screen_recording_detected'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
-              'Recording, downloading, or sharing this content is strictly prohibited and may result in:',
-              style: TextStyle(fontSize: 14),
+              context.tr('recording_prohibited_message'),
+              style: const TextStyle(fontSize: 14),
             ),
-            SizedBox(height: 8),
-            Text('• Immediate account suspension', style: TextStyle(fontSize: 14)),
-            Text('• Legal action for copyright violation', style: TextStyle(fontSize: 14)),
-            Text('• Loss of access to all courses', style: TextStyle(fontSize: 14)),
-            SizedBox(height: 12),
+            const SizedBox(height: 8),
+            Text(context.tr('immediate_account_suspension'), style: const TextStyle(fontSize: 14)),
+            Text(context.tr('legal_action_copyright'), style: const TextStyle(fontSize: 14)),
+            Text(context.tr('loss_of_access_courses'), style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 12),
             Text(
-              'This incident has been logged.',
-              style: TextStyle(fontSize: 14, color: Colors.red, fontWeight: FontWeight.bold),
+              context.tr('incident_logged'),
+              style: const TextStyle(fontSize: 14, color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -155,7 +156,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
               Navigator.of(context).pop();
               context.pop(); // Exit video screen
             },
-            child: const Text('I Understand'),
+            child: Text(context.tr('i_understand')),
           ),
         ],
       ),
@@ -223,14 +224,27 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   }
 
   Future<void> _trackProgress(int positionSeconds, int durationSeconds, String eventType) async {
-    // Only track every 5 seconds to reduce API calls
-    if (eventType == 'progress' && (positionSeconds - _lastTrackedPosition).abs() < 5) {
+    // Don't track if already completed
+    if (_isCompleted && eventType != 'complete' && !eventType.startsWith('milestone_')) {
+      debugPrint('⏭️ Skipping tracking - already completed');
+      return;
+    }
+    
+    // For milestone events, always track immediately
+    final isMilestone = eventType.startsWith('milestone_');
+    
+    // Only track every 5 seconds to reduce API calls (except for milestones)
+    if (!isMilestone && eventType == 'progress' && (positionSeconds - _lastTrackedPosition).abs() < 5) {
       return;
     }
 
-    _lastTrackedPosition = positionSeconds;
+    if (!isMilestone) {
+      _lastTrackedPosition = positionSeconds;
+    }
 
     try {
+      debugPrint('📡 Tracking: $eventType at ${positionSeconds}s / ${durationSeconds}s (${(positionSeconds / durationSeconds * 100).toStringAsFixed(1)}%)');
+      
       final response = await _apiService.post(
         '/api/classes/days/${widget.dayId}/track',
         {
@@ -245,60 +259,392 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         },
       );
 
-      if (response['success'] == true && eventType == 'complete' && !_isCompleted) {
-        setState(() => _isCompleted = true);
-        _showCompletionDialog();
+      if (response['success'] == true) {
+        // Log milestones reached
+        final milestonesReached = response['milestonesReached'] as List?;
+        if (milestonesReached != null && milestonesReached.isNotEmpty) {
+          debugPrint('🎯 Backend confirmed milestones: ${milestonesReached.join('%, ')}%');
+          
+          // Show toast for milestone
+          if (mounted && milestonesReached.contains(50)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Text('${context.tr('halfway_there')}! 50% ${context.tr('completed')}'),
+                  ],
+                ),
+                backgroundColor: AppTheme.gold,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+        
+        // Check for day completion
+        if (response['dayCompleted'] == true && !_isCompleted) {
+          setState(() => _isCompleted = true);
+          
+          final classCompleted = response['classCompleted'] ?? false;
+          final completedAt = response['completedAt'] as String?;
+          final nextDayInfo = response['nextDay'] as Map<String, dynamic>?;
+          final nextLevelInfo = response['nextLevel'] as Map<String, dynamic>?;
+          final levelInfo = response['levelInfo'] as Map<String, dynamic>?;
+          
+          debugPrint('🎉 Day completed! Class completed: $classCompleted');
+          
+          // Show toast notification
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        classCompleted 
+                          ? '${context.tr('congratulations')}! ${context.tr('class_completed')}'
+                          : '${context.tr('congratulations')}! ${context.tr('day_completed')}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: AppTheme.saffron,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            
+            // Wait a moment before showing dialog so toast is visible
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                _showCompletionDialog(
+                  classCompleted: classCompleted,
+                  completedAt: completedAt,
+                  nextDayInfo: nextDayInfo,
+                  nextLevelInfo: nextLevelInfo,
+                  levelInfo: levelInfo,
+                );
+              }
+            });
+          }
+        }
       }
     } catch (e) {
-      debugPrint('Error tracking progress: $e');
+      debugPrint('❌ Error tracking progress: $e');
+      
+      // Show error toast
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.tr('error')}: ${context.tr('failed_to_save_progress')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
-  void _showCompletionDialog() {
+  void _showCompletionDialog({
+    required bool classCompleted,
+    String? completedAt,
+    Map<String, dynamic>? nextDayInfo,
+    Map<String, dynamic>? nextLevelInfo,
+    Map<String, dynamic>? levelInfo,
+  }) {
+    // Parse completion time
+    DateTime? completionTime;
+    if (completedAt != null) {
+      try {
+        completionTime = DateTime.parse(completedAt);
+      } catch (e) {
+        debugPrint('Error parsing completion time: $e');
+      }
+    }
+
+    // Parse next unlock time
+    DateTime? nextUnlockTime;
+    if (nextDayInfo != null && nextDayInfo['willUnlockAt'] != null) {
+      try {
+        nextUnlockTime = DateTime.parse(nextDayInfo['willUnlockAt']);
+      } catch (e) {
+        debugPrint('Error parsing unlock time: $e');
+      }
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.check_circle, color: AppTheme.saffron, size: 32),
+            const Icon(Icons.check_circle, color: AppTheme.saffron, size: 32),
             const SizedBox(width: 12),
-            const Text('Day Completed!'),
+            Expanded(
+              child: Text(
+                classCompleted 
+                  ? context.tr('class_completed') 
+                  : context.tr('day_completed')
+              ),
+            ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Congratulations! You have completed ${widget.dayTitle}.',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.beige.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Completion message
+              Text(
+                classCompleted
+                  ? '${context.tr('congratulations_completed_class')} ${widget.dayTitle}!'
+                  : '${context.tr('congratulations_completed')} ${widget.dayTitle}.',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.lock_clock, color: AppTheme.gold, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Next day will unlock in 24 hours',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                        fontStyle: FontStyle.italic,
+              
+              // Completion timestamp
+              if (completionTime != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.access_time, size: 18, color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Completed at: ${_formatDateTime(completionTime)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+              
+              // Class completion info
+              if (classCompleted) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.saffron.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppTheme.saffron.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.celebration, color: AppTheme.saffron, size: 24),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              context.tr('all_days_completed'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.saffron,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (levelInfo != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '${levelInfo['level']} - ${levelInfo['title']}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.darkBrown,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          'Completed ${levelInfo['completedDays']}/${levelInfo['totalDays']} days',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                
+                // Next level info
+                if (nextLevelInfo != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.arrow_forward, size: 20, color: Colors.blue.shade700),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Next Level Unlocked!',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${nextLevelInfo['level']} - ${nextLevelInfo['title']}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue.shade900,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (nextLevelInfo['isUnlocked'] == true)
+                          Text(
+                            'You can start now!',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
+              ] else ...[
+                // Next day info
+                if (nextDayInfo != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.beige.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.gold.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.lock_clock, color: AppTheme.gold, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Next Day: Day ${nextDayInfo['dayNumber']}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.darkBrown,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          nextDayInfo['title'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.darkBrown,
+                          ),
+                        ),
+                        if (nextUnlockTime != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.gold.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.schedule, size: 16, color: AppTheme.gold),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Will unlock at: ${_formatDateTime(nextUnlockTime)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.darkBrown,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _getTimeUntilUnlock(nextUnlockTime),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Next day will unlock after ${nextDayInfo['hoursUntilUnlock'] ?? 24} hours',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.darkBrown,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -306,11 +652,42 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
               Navigator.of(context).pop();
               context.pop(); // Go back to class days list
             },
-            child: const Text('Continue'),
+            child: Text(context.tr('continue')),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final localTime = dateTime.toLocal();
+    
+    if (localTime.year == now.year && localTime.month == now.month && localTime.day == now.day) {
+      // Today - show time only
+      return '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
+    } else {
+      // Different day - show date and time
+      return '${localTime.day}/${localTime.month}/${localTime.year} ${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  String _getTimeUntilUnlock(DateTime unlockTime) {
+    final now = DateTime.now();
+    final difference = unlockTime.difference(now);
+    
+    if (difference.isNegative) {
+      return 'Available now!';
+    }
+    
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes % 60;
+    
+    if (hours > 0) {
+      return 'Unlocks in $hours hour${hours > 1 ? 's' : ''} ${minutes} minute${minutes != 1 ? 's' : ''}';
+    } else {
+      return 'Unlocks in $minutes minute${minutes != 1 ? 's' : ''}';
+    }
   }
 
   int _parseIntSafely(dynamic value) {
@@ -348,6 +725,10 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -401,7 +782,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => context.pop(),
-                child: const Text('Go Back'),
+                child: Text(context.tr('go_back')),
               ),
             ],
           ),
@@ -409,6 +790,11 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       );
     }
 
+    final videoDuration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
+    final durationMinutes = videoDuration ~/ 60;
+    final durationSeconds = videoDuration % 60;
+    final durationText = '$durationMinutes:${durationSeconds.toString().padLeft(2, '0')}';
+    
     return Column(
       children: [
         // Video Player
@@ -420,9 +806,30 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
           onStart: _markDayAsStarted,
           onProgress: _trackProgress,
           onComplete: () {
-            final duration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
-            _trackProgress(duration, duration, 'complete');
+            _trackProgress(videoDuration, videoDuration, 'complete');
           },
+        ),
+        
+        // Video Duration Display
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: Colors.black87,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.access_time, size: 16, color: Colors.white70),
+              const SizedBox(width: 6),
+              Text(
+                'Video Length: $durationText',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
         
         // Video Info with Security Warning
@@ -458,9 +865,9 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Protected Content',
-                                style: TextStyle(
+                              Text(
+                                context.tr('protected_content'),
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.red,
@@ -468,7 +875,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Recording, downloading, or sharing this video is strictly prohibited',
+                                context.tr('recording_prohibited_short'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.red.shade700,
@@ -518,7 +925,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${_parseIntSafely(_videoConfig!['videoDurationSeconds']) ~/ 60} min',
+                        '${_parseIntSafely(_videoConfig!['videoDurationSeconds']) ~/ 60} ${context.tr('min')}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppTheme.textSecondary,
@@ -541,17 +948,17 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.info_outline,
                               color: AppTheme.gold,
                               size: 20,
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
-                              'Important Notes',
-                              style: TextStyle(
+                              context.tr('important_notes'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.darkBrown,
@@ -561,20 +968,20 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
                         ),
                         const SizedBox(height: 12),
                         _buildNote(
-                          'Watch the complete video to mark this day as completed',
+                          context.tr('watch_complete_video'),
                         ),
                         _buildNote(
-                          'Next day will unlock 24 hours after completing this day',
+                          context.tr('next_day_unlock_after_24h'),
                         ),
                         if (!(_videoConfig!['allowSkip'] ?? false))
                           _buildNote(
-                            'Video seeking is disabled to ensure complete learning',
+                            context.tr('video_seeking_disabled'),
                           ),
                         _buildNote(
-                          'Your progress is automatically saved',
+                          context.tr('progress_auto_saved'),
                         ),
                         _buildNote(
-                          'Screen recording and screenshots are monitored and prohibited',
+                          context.tr('screen_recording_monitored'),
                         ),
                       ],
                     ),

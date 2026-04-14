@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/notification_storage_service.dart';
+import '../../core/services/localization_service.dart';
 import 'package:intl/intl.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -70,16 +71,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Notifications'),
-        content: const Text('Are you sure you want to delete all notifications?'),
+        title: Text(context.tr('clear_all_notifications')),
+        content: Text(context.tr('delete_all_notifications_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Clear All', style: TextStyle(color: Colors.red)),
+            child: Text(context.tr('clear_all'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -95,13 +96,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final difference = now.difference(dateTime);
 
     if (difference.inMinutes < 1) {
-      return 'Just now';
+      return context.tr('just_now');
     } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
+      return '${difference.inMinutes}${context.tr('minutes_ago')}';
     } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
+      return '${difference.inHours}${context.tr('hours_ago')}';
     } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
+      return '${difference.inDays}${context.tr('days_ago')}';
     } else {
       return DateFormat('MMM d, yyyy').format(dateTime);
     }
@@ -122,9 +123,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ),
         title: Row(
           children: [
-            const Text(
-              'Notifications',
-              style: TextStyle(
+            Text(
+              context.tr('notifications'),
+              style: const TextStyle(
                 color: Colors.black,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -155,7 +156,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 if (_unreadCount > 0)
                   TextButton(
                     onPressed: _markAllAsRead,
-                    child: const Text('Mark all read'),
+                    child: Text(context.tr('mark_all_read')),
                   ),
                 PopupMenuButton<String>(
                   onSelected: (value) {
@@ -164,9 +165,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'clear',
-                      child: Text('Clear all'),
+                      child: Text(context.tr('clear_all')),
                     ),
                   ],
                 ),
@@ -194,7 +195,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Stay updated with spiritual content',
+                      context.tr('stay_updated_spiritual'),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: AppTheme.textSecondary,
                           ),
@@ -223,7 +224,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       onDismissed: (direction) {
         _deleteNotification(notification.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notification deleted')),
+          SnackBar(content: Text(context.tr('notification_deleted'))),
         );
       },
       child: InkWell(
@@ -321,7 +322,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ),
           const SizedBox(height: 24),
           Text(
-            'No Notifications Yet',
+            context.tr('no_notifications_yet'),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -331,7 +332,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
-              'You\'ll receive updates about events, new content, and spiritual reminders here.',
+              context.tr('notifications_description'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textSecondary,
                     height: 1.5,
@@ -350,15 +351,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
         _buildPreferenceCard(
           context,
           icon: Icons.notifications_active,
-          title: 'Events',
-          description: 'Get notified about upcoming spiritual gatherings',
+          title: context.tr('events'),
+          description: context.tr('get_notified_gatherings'),
         ),
         const SizedBox(height: 16),
         _buildPreferenceCard(
           context,
           icon: Icons.notifications_active,
-          title: 'New Content',
-          description: 'Stay updated with new songs and learnings',
+          title: context.tr('new_content'),
+          description: context.tr('stay_updated_new_content'),
         ),
       ],
     );

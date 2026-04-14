@@ -262,4 +262,7 @@ For support and queries:
 
 ---
 
+## Deloyment
+- Run ./build-release.sh  
+
 **Built with ❤️ using Flutter**

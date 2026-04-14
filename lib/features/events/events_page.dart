@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class EventsPage extends StatefulWidget {
@@ -57,8 +58,8 @@ class _EventsPageState extends State<EventsPage> {
     
     if (response['success'] == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Successfully registered for event!'),
+        SnackBar(
+          content: Text(context.tr('successfully_registered')),
           backgroundColor: Colors.green,
         ),
       );
@@ -66,7 +67,7 @@ class _EventsPageState extends State<EventsPage> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(response['message'] ?? 'Failed to register'),
+          content: Text(response['message'] ?? context.tr('failed_to_register')),
           backgroundColor: Colors.red,
         ),
       );
@@ -94,7 +95,7 @@ class _EventsPageState extends State<EventsPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadEvents,
-              child: const Text('Retry'),
+              child: Text(context.tr('retry')),
             ),
           ],
         ),
@@ -109,12 +110,12 @@ class _EventsPageState extends State<EventsPage> {
             Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No upcoming events',
+              context.tr('no_upcoming_events'),
               style: TextStyle(fontSize: 18, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             Text(
-              'Check back later for new events',
+              context.tr('check_back_later'),
               style: TextStyle(color: Colors.grey[500]),
             ),
           ],
@@ -132,7 +133,7 @@ class _EventsPageState extends State<EventsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Upcoming Events',
+                context.tr('upcoming_events'),
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -140,7 +141,7 @@ class _EventsPageState extends State<EventsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Join us in spiritual gatherings',
+                context.tr('join_spiritual_gatherings'),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -312,7 +313,7 @@ class _EventsPageState extends State<EventsPage> {
                         Icon(isRegistered ? Icons.check_circle : Icons.person_add, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          isRegistered ? 'Already Registered' : 'Register Now',
+                          isRegistered ? context.tr('already_registered') : context.tr('register_now'),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

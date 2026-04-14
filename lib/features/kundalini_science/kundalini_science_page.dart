@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/localization_service.dart';
 
 class KundaliniSciencePage extends StatelessWidget {
   const KundaliniSciencePage({Key? key}) : super(key: key);
@@ -18,8 +19,8 @@ class KundaliniSciencePage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'The Science of Kundalini Awakening',
-          style: TextStyle(
+          context.tr('kundalini_science_title'),
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -61,46 +62,40 @@ class KundaliniSciencePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'The Science of Kundalini Awakening',
-                    style: TextStyle(
+                    context.tr('kundalini_science_title'),
+                    style: const TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.darkBrown,
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   
-                  _buildParagraph(
-                    'Kundalini is the primordial cosmic energy that lies dormant at the base of the spine. Often depicted as a coiled serpent, this divine feminine energy represents the creative force of the universe.',
-                  ),
+                  _buildParagraph(context.tr('kundalini_science_para1')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'When awakened through proper Sadhana (spiritual practice), Kundalini rises through the seven chakras, activating higher states of consciousness and ultimately leading to self-realization and unity with the divine.',
-                  ),
+                  _buildParagraph(context.tr('kundalini_science_para2')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'This ancient science, preserved in Vedic traditions for millennia, offers a systematic path to spiritual evolution, healing, and the fulfillment of human potential.',
-                  ),
+                  _buildParagraph(context.tr('kundalini_science_para3')),
                   
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   
                   // Decorative bottom element
                   Center(
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
+                        gradient: const LinearGradient(
                           colors: [AppTheme.gold, AppTheme.saffron],
                         ),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(
-                        '🌟 Awaken Your Inner Energy 🌟',
-                        style: TextStyle(
+                        context.tr('awaken_inner_energy'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

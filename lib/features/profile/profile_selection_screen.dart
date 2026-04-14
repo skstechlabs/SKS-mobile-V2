@@ -42,26 +42,39 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen> {
         debugPrint('✅ Max profiles: $_maxProfiles');
       }
 
-      // Load profiles
-      final result = await _apiService.getProfiles();
-      debugPrint('📊 Profiles result: $result');
+      // Load profiles - Note: Backend returns single user profile, not list
+      final result = await _apiService.getProfile();
+      debugPrint('📊 Profile result: $result');
       
       if (result['success'] == true && mounted) {
-        final profilesList = result['profiles'] as List;
-        debugPrint('📊 Profiles list length: ${profilesList.length}');
+        // Backend returns single user profile, not a list
+        // For now, create a single profile from user data
+        final userData = result['user'] as Map<String, dynamic>;
+        debugPrint('📊 User data: $userData');
         
         try {
-          final profiles = profilesList.map((p) {
-            debugPrint('📊 Parsing profile: $p');
-            return ProfileModel.fromJson(p as Map<String, dynamic>);
-          }).toList();
+          // Create a ProfileModel from user data
+          final profile = ProfileModel(
+            id: 0, // Temporary ID since backend doesn't provide it
+            profileUid: userData['uid'] as String,
+            profileName: userData['name'] as String? ?? 'User',
+            profileAvatar: userData['photo'] as String?,
+            isPrimary: true,
+            isActive: true,
+            dateOfBirth: userData['date_of_birth'] as String?,
+            gender: userData['gender'] as String?,
+            createdAt: DateTime.parse(userData['created_at'] as String),
+          );
           
           setState(() {
-            _profiles = profiles;
+            _profiles = [profile];
           });
-          debugPrint('✅ Loaded ${_profiles.length} profiles');
+          debugPrint('✅ Loaded profile: ${profile.profileName}');
+          
+          // Since we only have one profile, auto-select it and navigate
+          await _checkAndNavigate();
         } catch (parseError, stackTrace) {
-          debugPrint('❌ Error parsing profiles: $parseError');
+          debugPrint('❌ Error parsing profile: $parseError');
           debugPrint('Stack trace: $stackTrace');
           if (mounted) {
             _showError('Error parsing profile data: $parseError');
@@ -69,13 +82,13 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen> {
         }
       } else if (mounted) {
         debugPrint('❌ API returned error: ${result['message']}');
-        _showError(result['message'] ?? 'Failed to load profiles');
+        _showError(result['message'] ?? 'Failed to load profile');
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ Error loading profiles: $e');
+      debugPrint('❌ Error loading profile: $e');
       debugPrint('Stack trace: $stackTrace');
       if (mounted) {
-        _showError('Error loading profiles: $e');
+        _showError('Error loading profile: $e');
       }
     } finally {
       if (mounted) {

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/audio_player_service.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import '../../core/widgets/cached_image.dart';
 
 import '../chakras/chakra_detail_page.dart';
@@ -45,11 +47,13 @@ class _HomePageState extends State<HomePage>
   List<Map<String, dynamic>> _gatherings = [];
   bool _isLoadingGatherings = true;
   
+  // Quotes from database
+  List<String> _quotes = [];
+  
   // Preset reminders state
   final Map<String, bool> _presetReminders = {
     'morning_meditation': false,
     'evening_meditation': false,
-    'daily_practice': false,
   };
 
   @override
@@ -66,21 +70,87 @@ class _HomePageState extends State<HomePage>
     _currentQuoteIndex = 0;
 
     // Start timer for quote rotation (3 seconds interval)
-    if (AppConstants.dailyQuotes.isNotEmpty) {
-      _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-        if (mounted) {
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted) {
+        final quotesToDisplay = _quotes.isNotEmpty ? _quotes : AppConstants.dailyQuotes;
+        if (quotesToDisplay.isNotEmpty) {
           setState(() {
-            _currentQuoteIndex =
-                (_currentQuoteIndex + 1) % AppConstants.dailyQuotes.length;
+            _currentQuoteIndex = (_currentQuoteIndex + 1) % quotesToDisplay.length;
           });
         }
-      });
-    }
+      }
+    });
     
     // Load events from database
     _loadEvents();
     _loadPresetReminders();
     _loadGatherings();
+    _loadQuotes();
+  }
+  
+  Future<void> _loadQuotes() async {
+    try {
+      // First, try to load from local storage
+      final prefs = await SharedPreferences.getInstance();
+      final cachedQuotes = prefs.getStringList('cached_quotes');
+      final lastFetch = prefs.getInt('quotes_last_fetch') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      
+      // Use cached quotes if available and less than 24 hours old
+      if (cachedQuotes != null && cachedQuotes.isNotEmpty && 
+          (now - lastFetch) < 86400000) { // 24 hours in milliseconds
+        if (mounted) {
+          setState(() {
+            _quotes = cachedQuotes;
+          });
+        }
+        // Still fetch in background to update cache
+        _fetchQuotesFromAPI();
+      } else {
+        // No cache or expired, fetch from API
+        await _fetchQuotesFromAPI();
+      }
+    } catch (e) {
+      debugPrint('Error loading quotes: $e');
+      // Fallback to AppConstants quotes
+      if (mounted) {
+        setState(() {
+          _quotes = AppConstants.dailyQuotes;
+        });
+      }
+    }
+  }
+  
+  Future<void> _fetchQuotesFromAPI() async {
+    try {
+      final response = await _apiService.getQuotes();
+      
+      if (response['success'] == true) {
+        final quotesData = List<Map<String, dynamic>>.from(response['quotes'] ?? []);
+        final quoteTexts = quotesData.map((q) => q['quote_text'] as String).toList();
+        
+        if (quoteTexts.isNotEmpty) {
+          // Save to local storage
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setStringList('cached_quotes', quoteTexts);
+          await prefs.setInt('quotes_last_fetch', DateTime.now().millisecondsSinceEpoch);
+          
+          if (mounted) {
+            setState(() {
+              _quotes = quoteTexts;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching quotes from API: $e');
+      // Use fallback quotes if API fails
+      if (mounted && _quotes.isEmpty) {
+        setState(() {
+          _quotes = AppConstants.dailyQuotes;
+        });
+      }
+    }
   }
   
   Future<void> _loadPresetReminders() async {
@@ -97,8 +167,6 @@ class _HomePageState extends State<HomePage>
               _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
             } else if (title.contains('evening') && title.contains('meditation')) {
               _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
-            } else if (title.contains('daily') && title.contains('practice')) {
-              _presetReminders['daily_practice'] = reminder['isActive'] as bool;
             }
           }
         });
@@ -217,205 +285,280 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildDailyQuotes() {
-    if (AppConstants.dailyQuotes.isEmpty) {
+    // Use database quotes if available, otherwise fallback to AppConstants
+    final quotesToDisplay = _quotes.isNotEmpty ? _quotes : AppConstants.dailyQuotes;
+    
+    if (quotesToDisplay.isEmpty) {
       return SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Fixed single image container
+        // Image with increased height for better presence
         Container(
-          height: 300,
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.saffron.withOpacity(0.3),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CachedImage(
-                  imageUrl: AppConstants.dailyWisdomImages[0], // CDN image
-                  fit: BoxFit.cover,
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.7),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        SizedBox(height: 30),
-
-        // Guruji name section with beautiful styling
-        Padding(
-          padding: const EdgeInsets.only(left: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          height: 280,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Text(
-                'Parama Pujya',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.saffron.withValues(alpha: 0.8),
-                  letterSpacing: 1.5,
-                  height: 1.5,
-                ),
+              CachedImage(
+                imageUrl: AppConstants.dailyWisdomImages[1], // CDN image
+                fit: BoxFit.cover,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Sri Jeeveswara Yogi',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.saffron,
-                  letterSpacing: 0.5,
-                  height: 1.2,
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.5),
+                    ],
+                  ),
                 ),
               ),
             ],
-          ),
-        ),
-
-        SizedBox(height: 24),
-
-        // Elegant quote section - minimal and professional with fixed height
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SizedBox(
-            height: 200, // Fixed height regardless of quote length
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Subtle decorative line
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              AppTheme.saffron.withValues(alpha: 0.3),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        size: 16,
-                        color: AppTheme.saffron.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.saffron.withValues(alpha: 0.3),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Quote text - clean and elegant with fixed space
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      AppConstants.dailyQuotes[_currentQuoteIndex],
-                      style: TextStyle(
-                        fontSize: 18,
-                        height: 1.8,
-                        color: AppTheme.textPrimary.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0.3,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Subtle decorative line
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              AppTheme.saffron.withValues(alpha: 0.3),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        size: 16,
-                        color: AppTheme.saffron.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.saffron.withValues(alpha: 0.3),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
         ),
 
         SizedBox(height: 20),
+
+        // Guruji name section with spiritual and respectful styling
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Decorative top element
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          AppTheme.saffron.withValues(alpha: 0.4),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      size: 14,
+                      color: AppTheme.saffron.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  Container(
+                    width: 30,
+                    height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.saffron.withValues(alpha: 0.4),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Parama Pujya - spiritual styling
+              Text(
+                context.tr('parama_pujya'),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.saffron.withValues(alpha: 0.7),
+                  letterSpacing: 2.5,
+                  height: 1.4,
+                  fontFamily: 'serif',
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 6),
+              
+              // Guruji's name - elegant and respectful
+              Text(
+                context.tr('sri_jeeveswara_yogi'),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFD84315),
+                  letterSpacing: 0.8,
+                  height: 1.3,
+                  fontFamily: 'serif',
+                  shadows: [
+                    Shadow(
+                      color: AppTheme.saffron.withValues(alpha: 0.1),
+                      offset: Offset(0, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Decorative bottom element
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          AppTheme.saffron.withValues(alpha: 0.4),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      size: 14,
+                      color: AppTheme.saffron.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  Container(
+                    width: 30,
+                    height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.saffron.withValues(alpha: 0.4),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Beautiful quote card with lighter, calming background - Full width
+        Container(
+          height: 180, // Fixed height for consistency
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFFBF5),
+                Color(0xFFFFF9F0),
+                Color(0xFFFFF6EB),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.saffron.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: AppTheme.saffron.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+                bottom: BorderSide(
+                  color: AppTheme.saffron.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Opening quote icon
+                Icon(
+                  Icons.format_quote,
+                  size: 32,
+                  color: AppTheme.saffron.withValues(alpha: 0.5),
+                ),
+                
+                SizedBox(height: 12),
+                
+                // Quote text with beautiful typography and scrollable if needed
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      quotesToDisplay[_currentQuoteIndex % quotesToDisplay.length],
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.6,
+                        color: Color(0xFF6D4C41),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: 12),
+                
+                // Decorative divider with dots
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppTheme.saffron.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: AppTheme.saffron.withValues(alpha: 0.7),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppTheme.saffron.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        SizedBox(height: 16),
       ],
     );
   }
@@ -447,7 +590,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Daily Reminders',
+                    context.tr('daily_reminders'),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -458,7 +601,7 @@ class _HomePageState extends State<HomePage>
               TextButton.icon(
                 onPressed: () => context.push('/reminders'),
                 icon: const Icon(Icons.settings, size: 18),
-                label: const Text('Manage'),
+                label: Text(context.tr('manage')),
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.saffron,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -468,7 +611,7 @@ class _HomePageState extends State<HomePage>
           ),
           const SizedBox(height: 4),
           Text(
-            'Enable reminders to build your daily spiritual practice',
+            context.tr('enable_reminders_subtitle'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSecondary,
                   fontSize: 14,
@@ -478,33 +621,23 @@ class _HomePageState extends State<HomePage>
           
           // Vertical reminder cards
           _buildReminderCard(
-            title: 'Morning Meditation',
-            description: 'Daily at 6:00 AM',
-            subtitle: 'Start your day with peace',
+            title: context.tr('morning_meditation'),
+            description: context.tr('daily_at') + ' 6:00 AM',
+            subtitle: context.tr('start_day_peace'),
             icon: Icons.wb_sunny,
             color: Colors.orange,
             isActive: _presetReminders['morning_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('morning_meditation', 'Morning Meditation', '06:00'),
+            onToggle: () => _togglePresetReminder('morning_meditation', context.tr('morning_meditation'), '06:00'),
           ),
           const SizedBox(height: 12),
           _buildReminderCard(
-            title: 'Evening Meditation',
-            description: 'Daily at 7:00 PM',
-            subtitle: 'End your day with gratitude',
+            title: context.tr('evening_meditation'),
+            description: context.tr('daily_at') + ' 6:00 PM',
+            subtitle: context.tr('end_day_gratitude'),
             icon: Icons.nightlight_round,
             color: Colors.deepPurple,
             isActive: _presetReminders['evening_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('evening_meditation', 'Evening Meditation', '19:00'),
-          ),
-          const SizedBox(height: 12),
-          _buildReminderCard(
-            title: 'Daily Practice',
-            description: 'Daily at 12:00 PM',
-            subtitle: 'Midday spiritual break',
-            icon: Icons.self_improvement,
-            color: Colors.teal,
-            isActive: _presetReminders['daily_practice'] ?? false,
-            onToggle: () => _togglePresetReminder('daily_practice', 'Daily Practice', '12:00'),
+            onToggle: () => _togglePresetReminder('evening_meditation', context.tr('evening_meditation'), '18:00'),
           ),
         ],
       ),
@@ -642,8 +775,8 @@ class _HomePageState extends State<HomePage>
           _presetReminders[key] = currentState;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update reminder. Please try again.'),
+          SnackBar(
+            content: Text(context.tr('failed_to_update')),
             backgroundColor: Colors.red,
           ),
         );
@@ -678,7 +811,7 @@ class _HomePageState extends State<HomePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$title reminder set for $defaultTime daily'),
+            content: Text('${context.tr('reminder_set')} $defaultTime ${context.tr('daily_at')}'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
@@ -702,7 +835,7 @@ class _HomePageState extends State<HomePage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('$title reminder deactivated'),
+              content: Text(context.tr('reminder_deactivated')),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 2),
             ),
@@ -760,9 +893,9 @@ class _HomePageState extends State<HomePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Meditation Timer',
-                          style: TextStyle(
+                        Text(
+                          context.tr('meditation_timer'),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -771,7 +904,7 @@ class _HomePageState extends State<HomePage>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Track your daily meditation practice',
+                          context.tr('track_meditation_practice'),
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.9),
                             fontSize: 14,
@@ -813,9 +946,9 @@ class _HomePageState extends State<HomePage>
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'View Your Meditation Journey',
-                    style: TextStyle(
+                  Text(
+                    context.tr('view_meditation_journey'),
+                    style: const TextStyle(
                       color: Color(0xFF7C3AED),
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -871,22 +1004,22 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sivoham Ringtone',
-                      style: TextStyle(
+                      context.tr('sivoham_ringtone'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Set as your device ringtone',
-                      style: TextStyle(
+                      context.tr('set_as_ringtone'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                       ),
@@ -947,22 +1080,22 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Wisdom Wallpapers',
-                      style: TextStyle(
+                      context.tr('wisdom_wallpaper'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Auto-rotate every 15 minutes',
-                      style: TextStyle(
+                      context.tr('set_daily_wallpaper'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                       ),
@@ -1053,15 +1186,15 @@ class _HomePageState extends State<HomePage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Our Vision',
-                              style: TextStyle(
+                              context.tr('our_vision'),
+                              style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFFD84315),
                                 letterSpacing: 0.5,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Container(
                               height: 3,
                               width: 60,
@@ -1089,7 +1222,7 @@ class _HomePageState extends State<HomePage>
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
-                      AppConstants.vision,
+                      context.tr('vision_text'),
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.7,
@@ -1172,15 +1305,15 @@ class _HomePageState extends State<HomePage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Our Mission',
-                              style: TextStyle(
+                              context.tr('our_mission'),
+                              style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF0D47A1),
                                 letterSpacing: 0.5,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Container(
                               height: 3,
                               width: 60,
@@ -1208,7 +1341,7 @@ class _HomePageState extends State<HomePage>
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
-                      AppConstants.mission,
+                      context.tr('mission_text'),
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.7,
@@ -1294,9 +1427,9 @@ class _HomePageState extends State<HomePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Our Values',
-                          style: TextStyle(
+                        Text(
+                          context.tr('our_values'),
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF6A1B9A),
@@ -1333,15 +1466,15 @@ class _HomePageState extends State<HomePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildValueItem('Surrenderance', Icons.favorite_border),
+                    _buildValueItem(context.tr('value_surrenderance'), Icons.favorite_border),
                     const SizedBox(height: 12),
-                    _buildValueItem('Practice', Icons.self_improvement),
+                    _buildValueItem(context.tr('value_practice'), Icons.self_improvement),
                     const SizedBox(height: 12),
-                    _buildValueItem('Service', Icons.volunteer_activism),
+                    _buildValueItem(context.tr('value_service'), Icons.volunteer_activism),
                     const SizedBox(height: 12),
-                    _buildValueItem('Gratitude', Icons.spa),
+                    _buildValueItem(context.tr('value_gratitude'), Icons.spa),
                     const SizedBox(height: 12),
-                    _buildValueItem('Acceptance & Forgiveness', Icons.healing),
+                    _buildValueItem(context.tr('value_acceptance_forgiveness'), Icons.healing),
                   ],
                 ),
               ),
@@ -1389,133 +1522,133 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildMeditationMusic() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Daily Meditation',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title with padding
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Text(
+            context.tr('daily_meditation'),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
           ),
-          SizedBox(height: 16),
-          GestureDetector(
-            onTap: () async {
-              if (AppConstants.meditationMusic.isNotEmpty) {
-                // Check if this meditation is currently playing
-                final isCurrentlyPlaying =
-                    _audioService.playlist == AppConstants.meditationMusic &&
-                        _audioService.currentIndex == 0 &&
-                        _audioService.isPlaying;
+        ),
+        // Full width image
+        GestureDetector(
+          onTap: () async {
+            if (AppConstants.meditationMusic.isNotEmpty) {
+              // Check if this meditation is currently playing
+              final isCurrentlyPlaying =
+                  _audioService.playlist == AppConstants.meditationMusic &&
+                      _audioService.currentIndex == 0 &&
+                      _audioService.isPlaying;
 
-                if (isCurrentlyPlaying) {
-                  // If playing, pause it
-                  await _audioService.pause();
-                } else {
-                  // If not playing or different song, play it
-                  await _audioService.playSong(AppConstants.meditationMusic, 0);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'Playing "${AppConstants.meditationMusic[0]['title']}"'),
-                        duration: Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                        margin: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).size.height - 100,
-                          left: 10,
-                          right: 10,
-                        ),
+              if (isCurrentlyPlaying) {
+                // If playing, pause it
+                await _audioService.pause();
+              } else {
+                // If not playing or different song, play it
+                await _audioService.playSong(AppConstants.meditationMusic, 0);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'Playing "${AppConstants.meditationMusic[0]['title']}"'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                      margin: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).size.height - 100,
+                        left: 10,
+                        right: 10,
                       ),
-                    );
-                  }
+                    ),
+                  );
                 }
               }
-            },
-            child: Container(
-              height: 240,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border:
-                    (_audioService.playlist == AppConstants.meditationMusic &&
-                            _audioService.currentIndex == 0 &&
-                            _audioService.isPlaying)
-                        ? Border.all(color: AppTheme.primary, width: 3)
-                        : null,
-                image: DecorationImage(
-                  image: _getImageProvider(AppConstants.gurujiTeachingImageUrl),
-                  fit: BoxFit.contain,
-                ),
+            }
+          },
+          child: Container(
+            height: 240,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border:
+                  (_audioService.playlist == AppConstants.meditationMusic &&
+                          _audioService.currentIndex == 0 &&
+                          _audioService.isPlaying)
+                      ? Border.all(color: AppTheme.primary, width: 3)
+                      : null,
+              image: DecorationImage(
+                image: _getImageProvider(AppConstants.gurujiTeachingImageUrl),
+                fit: BoxFit.contain,
               ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
-                  ),
-                ),
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          (_audioService.playlist ==
-                                      AppConstants.meditationMusic &&
-                                  _audioService.currentIndex == 0 &&
-                                  _audioService.isPlaying)
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Guided Meditation',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                  ),
-                        ),
-                        Text(
-                          '15:00',
-                          style:
-                              Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                        ),
-                      ],
-                    ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
                   ],
                 ),
               ),
+              padding: EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        (_audioService.playlist ==
+                                    AppConstants.meditationMusic &&
+                                _audioService.currentIndex == 0 &&
+                                _audioService.isPlaying)
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        context.tr('guided_meditation'),
+                        style:
+                            Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                ),
+                      ),
+                      Text(
+                        '15:00',
+                        style:
+                            Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1529,7 +1662,7 @@ class _HomePageState extends State<HomePage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Songs & Bhajans',
+                context.tr('bhajans'),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -1564,7 +1697,7 @@ class _HomePageState extends State<HomePage>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'View All Songs',
+                  context.tr('all_songs'),
                   style: TextStyle(
                     color: AppTheme.primary,
                     fontSize: 16,
@@ -1585,6 +1718,19 @@ class _HomePageState extends State<HomePage>
     final isCurrentSong =
         _audioService.currentSong?['title'] == bhajan['title'];
     final isPlaying = isCurrentSong && _audioService.isPlaying;
+    
+    // Get translated song title
+    String getSongTitle(String originalTitle) {
+      final titleMap = {
+        'Sri Jeeveswarastakam': 'song_sri_jeeveswarastakam',
+        'Gundello Gudi': 'song_gundello_gudi',
+        'Nirvana Shatkam': 'song_nirvana_shatkam',
+        'Jeeveswara Yogi Taluva': 'song_jeeveswara_yogi_taluva',
+        'Pralaya Kala Beekara': 'song_pralaya_kala_beekara',
+        'Ni Namamalo Undhi Moksha Dwaram': 'song_ni_namamalo',
+      };
+      return context.tr(titleMap[originalTitle] ?? originalTitle);
+    }
 
     return GestureDetector(
       onTap: () async {
@@ -1648,7 +1794,7 @@ class _HomePageState extends State<HomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    bhajan['title']!,
+                    getSongTitle(bhajan['title']!),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
@@ -1745,8 +1891,8 @@ class _HomePageState extends State<HomePage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Journey of\nour Guru',
-                        style: TextStyle(
+                        context.tr('guru_journey'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -1754,9 +1900,9 @@ class _HomePageState extends State<HomePage>
                           height: 1.2,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Discover the life and teachings of\nParama Pujya Sri Jeeveswara Yogi',
+                        context.tr('learn_about_guruji'),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.95),
                           fontSize: 15,
@@ -1767,7 +1913,7 @@ class _HomePageState extends State<HomePage>
                       Row(
                         children: [
                           Text(
-                            'Know More',
+                            context.tr('know_more'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -1843,8 +1989,8 @@ class _HomePageState extends State<HomePage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'The Science of\nKundalini Awakening',
-                        style: TextStyle(
+                        context.tr('kundalini_science'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -1852,9 +1998,9 @@ class _HomePageState extends State<HomePage>
                           height: 1.2,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Unlock the primordial cosmic energy\nwithin you',
+                        context.tr('understand_kundalini'),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.95),
                           fontSize: 15,
@@ -1865,7 +2011,7 @@ class _HomePageState extends State<HomePage>
                       Row(
                         children: [
                           Text(
-                            'Learn More',
+                            context.tr('learn_more'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -1941,8 +2087,8 @@ class _HomePageState extends State<HomePage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Benefits of\nKundalini Sadhana',
-                        style: TextStyle(
+                        context.tr('benefits'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -1950,9 +2096,9 @@ class _HomePageState extends State<HomePage>
                           height: 1.2,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Transform your life through enhanced\nenergy, clarity, and spiritual growth',
+                        context.tr('discover_benefits'),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.95),
                           fontSize: 15,
@@ -1963,14 +2109,14 @@ class _HomePageState extends State<HomePage>
                       Row(
                         children: [
                           Text(
-                            'Explore Benefits',
-                            style: TextStyle(
+                            context.tr('discover_benefits'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Icon(
                             Icons.arrow_forward,
                             color: Colors.white,
@@ -2039,8 +2185,8 @@ class _HomePageState extends State<HomePage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Explore the\n7 Chakras',
-                        style: TextStyle(
+                        context.tr('seven_chakras'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -2048,9 +2194,9 @@ class _HomePageState extends State<HomePage>
                           height: 1.2,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
-                        'Journey through your body\'s\nenergy centers',
+                        context.tr('explore_chakras'),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.95),
                           fontSize: 15,
@@ -2061,7 +2207,7 @@ class _HomePageState extends State<HomePage>
                       Row(
                         children: [
                           Text(
-                            'Swipe to Explore',
+                            context.tr('swipe_to_explore'),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2109,7 +2255,7 @@ class _HomePageState extends State<HomePage>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Recent Gatherings',
+            context.tr('recent_gatherings'),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -2338,7 +2484,7 @@ class _HomePageState extends State<HomePage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Upcoming Events',
+            context.tr('upcoming_programs'),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,

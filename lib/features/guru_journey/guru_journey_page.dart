@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/localization_service.dart';
 
 class GuruJourneyPage extends StatefulWidget {
   const GuruJourneyPage({super.key});
@@ -52,9 +53,9 @@ class _GuruJourneyPageState extends State<GuruJourneyPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Journey of our Guru',
-          style: TextStyle(
+        title: Text(
+          context.tr('guru_journey_title'),
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -132,18 +133,18 @@ class _GuruJourneyPageState extends State<GuruJourneyPage> {
                             color: Colors.black.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.play_circle_outline,
                                 color: Colors.white,
                                 size: 20,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(
-                                'Tap to watch on YouTube',
-                                style: TextStyle(
+                                context.tr('guru_journey_watch_youtube'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -168,56 +169,46 @@ class _GuruJourneyPageState extends State<GuruJourneyPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Parama Pujya SriJeeveswara Yogi',
+                    context.tr('parama_pujya') + ' ' + context.tr('sri_jeeveswara_yogi'),
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.darkBrown,
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   
-                  _buildParagraph(
-                    'Parama Pujya SriJeeveswara Yogi was born with an awakened Kundalini. At the tender age of 8, during a meditation class at school, he naturally entered into a deep state of Samadhi for four hours. From that moment onward, his heart was filled with a burning curiosity to explore the mysteries of meditation.',
-                  ),
+                  _buildParagraph(context.tr('guru_journey_para1')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'At the age of 13, guided by his spiritual quest, he traveled to the sacred land of Srisailam, a powerful abode of Lord Shiva. There, in a miraculous turn, he encountered his Guru — none other than Lord Shiva Himself. In the divine presence of his Guru, he spent three days and received profound, intense meditation techniques.',
-                  ),
+                  _buildParagraph(context.tr('guru_journey_para2')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'Through years of dedicated practice, he eventually attained Enlightenment. Choosing to renounce worldly pursuits, he initially intended to enter Jeeva Samadhi, but on the divine guidance of his Guru, he redirected his life towards serving humanity. Leaving behind a flourishing professional career, he resolved to dedicate his entire life to spreading the sacred knowledge of Kundalini Sadhana.',
-                  ),
+                  _buildParagraph(context.tr('guru_journey_para3')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'In 2017, he founded Siva Kundalini Sadhana, a non-profit spiritual organization with the mission of offering this divine practice freely to all seekers. Gurudev strongly believes that Salvation is the birthright of every human being, and thus he shares these teachings without any barriers or prerequisites.',
-                  ),
+                  _buildParagraph(context.tr('guru_journey_para4')),
                   
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   
-                  _buildParagraph(
-                    'SriJeeveswara Yogi Gurudev is among the rarest of masters who bestow Shaktipatham (the direct transmission of energy from Guru to disciple) and Shivapatham, guiding seekers on the path to ultimate realization.',
-                  ),
+                  _buildParagraph(context.tr('guru_journey_para5')),
                   
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   
                   // Decorative bottom element
                   Center(
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: AppTheme.saffronGradient,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(
-                        '🙏 Jai Gurudev 🙏',
-                        style: TextStyle(
+                        context.tr('jai_gurudev'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

@@ -484,51 +484,209 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   }
 
   Future<void> _showDurationPicker() async {
-    final durations = [
-      {'label': 'Free meditation', 'seconds': 0},
-      {'label': '5 minutes', 'seconds': 300},
-      {'label': '10 minutes', 'seconds': 600},
-      {'label': '15 minutes', 'seconds': 900},
-      {'label': '20 minutes', 'seconds': 1200},
-      {'label': '30 minutes', 'seconds': 1800},
-      {'label': '45 minutes', 'seconds': 2700},
-      {'label': '60 minutes', 'seconds': 3600},
-    ];
-
-    final selected = await showDialog<int>(
+    int selectedHours = _targetSeconds ~/ 3600;
+    int selectedMinutes = (_targetSeconds % 3600) ~/ 60;
+    
+    // Ensure at least 1 minute is selected by default
+    if (selectedHours == 0 && selectedMinutes == 0) {
+      selectedMinutes = 5;
+    }
+    
+    final result = await showDialog<Map<String, int>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Set Meditation Duration'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: durations.map((duration) {
-              final isSelected = _targetSeconds == duration['seconds'];
-              return ListTile(
-                title: Text(duration['label'] as String),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle, color: AppTheme.saffron)
-                    : null,
-                selected: isSelected,
-                onTap: () => Navigator.pop(context, duration['seconds'] as int),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Set Meditation Duration'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Quick presets
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildPresetChip('5 min', 0, 5, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('10 min', 0, 10, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('15 min', 0, 15, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('20 min', 0, 20, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('30 min', 0, 30, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('45 min', 0, 45, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('1 hour', 1, 0, selectedHours, selectedMinutes, setDialogState),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Custom Duration',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Custom time picker
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Hours
+                      Column(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_drop_up),
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedHours = (selectedHours + 1) % 24;
+                              });
+                            },
+                          ),
+                          Container(
+                            width: 60,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.saffron.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              selectedHours.toString().padLeft(2, '0'),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.saffron,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_drop_down),
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedHours = selectedHours > 0 ? selectedHours - 1 : 23;
+                              });
+                            },
+                          ),
+                          const Text('Hours', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      const Text(':', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 16),
+                      // Minutes
+                      Column(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_drop_up),
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedMinutes = (selectedMinutes + 1) % 60;
+                              });
+                            },
+                          ),
+                          Container(
+                            width: 60,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.saffron.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              selectedMinutes.toString().padLeft(2, '0'),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.saffron,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_drop_down),
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedMinutes = selectedMinutes > 0 ? selectedMinutes - 1 : 59;
+                              });
+                            },
+                          ),
+                          const Text('Minutes', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Validate that at least 1 minute is selected
+                    if (selectedHours == 0 && selectedMinutes == 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select at least 1 minute'),
+                          backgroundColor: Colors.orange,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context, {
+                      'hours': selectedHours,
+                      'minutes': selectedMinutes,
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.saffron,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Set'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (selected != null) {
+    if (result != null) {
       setState(() {
-        _targetSeconds = selected;
+        _targetSeconds = (result['hours']! * 3600) + (result['minutes']! * 60);
       });
     }
+  }
+
+  Widget _buildPresetChip(String label, int hours, int minutes, int currentHours, int currentMinutes, StateSetter setDialogState) {
+    final isSelected = currentHours == hours && currentMinutes == minutes;
+    return ActionChip(
+      label: Text(label),
+      backgroundColor: isSelected 
+          ? AppTheme.saffron.withValues(alpha: 0.2)
+          : Colors.grey.withValues(alpha: 0.1),
+      side: BorderSide(
+        color: isSelected 
+            ? AppTheme.saffron 
+            : Colors.grey.withValues(alpha: 0.3),
+        width: isSelected ? 2 : 1,
+      ),
+      labelStyle: TextStyle(
+        color: isSelected ? AppTheme.saffron : AppTheme.textSecondary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      onPressed: () {
+        // Update dialog state
+        setDialogState(() {
+          // This updates the visual selection in the dialog
+        });
+        // Close dialog and return the selected duration
+        Navigator.pop(context, {'hours': hours, 'minutes': minutes});
+      },
+    );
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/wallpaper_service.dart';
+import '../../core/services/localization_service.dart';
 
 class WallpaperSettingsPage extends StatefulWidget {
   const WallpaperSettingsPage({Key? key}) : super(key: key);
@@ -29,7 +30,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     try {
       final enabled = await _wallpaperService.isEnabled();
       final info = await _wallpaperService.getCurrentInfo();
-      final wallpapers = _wallpaperService.getAvailableWallpapers();
+      final wallpapers = await _wallpaperService.getAvailableWallpapers();
 
       if (mounted) {
         setState(() {
@@ -203,7 +204,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
-        title: const Text('Wisdom Wallpapers'),
+        title: Text(context.tr('wisdom_wallpapers_title')),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -251,12 +252,12 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                               ),
                             ),
                             const SizedBox(width: 16),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Auto-Rotate',
+                                    context.tr('auto_rotate'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,
@@ -265,7 +266,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    'Changes every 15 minutes',
+                                    context.tr('changes_every_15_min'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 13,
@@ -277,7 +278,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                             Switch(
                               value: _isEnabled,
                               onChanged: _toggleWallpaper,
-                              activeColor: Colors.white,
+                              activeThumbColor: Colors.white,
                               activeTrackColor: Colors.white.withValues(alpha: 0.5),
                             ),
                           ],
@@ -289,9 +290,9 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
-                                'Last Updated:',
-                                style: TextStyle(
+                              Text(
+                                context.tr('last_updated'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 13,
                                 ),
@@ -310,7 +311,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                           ElevatedButton.icon(
                             onPressed: _changeNow,
                             icon: const Icon(Icons.refresh),
-                            label: const Text('Change Now'),
+                            label: Text(context.tr('change_now')),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: AppTheme.saffron,
@@ -332,7 +333,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Available Wallpapers',
+                          context.tr('available_wallpapers'),
                           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -340,7 +341,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Tap any image to set it as your wallpaper',
+                          context.tr('tap_to_set_wallpaper'),
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppTheme.textSecondary,
                           ),
@@ -413,8 +414,8 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
   }
 
   Widget _buildWallpaperCard(int index) {
-    final imagePath = _availableWallpapers[index];
-    final isCurrent = _currentInfo['currentImage'] == imagePath;
+    final imageUrl = _availableWallpapers[index];
+    final isCurrent = _currentInfo['currentImage'] == imageUrl;
 
     return GestureDetector(
       onTap: () => _setSpecificWallpaper(index),
@@ -440,9 +441,23 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset(
-                imagePath,
+              Image.network(
+                imageUrl,
                 fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: AppTheme.softGray,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     color: AppTheme.softGray,

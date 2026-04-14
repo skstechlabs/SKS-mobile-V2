@@ -103,14 +103,39 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen>
 
     setState(() => _isLoading = true);
 
+    // Calculate age from date of birth
+    int age = 10; // Default age
+    if (_dobController.text.isNotEmpty) {
+      try {
+        final parts = _dobController.text.split('/');
+        if (parts.length == 3) {
+          final year = int.parse(parts[2]);
+          age = DateTime.now().year - year;
+        }
+      } catch (e) {
+        debugPrint('Error calculating age: $e');
+      }
+    }
+
     // Call backend API to save profile
     final result = await _apiService.completeProfile(
       name: _nameController.text.trim(),
       gender: _selectedGender!,
-      dateOfBirth: _dobController.text,
-      address: _addressController.text.trim(),
-      state: _selectedState!,
-      pincode: _pincodeController.text.trim(),
+      age: age,
+      city: _addressController.text.trim().isNotEmpty 
+          ? _addressController.text.trim() 
+          : 'Not specified',
+      profession: 'Not specified',
+      preferredLanguage: 'English',
+      country: 'India',
+      dateOfBirth: _dobController.text.isNotEmpty ? _dobController.text : null,
+      address: _addressController.text.trim().isNotEmpty 
+          ? _addressController.text.trim() 
+          : null,
+      state: _selectedState,
+      pincode: _pincodeController.text.trim().isNotEmpty 
+          ? _pincodeController.text.trim() 
+          : null,
     );
 
     setState(() => _isLoading = false);

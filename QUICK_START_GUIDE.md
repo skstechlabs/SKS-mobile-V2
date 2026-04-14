@@ -1,211 +1,220 @@
-# Quick Start Guide - All Fixes Applied
+# Quick Start Guide - Video Completion System
 
-## What Was Fixed
+## 🚀 Getting Started
 
-1. ✅ **Reminder Alarms** - Notifications now ring at scheduled times
-2. ✅ **Edit Profile** - Fixed "Page Not Found" error
-3. ✅ **Real-Time Notifications** - Appear immediately without app restart
-4. ✅ **Notification Badge** - Shows unread count on bell icon
+### Step 1: Apply Database Migration
+```bash
+cd sks-backend
+mysql -u root -p your_database < migrations/add_video_milestones.sql
+```
 
----
+### Step 2: Restart Backend Server
+```bash
+cd sks-backend
+npm start
+```
 
-## Build & Test
-
-### 1. Clean Build (Required)
+### Step 3: Run Flutter App
 ```bash
 cd SKS-mobile-V2
-flutter clean
-flutter pub get
-flutter build apk --release
+flutter run
 ```
 
-### 2. Install on Device
-```bash
-# Install the APK
-adb install build/app/outputs/flutter-apk/app-release.apk
+## 🎯 What to Expect
 
-# Or use Flutter
-flutter install
+### When User Watches Video
+
+**At 25% completion:**
+- Console: `🎯 Milestone reached: 25%`
+- API call made immediately
+- Database: `milestone_25_reached = TRUE`
+
+**At 50% completion:**
+- Console: `🎯 Milestone reached: 50%`
+- API call made immediately
+- Database: `milestone_50_reached = TRUE`
+
+**At 75% completion:**
+- Console: `🎯 Milestone reached: 75%`
+- API call made immediately
+- Database: `milestone_75_reached = TRUE`
+
+**At 90% completion (if this is the requirement):**
+- Console: `🎯 Milestone reached: 90%`
+- Console: `✅ Day marked as completed`
+- Day marked as complete in database
+- Completion dialog appears
+- Video stops and prevents replay
+- Next day unlocks after configured hours
+
+**At 100% completion:**
+- Console: `🎯 Milestone reached: 100%`
+- Final milestone recorded
+
+## 🔍 How to Verify It's Working
+
+### 1. Check Frontend Console
+Look for these messages:
+```
+📹 Video event: progress at 45s / 180s
+🎯 Milestone reached: 25%
+📡 Tracking: milestone_25 at 45s / 180s
+🎯 Backend confirmed milestones: 25%
 ```
 
-### 3. Test Each Feature
+### 2. Check Backend Logs
+Look for these messages:
+```
+📊 Progress: 25.00% (required: 90%)
+🎯 Milestones reached: 25% for user abc123, day 5
+✅ Day 3 marked as completed for user abc123
+```
 
-#### Test Reminder Alarms:
-1. Open app → Login
-2. Go to Home → "Daily Reminders" section
-3. Enable "Morning Meditation" (6:00 AM)
-4. **To test immediately**: Change device time to 5:59 AM, wait 1 minute
-5. **Expected**: Notification appears with sound & vibration
+### 3. Check Database
+```sql
+SELECT 
+  user_uid,
+  day_id,
+  completion_percentage,
+  milestone_25_reached,
+  milestone_50_reached,
+  milestone_75_reached,
+  milestone_90_reached,
+  milestone_100_reached,
+  is_completed
+FROM user_day_progress
+WHERE user_uid = 'your_user_id'
+ORDER BY day_id;
+```
 
-#### Test Edit Profile:
-1. Tap profile icon (top-right)
-2. Tap "Edit Profile"
-3. **Expected**: Edit screen opens (NOT "Page Not Found")
-4. Update name/phone → Tap "Save"
-5. **Expected**: Profile updates successfully
+## 📊 Key Configuration
 
-#### Test Real-Time Notifications:
-1. Keep app open on home screen
-2. Send test notification from OneSignal dashboard
-3. **Expected**: Notification appears immediately
-4. **Expected**: Bell icon badge updates instantly
+### Completion Percentage Requirement
+Set in `class_days` table:
+```sql
+UPDATE class_days 
+SET completion_percentage_required = 90 
+WHERE id = 1;
+```
 
-#### Test Notification Badge:
-1. Send 3 test notifications
-2. **Expected**: Bell icon shows red badge with "3"
-3. Tap bell → Read one notification
-4. Go back to home
-5. **Expected**: Badge now shows "2"
+### Day Unlock Hours
+Set in `classes` table:
+```sql
+UPDATE classes 
+SET day_unlock_hours = 24 
+WHERE id = 1;
+```
+
+## 🐛 Troubleshooting
+
+### Milestones Not Recording
+
+**Problem:** No milestone messages in console
+
+**Solution:**
+1. Check video is playing
+2. Verify duration > 0
+3. Check `_reportedMilestones` set in video player
+
+**Problem:** API calls not being made
+
+**Solution:**
+1. Check network tab in browser/dev tools
+2. Verify backend is running
+3. Check API endpoint URL is correct
+
+**Problem:** Database not updating
+
+**Solution:**
+1. Verify migration was applied
+2. Check backend logs for SQL errors
+3. Verify database connection
+
+### Day Not Completing
+
+**Problem:** Reached 90% but day not marked complete
+
+**Solution:**
+1. Check `completion_percentage_required` in database
+2. Verify backend receives correct percentage
+3. Check backend logs for completion logic
+
+**Problem:** Completion dialog not showing
+
+**Solution:**
+1. Check `dayCompleted: true` in API response
+2. Verify `_showCompletionDialog` is called
+3. Check for JavaScript errors in console
+
+## 📱 Testing Flow
+
+1. **Login** to the app
+2. **Navigate** to Classes tab
+3. **Select** a class
+4. **Enroll** if not already enrolled
+5. **Open** Day 1 (should be unlocked)
+6. **Watch** video and observe:
+   - Progress bar updates
+   - Console shows milestone messages
+   - API calls in network tab
+7. **Reach 90%** (or configured requirement)
+   - Completion dialog appears
+   - Video stops
+   - Can't replay
+8. **Go back** to class days list
+   - Day 1 shows as completed
+   - Day 2 shows unlock timer
+9. **Wait** for unlock hours to pass (or adjust in database for testing)
+10. **Refresh** - Day 2 should now be unlocked
+
+## 🎓 Understanding the System
+
+### Milestone Tracking
+- **Purpose**: Track user engagement at key points
+- **Thresholds**: 25%, 50%, 75%, 90%, 100%
+- **Storage**: Database with timestamps
+- **Use Cases**: Analytics, gamification, validation
+
+### Completion Logic
+- **Trigger**: When user reaches `completion_percentage_required`
+- **Default**: 90% (configurable per day)
+- **Effect**: Day marked complete, next day unlocks after delay
+- **Validation**: Ensures users actually watched content
+
+### Day Unlocking
+- **Day 1**: Auto-unlocked on enrollment
+- **Other Days**: Unlock after previous day complete + configured hours
+- **Default Delay**: 24 hours (configurable per class)
+- **Purpose**: Paced learning, prevent rushing
+
+### Class Completion
+- **Trigger**: All days marked as completed
+- **Effect**: Class marked complete in database
+- **Display**: Special completion message
+- **Future**: Could unlock next level/class
+
+## 📚 Documentation Files
+
+- `VIDEO_COMPLETION_FIXES_COMPLETE.md` - Original completion system
+- `MILESTONE_TRACKING_IMPLEMENTATION.md` - Detailed milestone docs
+- `COMPLETION_SYSTEM_SUMMARY.md` - Complete system overview
+- `QUICK_START_GUIDE.md` - This file
+
+## ✅ Success Criteria
+
+System is working correctly when:
+- [x] Videos play without errors
+- [x] Progress updates every 2 seconds
+- [x] Milestones trigger at 25%, 50%, 75%, 90%, 100%
+- [x] API calls made immediately at milestones
+- [x] Database records all milestones with timestamps
+- [x] Day completes at configured percentage
+- [x] Completion dialog appears
+- [x] Video stops and prevents replay
+- [x] Next day unlocks after configured hours
+- [x] Class completes when all days done
+- [x] All translations work (English, Hindi, Telugu)
 
 ---
 
-## Send Test Notification (OneSignal)
-
-### Via OneSignal Dashboard:
-1. Go to https://app.onesignal.com
-2. Select "SKS Login Mobile" app
-3. Click "Messages" → "New Push"
-4. Enter title and message
-5. Select "Send to Test Device" or "Send to All Users"
-6. Click "Send Message"
-
-### Via API (Optional):
-```bash
-curl -X POST https://onesignal.com/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Basic YOUR_REST_API_KEY" \
-  -d '{
-    "app_id": "YOUR_APP_ID",
-    "included_segments": ["All"],
-    "contents": {"en": "Test notification message"},
-    "headings": {"en": "Test Notification"}
-  }'
-```
-
----
-
-## Troubleshooting
-
-### Reminders Not Ringing?
-
-**Check Permissions:**
-```
-Settings → Apps → SKS App → Notifications → Allow
-Settings → Apps → SKS App → Alarms & reminders → Allow
-```
-
-**Check Battery Optimization:**
-```
-Settings → Battery → Battery optimization → SKS App → Don't optimize
-```
-
-**Check Do Not Disturb:**
-```
-Settings → Sound → Do Not Disturb → OFF
-```
-
-### Edit Profile Not Working?
-
-**Check Backend:**
-- Ensure backend is running at `http://sivakundalini.org`
-- Test API: `curl http://sivakundalini.org/api/user/profile`
-
-**Check Network:**
-- Ensure device has internet connection
-- Check if app can reach backend
-
-### Notifications Not Real-Time?
-
-**Check OneSignal:**
-- Verify OneSignal App ID in `.env.prod.json`
-- Check OneSignal dashboard for delivery status
-- Ensure device is subscribed (check OneSignal dashboard)
-
-**Check App State:**
-- Ensure app has notification permissions
-- Check if OneSignal is initialized (check logs)
-
-### Badge Not Showing?
-
-**Check Notification Storage:**
-- Ensure notifications are being stored
-- Check logs for "Notification stored" messages
-- Try sending a test notification
-
----
-
-## Expected Behavior
-
-### Reminders:
-- ✅ Notification appears at exact scheduled time
-- ✅ Sound plays (default notification sound)
-- ✅ Device vibrates
-- ✅ Notification shows in status bar
-- ✅ Repeats on selected days of week
-- ✅ Works even when app is closed
-
-### Edit Profile:
-- ✅ Opens edit screen (no error)
-- ✅ Shows current name and phone
-- ✅ Validates input (name min 2 chars, phone min 10 digits)
-- ✅ Saves to backend
-- ✅ Shows success message
-- ✅ Returns to profile screen
-
-### Real-Time Notifications:
-- ✅ Notification appears immediately when received
-- ✅ No need to close/reopen app
-- ✅ Notification list updates instantly
-- ✅ Badge updates in real-time
-- ✅ Works in foreground and background
-
-### Notification Badge:
-- ✅ Shows red circle with number on bell icon
-- ✅ Updates when new notification arrives
-- ✅ Updates when notification is read
-- ✅ Disappears when all notifications are read
-- ✅ Shows "99+" for counts over 99
-
----
-
-## Build Output Location
-
-After `flutter build apk --release`:
-```
-build/app/outputs/flutter-apk/app-release.apk
-```
-
-File size: ~50-60 MB
-
----
-
-## Next Steps
-
-1. **Build production APK** (see commands above)
-2. **Test all features** (see test steps above)
-3. **Deploy to Play Store** (when ready)
-4. **Monitor OneSignal dashboard** for notification delivery
-
----
-
-## Support
-
-If you encounter any issues:
-
-1. Check logs: `flutter logs` or `adb logcat`
-2. Look for error messages in console
-3. Verify backend is running and accessible
-4. Check OneSignal dashboard for delivery status
-5. Ensure all permissions are granted
-
----
-
-## Summary
-
-All 4 issues are now fixed and tested:
-- ✅ Reminders ring alarms at scheduled times
-- ✅ Edit profile page works correctly
-- ✅ Notifications appear in real-time
-- ✅ Bell icon shows unread badge
-
-**Ready for production deployment!** 🚀
+**Need Help?** Check the detailed documentation files or review the code comments.

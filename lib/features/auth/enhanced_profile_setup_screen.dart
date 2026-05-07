@@ -50,6 +50,7 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
 
   // Controllers
   final _nameController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _ageController = TextEditingController();
   final _cityController = TextEditingController();
   final _professionController = TextEditingController();
@@ -66,6 +67,10 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
   String? _selectedReferralSource;
   String? _selectedCountry;
   
+  // Google users may not have a mobile number — allow them to enter one
+  bool _isGoogleUser = false;
+  bool _mobileEditable = false;
+  
   File? _profileImage;
   bool _isLoading = false;
 
@@ -81,6 +86,17 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
       final user = _authState.user;
       if (user != null && user.name.isNotEmpty) {
         _nameController.text = user.name;
+      }
+      
+      // Detect Google users — they may have no mobile number
+      if (user != null) {
+        _isGoogleUser = user.authProvider == 'google';
+        final hasMobile = user.mobile.isNotEmpty &&
+            RegExp(r'^\+?[0-9]{7,15}$').hasMatch(user.mobile);
+        _mobileEditable = _isGoogleUser && !hasMobile;
+        if (!_mobileEditable) {
+          _mobileController.text = user.mobile;
+        }
       }
       
       // Set default language to English
@@ -144,6 +160,7 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
   @override
   void dispose() {
     _nameController.dispose();
+    _mobileController.dispose();
     _ageController.dispose();
     _cityController.dispose();
     _professionController.dispose();
@@ -196,6 +213,18 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
       return;
     }
 
+    // Validate mobile for Google users who need to enter it
+    if (_mobileEditable && _mobileController.text.trim().length < 10) {
+      _showSnackBar(context.tr('mobile_required'));
+      return;
+    }
+
+    // Validate full address
+    if (_fullAddressController.text.trim().isEmpty) {
+      _showSnackBar(context.tr('address_required'));
+      return;
+    }
+
     // Validate conditional fields
     if (_selectedReferralSource == 'Other' && _referralOtherController.text.trim().isEmpty) {
       _showSnackBar(context.tr('please_specify_other_referral'));
@@ -205,7 +234,6 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
       _showSnackBar(context.tr('please_specify_other_country'));
       return;
     }
-
     setState(() => _isLoading = true);
 
     try {
@@ -280,6 +308,10 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                   : null,
               comments: _commentsController.text.trim().isNotEmpty 
                   ? _commentsController.text.trim() 
+                  : null,
+              // Pass mobile for Google users who entered it
+              mobile: _mobileEditable && _mobileController.text.trim().isNotEmpty
+                  ? _mobileController.text.trim()
                   : null,
             );
 
@@ -446,14 +478,8 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         ),
                         const SizedBox(height: 20),
 
-                        // 2. Mobile (read-only, already have it)
-                        _buildField(
-                          controller: TextEditingController(text: _authState.user?.mobile ?? ''),
-                          label: context.tr('mobile'),
-                          icon: Icons.phone_outlined,
-                          readOnly: true,
-                          enabled: false,
-                        ),
+                        // 2. Mobile — mandatory for all users
+                        _buildMobileField(),
                         const SizedBox(height: 20),
 
                         // 3. City/District/Village
@@ -581,19 +607,20 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         ],
                         const SizedBox(height: 16),
 
-                        // 11. Full Address
+                        // 11. Full Address (mandatory)
                         _buildField(
                           controller: _fullAddressController,
                           label: context.tr('full_address'),
                           icon: Icons.home_outlined,
                           maxLines: 3,
+                          validator: (v) => v!.trim().isEmpty ? context.tr('address_required') : null,
                         ),
                         const SizedBox(height: 16),
 
-                        // 12. Comments
+                        // 12. Comments (optional)
                         _buildField(
                           controller: _commentsController,
-                          label: context.tr('questions_comments'),
+                          label: '${context.tr('questions_comments')} (${context.tr('optional')})',
                           icon: Icons.comment_outlined,
                           maxLines: 3,
                         ),
@@ -640,6 +667,35 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileField() {
+    if (_mobileEditable) {
+      // Google user with no phone — must enter one (mandatory)
+      return _buildField(
+        controller: _mobileController,
+        label: context.tr('mobile'),
+        icon: Icons.phone_outlined,
+        keyboardType: TextInputType.phone,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(10),
+        ],
+        validator: (v) {
+          if (v == null || v.trim().isEmpty) return context.tr('mobile_required');
+          if (v.trim().length < 10) return context.tr('mobile_must_be_valid');
+          return null;
+        },
+      );
+    }
+    // Phone/existing user — show read-only (already verified)
+    return _buildField(
+      controller: TextEditingController(text: _authState.user?.mobile ?? ''),
+      label: context.tr('mobile'),
+      icon: Icons.phone_outlined,
+      readOnly: true,
+      enabled: false,
     );
   }
 

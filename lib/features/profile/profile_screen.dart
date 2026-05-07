@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/widgets/cached_image.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
@@ -24,7 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   UserModel? _user;
   String? _lastLoadedProfileUid;
-  bool _hasLoadedOnce = false;
 
   @override
   void initState() {
@@ -35,10 +35,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void didUpdateWidget(ProfileScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reload when widget is updated (e.g., after navigation)
-    if (_hasLoadedOnce) {
-      _loadProfile();
-    }
+    // Don't reload on every widget update — only reload when explicitly needed
+    // (e.g. after editing profile, call _loadProfile() directly)
   }
 
   Future<void> _loadProfile() async {
@@ -62,7 +60,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         
         setState(() {
           _user = user;
-          _hasLoadedOnce = true;
         });
         
         // Update auth state with cache
@@ -73,22 +70,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (message.toLowerCase().contains('not authenticated') || 
             message.toLowerCase().contains('unauthorized') ||
             message.toLowerCase().contains('token')) {
-          // User is not logged in
-          setState(() {
-            _user = null;
-            _hasLoadedOnce = true;
-          });
+          setState(() { _user = null; });
         } else {
           _showError(message.isNotEmpty ? message : 'Failed to load profile');
         }
       }
     } catch (e) {
       debugPrint('❌ Error loading profile: $e');
-      // Don't show error for auth issues
-      setState(() {
-        _user = null;
-        _hasLoadedOnce = true;
-      });
+      setState(() { _user = null; });
     } finally {
       setState(() => _isLoading = false);
     }
@@ -260,20 +249,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: AppTheme.primary, width: 3),
-                    image: user.photo.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(user.photo),
+                  ),
+                  child: ClipOval(
+                    child: user.photo.isNotEmpty
+                        ? CachedImage(
+                            imageUrl: user.photo,
+                            width: 120,
+                            height: 120,
                             fit: BoxFit.cover,
                           )
-                        : null,
+                        : const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: AppTheme.primary,
+                          ),
                   ),
-                  child: user.photo.isEmpty
-                      ? Icon(
-                          Icons.person,
-                          size: 60,
-                          color: AppTheme.primary,
-                        )
-                      : null,
                 ),
                 Positioned(
                   bottom: 0,

@@ -23,7 +23,7 @@ dependencies:
   go_router: ^12.0.0
   
   # UI
-  cached_network_image: ^3.3.0
+  cached_network_image: ^3.4.1
   shimmer: ^3.0.0
   carousel_slider: ^5.0.0
   flutter_svg: ^2.0.9
@@ -60,8 +60,8 @@ dependencies:
   # Firebase
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
-  google_sign_in: ^6.2.1
-  google_sign_in_web: ^0.12.4
+  google_sign_in: ^7.2.0
+  # google_sign_in_web is bundled in 7.x — no separate package needed
   
   # Push Notifications
   onesignal_flutter: ^5.2.5
@@ -81,6 +81,9 @@ dependencies:
   # Background Work - Using alternative approach
   # workmanager: ^0.5.2  # Has compatibility issues
   # Using native Android AlarmManager instead
+  
+  # Connectivity
+  connectivity_plus: ^6.0.3
   
   # Local Storage
   shared_preferences: ^2.2.2

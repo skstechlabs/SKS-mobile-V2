@@ -33,6 +33,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   String? _error;
   Map<String, dynamic>? _videoConfig;
   Timer? _trackingTimer;
+  Timer? _screenRecordingTimer;
   int _lastTrackedPosition = 0;
   bool _hasStarted = false;
   bool _isCompleted = false;
@@ -42,7 +43,8 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _enableSecureMode();
+    // Note: do NOT call _enableSecureMode here — it sets immersiveSticky which
+    // conflicts with the video player's fullscreen toggle.
     _loadVideoConfig();
     _startScreenRecordingDetection();
   }
@@ -61,22 +63,9 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     }
   }
 
-  Future<void> _enableSecureMode() async {
-    try {
-      // Enable secure mode to prevent screenshots and screen recording
-      await SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.immersiveSticky,
-        overlays: [SystemUiOverlay.bottom],
-      );
-      debugPrint('🔒 Secure mode enabled');
-    } catch (e) {
-      debugPrint('⚠️ Could not enable secure mode: $e');
-    }
-  }
-
   void _startScreenRecordingDetection() {
     // Check for screen recording every 2 seconds
-    Timer.periodic(const Duration(seconds: 2), (timer) {
+    _screenRecordingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -702,6 +691,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _trackingTimer?.cancel();
+    _screenRecordingTimer?.cancel();
     _disableSecureMode();
     super.dispose();
   }
@@ -719,10 +709,13 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
     return SecureScreenWrapper(
       child: Scaffold(
         backgroundColor: Colors.black,
-        appBar: AppBar(
+        // Hide AppBar in landscape — video fills the screen
+        appBar: isLandscape ? null : AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
           leading: IconButton(
@@ -746,12 +739,12 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
             ],
           ),
         ),
-        body: _buildBody(),
+        body: _buildBody(isLandscape: isLandscape),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody({bool isLandscape = false}) {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),
@@ -765,18 +758,11 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 64,
-              ),
+              const Icon(Icons.error_outline, color: Colors.red, size: 64),
               const SizedBox(height: 16),
               Text(
                 _error!,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -794,14 +780,54 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     final durationMinutes = videoDuration ~/ 60;
     final durationSeconds = videoDuration % 60;
     final durationText = '$durationMinutes:${durationSeconds.toString().padLeft(2, '0')}';
-    
+
+    // In landscape: video fills the entire screen, no info panel
+    if (isLandscape) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: CloudflareVideoPlayer(
+              videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
+              accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
+              lastPositionSeconds: 0,
+              allowSkip: _videoConfig!['allowSkip'] == true,
+              onStart: _markDayAsStarted,
+              onProgress: _trackProgress,
+              onComplete: () {
+                _trackProgress(videoDuration, videoDuration, 'complete');
+              },
+            ),
+          ),
+          // Back button overlay in landscape
+          Positioned(
+            top: 8,
+            left: 8,
+            child: SafeArea(
+              child: GestureDetector(
+                onTap: () => context.pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Portrait mode: video + info panel
     return Column(
       children: [
         // Video Player
         CloudflareVideoPlayer(
           videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
           accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
-          lastPositionSeconds: _parseIntSafely(_videoConfig!['lastPositionSeconds']),
+          lastPositionSeconds: 0, // always start from beginning
           allowSkip: _videoConfig!['allowSkip'] == true,
           onStart: _markDayAsStarted,
           onProgress: _trackProgress,

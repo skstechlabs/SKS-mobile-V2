@@ -16,70 +16,71 @@ import 'core/services/localization_service.dart';
 import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
 import 'features/auth/auth_state.dart';
+import 'core/services/connectivity_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
-  // Wrap everything in try-catch to prevent white screen
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // CHECK ENVIRONMENT CONFIGURATION FIRST
     developer.log('========================================');
     developer.log('🔍 CHECKING ENVIRONMENT CONFIGURATION');
     developer.log('========================================');
     EnvironmentChecker.checkEnvironment();
-    
+
     if (!EnvironmentChecker.isConfigured()) {
       developer.log('⚠️⚠️⚠️ WARNING: Environment not configured! ⚠️⚠️⚠️');
-      developer.log('App will use fallback URL but may not work correctly');
     }
 
-    // Initialize Firebase with error handling
+    // Firebase
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      developer.log('✅ Firebase initialized successfully');
-    } catch (e, stackTrace) {
-      developer.log('❌ Firebase initialization failed: $e');
-      developer.log('Stack trace: $stackTrace');
-      // Don't throw - app can work without Firebase initially
-      // User will see login screen and can authenticate there
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      developer.log('✅ Firebase initialized');
+    } catch (e) {
+      developer.log('❌ Firebase init failed: $e');
     }
-    
-    // Initialize API Service with error handling
+
+    // API Service
     try {
       ApiService().initialize();
-      developer.log('✅ API Service initialized successfully');
+      developer.log('✅ API Service initialized');
     } catch (e) {
-      developer.log('❌ API Service initialization failed: $e');
+      developer.log('❌ API Service init failed: $e');
     }
-    
-    // Initialize Notification Storage with error handling
+
+    // Notification Storage
     try {
       await NotificationStorageService().initialize();
-      developer.log('✅ Notification Storage initialized successfully');
+      developer.log('✅ Notification Storage initialized');
     } catch (e) {
-      developer.log('❌ Notification Storage initialization failed: $e');
+      developer.log('❌ Notification Storage init failed: $e');
     }
-    
-    // Initialize Localization Service with error handling
+
+    // Localization
     try {
       await LocalizationService().initialize();
-      developer.log('✅ Localization Service initialized successfully');
+      developer.log('✅ Localization initialized');
     } catch (e) {
-      developer.log('❌ Localization Service initialization failed: $e');
+      developer.log('❌ Localization init failed: $e');
     }
-    
-    // Initialize AuthState (load cached user data) with error handling
+
+    // AuthState
     try {
       await AuthState().initialize();
-      developer.log('✅ AuthState initialized successfully');
+      developer.log('✅ AuthState initialized');
     } catch (e) {
-      developer.log('❌ AuthState initialization failed: $e');
+      developer.log('❌ AuthState init failed: $e');
     }
-    
-    // Initialize AudioService for background playback
+
+    // ConnectivityService
+    try {
+      await ConnectivityService().initialize();
+      developer.log('✅ ConnectivityService initialized');
+    } catch (e) {
+      developer.log('❌ ConnectivityService init failed: $e');
+    }
+
+    // AudioService
     try {
       await AudioService.init(
         builder: () => MyAudioHandler(),
@@ -91,35 +92,27 @@ void main() async {
           androidStopForegroundOnPause: true,
         ),
       );
-      developer.log('✅ AudioService initialized successfully');
+      developer.log('✅ AudioService initialized');
     } catch (e) {
-      developer.log('❌ AudioService initialization failed: $e');
+      developer.log('❌ AudioService init failed: $e');
     }
-    
-    // Set up global error handling
+
     FlutterError.onError = (FlutterErrorDetails details) {
-      developer.log('Flutter Error: ${details.exception}', 
-        name: 'FlutterError',
-        error: details.exception,
-        stackTrace: details.stack
-      );
+      developer.log('Flutter Error: ${details.exception}',
+          name: 'FlutterError', error: details.exception, stackTrace: details.stack);
     };
-    
-    // Set system UI overlay style
+
     try {
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          systemNavigationBarColor: AppTheme.white,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-      );
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: AppTheme.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ));
     } catch (e) {
       developer.log('❌ SystemChrome UI style failed: $e');
     }
 
-    // Performance optimizations
     try {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
@@ -130,49 +123,80 @@ void main() async {
     } catch (e) {
       developer.log('❌ SystemChrome orientations failed: $e');
     }
-    
+
     developer.log('🚀 Starting app...');
-    
-    // Start the app first
-    runApp(const SpiritualApp());
-    
-    // Initialize OneSignal AFTER runApp (per official documentation)
-    // Only on mobile platforms (not web)
+
+    // ── OneSignal: correct initialization order ────────────────────────────────
+    // Order per docs: initialize → requestPermission → login(uid)
+    // requestPermission MUST come before login so the FCM token is registered first.
     if (!kIsWeb) {
-      // Delay OneSignal initialization to avoid blocking app startup
-      Future.delayed(const Duration(milliseconds: 500), () async {
+      try {
+        // Step 1: verbose logging
+        OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+
+        // Step 2: initialize with App ID (before runApp)
+        OneSignal.initialize(AppEnv.oneSignalAppId);
+        developer.log('✅ OneSignal.initialize() called');
+
+        // Step 3: register event handlers immediately after initialize
+        final oneSignalService = OneSignalService();
+        oneSignalService.setupNotificationHandlers();
+        oneSignalService.markInitialized();
+
+        // Step 4: request permission NOW — this registers the FCM token with OneSignal.
+        // Must happen BEFORE login(uid) so the token exists when we link the user.
+        // requestPermission(false) = silent check, no OS dialog shown on startup.
+        final permissionGranted = await OneSignal.Notifications.requestPermission(false);
+        developer.log('🔔 Notification permission on startup: $permissionGranted');
+
+        // Step 5: if user is already logged in, link them to OneSignal immediately
+        final authState = AuthState();
+        if (authState.user != null && permissionGranted) {
+          OneSignal.login(authState.user!.uid);
+          OneSignal.User.pushSubscription.optIn();
+          developer.log('✅ OneSignal.login(${authState.user!.uid}) called on startup');
+        }
+
+        // Step 6: set navigation callback (router available after runApp)
+        oneSignalService.onNavigateToNotification = (notificationId) {
+          appRouter.push('/notifications/$notificationId');
+        };
+
+        developer.log('✅ OneSignal setup complete');
+      } catch (e) {
+        developer.log('❌ OneSignal setup failed: $e');
+      }
+    }
+
+    // ── Start the app ──────────────────────────────────────────────────────────
+    runApp(const SpiritualApp());
+
+    // ── Post-runApp: re-link logged-in user if permission was already granted ──
+    if (!kIsWeb) {
+      Future.microtask(() async {
         try {
-          // Enable verbose logging for debugging
-          OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-          
-          // Initialize with App ID
-          OneSignal.initialize(AppEnv.oneSignalAppId);
-          
-          // Setup notification handlers through service
-          final oneSignalService = OneSignalService();
-          oneSignalService.setupNotificationHandlers();
-          
-          // Set up navigation callback for when notification is clicked
-          oneSignalService.onNavigateToNotification = (notificationId) {
-            appRouter.push('/notifications/$notificationId');
-          };
-          
-          developer.log('✅ OneSignal initialized successfully');
+          final authState = AuthState();
+          // permission is a synchronous bool getter — no await needed
+          final hasPermission = OneSignal.Notifications.permission;
+          if (authState.user != null && hasPermission) {
+            OneSignal.login(authState.user!.uid);
+            OneSignal.User.pushSubscription.optIn();
+            developer.log('✅ OneSignal post-runApp re-link: ${authState.user!.uid}');
+          }
         } catch (e) {
-          developer.log('❌ OneSignal initialization failed: $e');
+          developer.log('❌ OneSignal post-runApp link failed: $e');
         }
       });
     }
   } catch (e, stackTrace) {
     developer.log('❌ CRITICAL: App initialization failed: $e');
     developer.log('Stack trace: $stackTrace');
-    // Still try to run the app
     runApp(const SpiritualApp());
   }
 }
 
 class SpiritualApp extends StatefulWidget {
-  const SpiritualApp({Key? key}) : super(key: key);
+  const SpiritualApp({super.key});
 
   @override
   State<SpiritualApp> createState() => _SpiritualAppState();
@@ -193,9 +217,7 @@ class _SpiritualAppState extends State<SpiritualApp> {
     super.dispose();
   }
 
-  void _onLocaleChanged() {
-    setState(() {});
-  }
+  void _onLocaleChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -210,21 +232,15 @@ class _SpiritualAppState extends State<SpiritualApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      // Force router to rebuild when locale changes by using a key
       key: ValueKey(_localizationService.currentLocale.languageCode),
       routerConfig: appRouter,
-      // Performance optimizations
       showPerformanceOverlay: false,
       checkerboardRasterCacheImages: false,
       checkerboardOffscreenLayers: false,
-      // Responsive design support with error handling
       builder: (context, child) {
-        // Only set error widget in debug mode
-        // In release, let errors propagate naturally
         if (kDebugMode) {
           ErrorWidget.builder = (FlutterErrorDetails details) {
             developer.log('Widget Error: ${details.exception}');
-            developer.log('Stack trace: ${details.stack}');
             return Material(
               child: Container(
                 color: Colors.white,
@@ -234,37 +250,17 @@ class _SpiritualAppState extends State<SpiritualApp> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: AppTheme.saffron,
-                          size: 60,
-                        ),
+                        const Icon(Icons.error_outline, color: AppTheme.saffron, size: 60),
                         const SizedBox(height: 20),
-                        Text(
-                          'Something went wrong',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
+                        const Text('Something went wrong',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
                         const SizedBox(height: 10),
-                        Text(
-                          'Please restart the app',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
+                        const Text('Please restart the app',
+                            style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
                         const SizedBox(height: 10),
-                        Text(
-                          '${details.exception}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        Text('${details.exception}',
+                            style: const TextStyle(fontSize: 12, color: Colors.red),
+                            textAlign: TextAlign.center),
                       ],
                     ),
                   ),
@@ -273,17 +269,13 @@ class _SpiritualAppState extends State<SpiritualApp> {
             );
           };
         }
-        
-        if (child == null) {
-          return Container(color: Colors.white);
-        }
-        
+        if (child == null) return Container(color: Colors.white);
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: MediaQuery.of(context).textScaler.clamp(
-              minScaleFactor: 0.8,
-              maxScaleFactor: 1.3,
-            ),
+                  minScaleFactor: 0.8,
+                  maxScaleFactor: 1.3,
+                ),
           ),
           child: child,
         );

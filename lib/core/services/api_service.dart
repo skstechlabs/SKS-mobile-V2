@@ -69,28 +69,58 @@ class ApiService {
   Future<String?> _getIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-    return await user.getIdToken();
+    // Use cached token for normal API calls — Firebase auto-refreshes when
+    // within 5 minutes of expiry. This avoids a network round-trip per request.
+    try {
+      return await user.getIdToken(false);
+    } catch (e) {
+      debugPrint('❌ getIdToken failed: $e');
+      return null;
+    }
   }
 
-  // ── 1. POST /api/auth/login ────────────────────────────────────────────────
-  Future<Map<String, dynamic>> login({
-    required String authProvider, // 'phone' | 'google'
+  /// Force-refresh the Firebase ID token. Use ONLY for the login call where
+  /// we need a guaranteed-fresh token for the backend to verify.
+  Future<String?> _getFreshIdToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      // forceRefresh=true — hits Firebase network to get a brand-new token.
+      // Safe to call once per login; not on every API request.
+      return await user.getIdToken(true);
+    } catch (e) {
+      debugPrint('⚠️ getIdToken(forceRefresh=true) failed, trying cached: $e');
+      try {
+        return await user.getIdToken(false);
+      } catch (e2) {
+        debugPrint('❌ getIdToken failed entirely: $e2');
+        return null;
+      }
+    }
+  }
+
+  // ── 1a. POST /api/auth/login/google ───────────────────────────────────────
+  // Google Sign-In: sends Firebase ID token for server-side verification.
+  // [idToken] can be passed directly from signInWithGoogle to avoid a second
+  // getIdToken() call. If null, a fresh token is fetched automatically.
+  Future<Map<String, dynamic>> loginWithGoogle({
     required String mobile,
     String? email,
     String? name,
     String? photo,
+    String? idToken, // pre-fetched fresh token from signInWithGoogle
   }) async {
     try {
-      final idToken = await _getIdToken();
-      if (idToken == null) {
-        return {'success': false, 'message': 'Not authenticated'};
+      // Use the provided token, or fetch a fresh one
+      final token = idToken ?? await _getFreshIdToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Firebase authentication failed. Please try again.'};
       }
 
       final response = await _dio.post(
-        '/api/auth/login',
-        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+        '/api/auth/login/google',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
         data: {
-          'auth_provider': authProvider,
           'mobile': mobile,
           if (email != null) 'email': email,
           if (name != null) 'name': name,
@@ -102,6 +132,36 @@ class ApiService {
     } on DioException catch (e) {
       return _handleError(e);
     }
+  }
+
+  // ── 1b. POST /api/auth/login/phone ────────────────────────────────────────
+  // MSG91 OTP: sends the MSG91 access_token — no Firebase token needed.
+  // Backend verifies with MSG91 and creates/returns the user.
+  Future<Map<String, dynamic>> loginWithPhone(String msg91AccessToken) async {
+    try {
+      final response = await _dio.post(
+        '/api/auth/login/phone',
+        data: {'access_token': msg91AccessToken},
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 1c. login() — legacy wrapper kept so other callers don't break ─────────
+  Future<Map<String, dynamic>> login({
+    required String authProvider,
+    required String mobile,
+    String? email,
+    String? name,
+    String? photo,
+  }) async {
+    if (authProvider == 'google') {
+      return loginWithGoogle(mobile: mobile, email: email, name: name, photo: photo);
+    }
+    // For phone, this path shouldn't normally be called — use loginWithPhone() directly.
+    return {'success': false, 'message': 'Use loginWithPhone() for phone auth'};
   }
 
   // ── 2. POST /api/user/profile ──────────────────────────────────────────────
@@ -123,6 +183,7 @@ class ApiService {
     String? referrerMobile,
     String? fullAddress,
     String? comments,
+    String? mobile, // For Google users adding their phone number
   }) async {
     try {
       final idToken = await _getIdToken();
@@ -151,6 +212,7 @@ class ApiService {
           if (referrerMobile != null) 'referrer_mobile': referrerMobile,
           if (fullAddress != null) 'full_address': fullAddress,
           if (comments != null) 'comments': comments,
+          if (mobile != null && mobile.isNotEmpty) 'mobile': mobile,
         },
       );
 
@@ -913,6 +975,39 @@ class ApiService {
   Future<Map<String, dynamic>> getQuotes() async {
     try {
       final response = await _dio.get('/api/quotes');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 32. POST /api/otp/verify - Verify MSG91 access token ──────────────────
+  // Called after the MSG91 OTP widget returns an access_token.
+  // Backend verifies with MSG91 and returns { success, mobile }.
+  Future<Map<String, dynamic>> verifyMsg91Token(String accessToken) async {
+    try {
+      final response = await _dio.post(
+        '/api/otp/verify',
+        data: {'access_token': accessToken},
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 33. GET /api/notifications/push-status - Check push subscription ───────
+  // Call this after login to verify the device is properly registered in OneSignal.
+  Future<Map<String, dynamic>> checkPushStatus() async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+      final response = await _dio.get(
+        '/api/notifications/push-status',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       return _handleError(e);

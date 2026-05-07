@@ -107,12 +107,16 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
   static const String contactEmail = 'sivakundalini@gmail.com';
   static const String contactPhone = '+91 78010 46111';
   static const String whatsappNumber = '+91 6304429254';
+  // Himalaya Ashram
   static const String contactAddress = 'Nayal, Dunagiri, Himalayas\nUttarakhand, India';
+  // Karnataka Ashram
+  static const String karnatakaAddress = 'Sy No.123/1, Khanapur Village, Inapur,\nChincholi Taluk, Kalaburagi,\nKarnataka, India';
   
   static const String facebookUrl = 'https://www.facebook.com/SivaKundaliniSadhana';
   static const String instagramUrl = 'https://www.instagram.com/sivakundalinisadhana';
   static const String whatsappUrl = 'https://wa.me/916304429254';
-  // YouTube URL already defined above as youtubeChannelUrl
+  // YouTube channels
+  static const String youtubeEnglishChannelUrl = 'https://www.youtube.com/@SivaKundalini';
   
   // Recent Gatherings
   static const List<Map<String, dynamic>> recentGatherings = [

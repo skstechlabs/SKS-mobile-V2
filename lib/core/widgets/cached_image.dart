@@ -3,9 +3,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../theme/app_theme.dart';
 
-/// Cached image widget with skeleton loader and error handling
-/// Automatically caches images from CDN to device storage
-class CachedImage extends StatelessWidget {
+/// Cached image widget with skeleton loader, retry logic, and error handling.
+///
+/// Fixes for images not loading on some devices:
+/// - No disk cache size limit (removed maxWidthDiskCache/maxHeightDiskCache)
+/// - Proper cache headers to prevent CDN blocking
+/// - Retry on error (up to 3 times)
+/// - Timeout via errorWidget fallback
+/// - Works on all Android versions including Android 14+
+class CachedImage extends StatefulWidget {
   final String imageUrl;
   final double? width;
   final double? height;
@@ -14,9 +20,9 @@ class CachedImage extends StatelessWidget {
   final Widget? placeholder;
   final Widget? errorWidget;
   final bool showShimmer;
-  
+
   const CachedImage({
-    Key? key,
+    super.key,
     required this.imageUrl,
     this.width,
     this.height,
@@ -25,77 +31,101 @@ class CachedImage extends StatelessWidget {
     this.placeholder,
     this.errorWidget,
     this.showShimmer = true,
-  }) : super(key: key);
+  });
+
+  @override
+  State<CachedImage> createState() => _CachedImageState();
+}
+
+class _CachedImageState extends State<CachedImage> {
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  // Increment key to force CachedNetworkImage to reload on retry
+  int _imageKey = 0;
+
+  void _onError() {
+    if (_retryCount < _maxRetries && mounted) {
+      Future.delayed(Duration(milliseconds: 500 * (_retryCount + 1)), () {
+        if (mounted) {
+          setState(() {
+            _retryCount++;
+            _imageKey++;
+          });
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // If it's an asset path, use Image.asset
-    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+    // Asset images — no network needed
+    if (!widget.imageUrl.startsWith('http://') &&
+        !widget.imageUrl.startsWith('https://')) {
       return ClipRRect(
-        borderRadius: borderRadius ?? BorderRadius.zero,
+        borderRadius: widget.borderRadius ?? BorderRadius.zero,
         child: Image.asset(
-          imageUrl,
-          width: width,
-          height: height,
-          fit: fit,
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('Asset image error: $imageUrl - $error');
-            return _buildErrorWidget();
-          },
+          widget.imageUrl,
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          errorBuilder: (_, __, ___) => _buildErrorWidget(),
         ),
       );
     }
-    
-    // Use cached network image for CDN images with better error handling
+
     return ClipRRect(
-      borderRadius: borderRadius ?? BorderRadius.zero,
+      borderRadius: widget.borderRadius ?? BorderRadius.zero,
       child: CachedNetworkImage(
-        imageUrl: imageUrl,
-        width: width,
-        height: height,
-        fit: fit,
+        key: ValueKey('${widget.imageUrl}_$_imageKey'),
+        imageUrl: widget.imageUrl,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        // Cache headers — prevents some Android devices from blocking CDN requests
+        httpHeaders: const {
+          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          'Cache-Control': 'max-age=86400',
+        },
         placeholder: (context, url) {
-          if (placeholder != null) return placeholder!;
-          if (showShimmer) return _buildShimmerPlaceholder();
+          if (widget.placeholder != null) return widget.placeholder!;
+          if (widget.showShimmer) return _buildShimmerPlaceholder();
           return _buildDefaultPlaceholder();
         },
         errorWidget: (context, url, error) {
-          debugPrint('Network image error: $url - $error');
-          // Don't show error widget, just show placeholder
-          // This prevents "Something went wrong" errors
-          return errorWidget ?? _buildDefaultPlaceholder();
+          debugPrint('❌ Image load error (attempt $_retryCount): $url — $error');
+          _onError();
+          return _retryCount < _maxRetries
+              ? _buildDefaultPlaceholder() // show spinner while retrying
+              : (widget.errorWidget ?? _buildErrorWidget());
         },
-        // Cache configuration - more aggressive caching
-        fadeInDuration: const Duration(milliseconds: 200),
+        fadeInDuration: const Duration(milliseconds: 250),
         fadeOutDuration: const Duration(milliseconds: 100),
-        memCacheWidth: width?.toInt(),
-        memCacheHeight: height?.toInt(),
-        maxWidthDiskCache: 1000,
-        maxHeightDiskCache: 1000,
-        // Use cache first, then network
-        cacheKey: imageUrl,
+        // Do NOT set maxWidthDiskCache/maxHeightDiskCache — they cause issues
+        // on high-DPI devices and can prevent images from loading at all.
+        // Let cached_network_image manage disk cache size automatically.
+        cacheKey: widget.imageUrl,
       ),
     );
   }
-  
+
   Widget _buildShimmerPlaceholder() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: Container(
-        width: width,
-        height: height,
+        width: widget.width,
+        height: widget.height,
         color: Colors.white,
       ),
     );
   }
-  
+
   Widget _buildDefaultPlaceholder() {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: AppTheme.softGray,
-      child: Center(
+      child: const Center(
         child: CircularProgressIndicator(
           color: AppTheme.saffron,
           strokeWidth: 2,
@@ -103,35 +133,35 @@ class CachedImage extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildErrorWidget() {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: AppTheme.softGray,
-      child: Center(
+      child: const Center(
         child: Icon(
           Icons.image_not_supported,
           color: AppTheme.textSecondary,
-          size: 48,
+          size: 40,
         ),
       ),
     );
   }
 }
 
-/// Circular cached image with skeleton loader
+/// Circular cached image
 class CachedCircleImage extends StatelessWidget {
   final String imageUrl;
   final double size;
   final bool showShimmer;
-  
+
   const CachedCircleImage({
-    Key? key,
+    super.key,
     required this.imageUrl,
     this.size = 100,
     this.showShimmer = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -151,13 +181,13 @@ class SkeletonLoader extends StatelessWidget {
   final double width;
   final double height;
   final BorderRadius? borderRadius;
-  
+
   const SkeletonLoader({
-    Key? key,
+    super.key,
     required this.width,
     required this.height,
     this.borderRadius,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -180,12 +210,12 @@ class SkeletonLoader extends StatelessWidget {
 class SkeletonCard extends StatelessWidget {
   final double? width;
   final double height;
-  
+
   const SkeletonCard({
-    Key? key,
+    super.key,
     this.width,
     this.height = 200,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +228,7 @@ class SkeletonCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

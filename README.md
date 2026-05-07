@@ -265,4 +265,25 @@ For support and queries:
 ## Deloyment
 - Run ./build-release.sh  
 
+
+- flutter build apk --release --dart-define-from-file=.env.prod.json
+
+## If you want a split APK per ABI (smaller file size, recommended for distribution):
+
+- flutter build apk --release --split-per-abi --dart-define-from-file=.env.prod.json
+
+## This produces three smaller APKs:
+- build/app/outputs/flutter-apk/app-arm64-v8a-release.apk   ← most modern devices
+- build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ← older 32-bit devices
+- build/app/outputs/flutter-apk/app-x86_64-release.apk      ← emulators
+
+
+- flutter build apk --release --dart-define-from-file=.env.prod.json
+
+
+created 
+keytool -genkey -v -keystore sks-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias sks
+CN=sks, OU=sks, O=sks, L=hyderabad, ST=telangana, C=in
+pwd=jaigurudev
+
 **Built with ❤️ using Flutter**

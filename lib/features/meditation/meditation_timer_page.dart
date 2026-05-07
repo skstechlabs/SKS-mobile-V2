@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../auth/auth_state.dart';
 
 class MeditationTimerPage extends StatefulWidget {
   const MeditationTimerPage({Key? key}) : super(key: key);
@@ -26,8 +26,8 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   bool _hasStarted = false; // Track if meditation has started (to prevent start sound on resume)
   DateTime? _startTime;
   
-  // Auth state
-  bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
+  // Auth state — uses cached AuthState, works offline
+  bool get _isLoggedIn => AuthState().isAuthenticated;
   
   // Animation
   late AnimationController _breathingController;
@@ -120,13 +120,18 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       }
     });
     
-    // Play start sound only on first start, resume audio if paused
+    // Play start sound only on very first start.
+    // Do NOT play again on resume — the audio player may still be active.
     if (!_hasStarted) {
       _hasStarted = true;
       _playStartSound(); // Fire and forget
-    } else if (_audioPlayer.processingState == ProcessingState.ready) {
-      // Resume audio if it was paused
-      _audioPlayer.play();
+    } else {
+      // Resume: only play if the player is paused (not already playing)
+      if (!_audioPlayer.playing &&
+          _audioPlayer.processingState != ProcessingState.idle &&
+          _audioPlayer.processingState != ProcessingState.completed) {
+        _audioPlayer.play();
+      }
     }
     
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -508,13 +513,13 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildPresetChip('5 min', 0, 5, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('10 min', 0, 10, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('15 min', 0, 15, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('20 min', 0, 20, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('30 min', 0, 30, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('45 min', 0, 45, selectedHours, selectedMinutes, setDialogState),
-                      _buildPresetChip('1 hour', 1, 0, selectedHours, selectedMinutes, setDialogState),
+                      _buildPresetChip('5 min', 0, 5, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('10 min', 0, 10, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('15 min', 0, 15, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('20 min', 0, 20, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('30 min', 0, 30, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('45 min', 0, 45, selectedHours, selectedMinutes, setDialogState, context),
+                      _buildPresetChip('1 hour', 1, 0, selectedHours, selectedMinutes, setDialogState, context),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -620,12 +625,11 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    // Validate that at least 1 minute is selected
                     if (selectedHours == 0 && selectedMinutes == 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -636,7 +640,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                       );
                       return;
                     }
-                    Navigator.pop(context, {
+                    Navigator.of(context).pop({
                       'hours': selectedHours,
                       'minutes': selectedMinutes,
                     });
@@ -661,7 +665,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     }
   }
 
-  Widget _buildPresetChip(String label, int hours, int minutes, int currentHours, int currentMinutes, StateSetter setDialogState) {
+  Widget _buildPresetChip(String label, int hours, int minutes, int currentHours, int currentMinutes, StateSetter setDialogState, BuildContext dialogContext) {
     final isSelected = currentHours == hours && currentMinutes == minutes;
     return ActionChip(
       label: Text(label),
@@ -679,12 +683,8 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       onPressed: () {
-        // Update dialog state
-        setDialogState(() {
-          // This updates the visual selection in the dialog
-        });
-        // Close dialog and return the selected duration
-        Navigator.pop(context, {'hours': hours, 'minutes': minutes});
+        // Use dialogContext (not the page context) so only the dialog is popped
+        Navigator.of(dialogContext).pop({'hours': hours, 'minutes': minutes});
       },
     );
   }
@@ -723,7 +723,14 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                     if (_isLoggedIn)
                       IconButton(
                         icon: Icon(Icons.history, color: AppTheme.saffron),
-                        onPressed: () => context.push('/meditation/history'),
+                        onPressed: () async {
+                          // Pause timer and audio while viewing history
+                          final wasRunning = _isRunning;
+                          if (_isRunning) _pauseTimer();
+                          await context.push('/meditation/history');
+                          // Resume when user comes back (if it was running)
+                          if (wasRunning && mounted) _startTimer();
+                        },
                         tooltip: 'View History',
                       ),
                   ],

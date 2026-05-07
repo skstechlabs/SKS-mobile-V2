@@ -4,8 +4,10 @@ import '../theme/app_theme.dart';
 import '../services/audio_player_service.dart';
 import '../services/notification_storage_service.dart';
 import '../services/localization_service.dart';
+import '../services/onesignal_service.dart';
 import 'spiritual_background.dart';
 import 'mini_audio_player.dart';
+import 'offline_banner.dart';
 
 class MainScaffold extends StatefulWidget {
   final Widget child;
@@ -24,6 +26,7 @@ class MainScaffold extends StatefulWidget {
 class _MainScaffoldState extends State<MainScaffold> {
   final AudioPlayerService _audioService = AudioPlayerService();
   final NotificationStorageService _notificationService = NotificationStorageService();
+  final OneSignalService _oneSignal = OneSignalService();
   int _unreadCount = 0;
 
   @override
@@ -64,6 +67,19 @@ class _MainScaffoldState extends State<MainScaffold> {
     }
   }
 
+  /// Tap on notification bell — check permission first, re-prompt if not granted
+  Future<void> _onNotificationTap(BuildContext context) async {
+    final hasPermission = await _oneSignal.hasPermission();
+    if (!mounted) return;
+
+    if (hasPermission) {
+      context.go('/notifications');
+    } else {
+      // Permission not granted — send to permissions screen to get it
+      context.go('/notification-permission');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,11 +88,20 @@ class _MainScaffoldState extends State<MainScaffold> {
         centerTitle: false,
         title: Text(
           context.tr('app_full_name'),
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
             color: Color(0xFFD84315),
-            letterSpacing: 0.3,
+            letterSpacing: 0.8,
+            height: 1.3,
+            fontFamily: 'serif',
+            shadows: [
+              Shadow(
+                color: AppTheme.saffron.withValues(alpha: 0.1),
+                offset: Offset(0, 1),
+                blurRadius: 2,
+              ),
+            ],
           ),
         ),
         actions: [
@@ -97,15 +122,17 @@ class _MainScaffoldState extends State<MainScaffold> {
           ),
         ],
       ),
-      body: Column(
+      body: OfflineBanner(
+        child: SpiritualBackground(child: widget.child),
+      ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(child: SpiritualBackground(child: widget.child)),
-          // Mini Audio Player
+          // Mini Audio Player — sits above the nav bar, below the bell button
           GestureDetector(
             onTap: () {
               try {
                 if (_audioService.currentSong != null) {
-                  // Navigate to audio player when implemented
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Audio player will open here')),
@@ -118,136 +145,132 @@ class _MainScaffoldState extends State<MainScaffold> {
             },
             child: const MiniAudioPlayer(),
           ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.darkBrown.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            BottomNavigationBar(
-              currentIndex: widget.currentIndex,
-              onTap: (index) => _onItemTapped(context, index),
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: AppTheme.white,
-              selectedItemColor: AppTheme.saffron,
-              unselectedItemColor: AppTheme.darkBrown.withValues(alpha: 0.6),
-              selectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-              unselectedLabelStyle: const TextStyle(fontSize: 12),
-              selectedFontSize: 12,
-              unselectedFontSize: 12,
-              iconSize: 24,
-              items: [
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.home_outlined),
-                  activeIcon: const Icon(Icons.home),
-                  label: context.tr('home'),
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.school_outlined),
-                  activeIcon: const Icon(Icons.school),
-                  label: context.tr('classes'),
-                ),
-                const BottomNavigationBarItem(
-                  icon: SizedBox(height: 24), // Placeholder for center button
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.connect_without_contact_outlined),
-                  activeIcon: const Icon(Icons.connect_without_contact),
-                  label: context.tr('contact'),
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.event_outlined),
-                  activeIcon: const Icon(Icons.event),
-                  label: context.tr('events'),
+          Container(
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.darkBrown.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
                 ),
               ],
             ),
-            // Floating center notification button
-            Positioned(
-              top: -28,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.saffron.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: [
+                BottomNavigationBar(
+                  currentIndex: widget.currentIndex,
+                  onTap: (index) => _onItemTapped(context, index),
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: AppTheme.white,
+                  selectedItemColor: AppTheme.saffron,
+                  unselectedItemColor: AppTheme.darkBrown.withValues(alpha: 0.6),
+                  selectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                  unselectedLabelStyle: const TextStyle(fontSize: 12),
+                  selectedFontSize: 12,
+                  unselectedFontSize: 12,
+                  iconSize: 24,
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.home_outlined),
+                      activeIcon: const Icon(Icons.home),
+                      label: context.tr('home'),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.school_outlined),
+                      activeIcon: const Icon(Icons.school),
+                      label: context.tr('classes'),
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: SizedBox(height: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.connect_without_contact_outlined),
+                      activeIcon: const Icon(Icons.connect_without_contact),
+                      label: context.tr('contact'),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.event_outlined),
+                      activeIcon: const Icon(Icons.event),
+                      label: context.tr('events'),
                     ),
                   ],
                 ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Material(
-                      color: AppTheme.saffron,
-                      shape: const CircleBorder(),
-                      elevation: 8,
-                      child: InkWell(
-                        onTap: () => context.go('/notifications'),
-                        customBorder: const CircleBorder(),
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.notifications,
-                            color: Colors.white,
-                            size: 32,
-                          ),
+                // Floating center notification button
+                Positioned(
+                  top: -28,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.saffron.withValues(alpha: 0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
+                      ],
                     ),
-                    // Notification badge
-                    if (_unreadCount > 0)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Material(
+                          color: AppTheme.saffron,
+                          shape: const CircleBorder(),
+                          elevation: 8,
+                          child: InkWell(
+                            onTap: () => _onNotificationTap(context),
+                            customBorder: const CircleBorder(),
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.notifications,
+                                color: Colors.white,
+                                size: 32,
+                              ),
                             ),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 20,
-                            minHeight: 20,
-                          ),
-                          child: Text(
-                            _unreadCount > 99 ? '99+' : _unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
-                      ),
-                  ],
+                        if (_unreadCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 20,
+                                minHeight: 20,
+                              ),
+                              child: Text(
+                                _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

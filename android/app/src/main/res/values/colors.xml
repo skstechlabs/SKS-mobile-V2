@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFBF5</color>
+    <!-- OneSignal notification accent color (saffron) -->
+    <color name="notification_color">#FF6F00</color>
 </resources>

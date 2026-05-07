@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/wallpaper_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/widgets/cached_image.dart';
 
 class WallpaperSettingsPage extends StatefulWidget {
   const WallpaperSettingsPage({Key? key}) : super(key: key);
@@ -441,33 +442,9 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.network(
-                imageUrl,
+              CachedImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: AppTheme.softGray,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: AppTheme.softGray,
-                    child: const Icon(
-                      Icons.image_not_supported,
-                      size: 40,
-                      color: Colors.grey,
-                    ),
-                  );
-                },
               ),
               if (isCurrent)
                 Positioned(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/cached_image.dart';
 
 class EventsPage extends StatefulWidget {
   const EventsPage({super.key});
@@ -182,14 +183,13 @@ class _EventsPageState extends State<EventsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (imageUrl != null && imageUrl.isNotEmpty)
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                image: DecorationImage(
-                  image: NetworkImage(imageUrl),
-                  fit: BoxFit.cover,
-                ),
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              child: CachedImage(
+                imageUrl: imageUrl,
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
               ),
             )
           else

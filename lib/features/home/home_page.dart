@@ -34,7 +34,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _currentQuoteIndex = 0;
   late AnimationController _glowController;
   late Timer _autoScrollTimer;
@@ -59,6 +59,7 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -86,6 +87,14 @@ class _HomePageState extends State<HomePage>
     _loadPresetReminders();
     _loadGatherings();
     _loadQuotes();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload preset reminders when user returns to app (e.g. from Manage screen)
+    if (state == AppLifecycleState.resumed) {
+      _loadPresetReminders();
+    }
   }
   
   Future<void> _loadQuotes() async {
@@ -242,6 +251,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _glowController.dispose();
     _audioService.removeListener(_onAudioStateChanged);
     if (AppConstants.dailyQuotes.isNotEmpty) {
@@ -2522,15 +2532,13 @@ class _HomePageState extends State<HomePage>
                   children: [
                     // Event image or placeholder
                     if (imageUrl != null && imageUrl.isNotEmpty)
-                      Container(
-                        height: 180,
-                        decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(20)),
-                          image: DecorationImage(
-                            image: NetworkImage(imageUrl),
-                            fit: BoxFit.cover,
-                          ),
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                        child: CachedImage(
+                          imageUrl: imageUrl,
+                          width: double.infinity,
+                          height: 180,
+                          fit: BoxFit.cover,
                         ),
                       )
                     else

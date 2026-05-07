@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'user_model.dart';
+import '../../core/services/api_service.dart';
 
 class AuthState extends ChangeNotifier {
   static final AuthState _instance = AuthState._internal();
@@ -20,6 +21,7 @@ class AuthState extends ChangeNotifier {
   String? get uid => _user?.uid;
   String? get mobile => _user?.mobile;
   bool get isProfileComplete => _user?.isProfileComplete ?? false;
+  bool get isBlocked => _user?.isBlocked ?? false;
 
   /// Initialize auth state from cache
   Future<void> initialize() async {
@@ -113,6 +115,40 @@ class AuthState extends ChangeNotifier {
       debugPrint('✅ All auth cache cleared');
     } catch (e) {
       debugPrint('❌ Error clearing cache: $e');
+    }
+  }
+
+  /// Refresh block status from the server.
+  /// Called every time the user opens the Classes/Learnings screen.
+  /// Updates [isBlocked] and [user.blockReason] in-place without a full logout.
+  Future<void> refreshBlockStatus() async {
+    if (_user == null) return;
+    try {
+      final response = await ApiService().verifyToken();
+      if (response['success'] == true) {
+        final userData = response['user'] as Map<String, dynamic>?;
+        if (userData != null) {
+          final isBlocked = userData['is_blocked'] == true ||
+              userData['isBlocked'] == true;
+          final blockReason = (userData['block_reason'] as String?) ??
+              (userData['blockReason'] as String?);
+
+          if (_user!.isBlocked != isBlocked ||
+              _user!.blockReason != blockReason) {
+            _user = _user!.copyWith(
+              isBlocked: isBlocked,
+              blockReason: blockReason,
+            );
+            await _persistUser();
+            notifyListeners();
+            debugPrint(
+                '🔄 Block status refreshed: isBlocked=$isBlocked reason=$blockReason');
+          }
+        }
+      }
+    } catch (e) {
+      // Silently ignore — offline or token expired; cached value is used.
+      debugPrint('⚠️ refreshBlockStatus failed (offline?): $e');
     }
   }
 }

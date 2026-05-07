@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
+import '../../core/widgets/offline_banner.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/connectivity_service.dart';
 import '../../core/services/localization_service.dart';
 
 class LearningsPage extends StatefulWidget {
@@ -119,6 +121,14 @@ class _LearningsPageState extends State<LearningsPage> {
   }
 
   Widget _buildContent(BuildContext context) {
+    // Show offline screen if no connection
+    if (ConnectivityService().isOffline) {
+      return OfflineScreen(
+        message: 'Classes require an internet connection to load.',
+        onRetry: _loadLevelAccess,
+      );
+    }
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -308,7 +318,7 @@ class _LearningsPageState extends State<LearningsPage> {
     final daysCompleted = _getDaysCompleted(levelNumber);
     final totalDays = _getTotalDays(levelNumber);
     final minutesUntilNextLevelUnlock = _getMinutesUntilNextLevelUnlock(levelNumber);
-    final levelUnlockMinutes = _getLevelUnlockMinutes(levelNumber);
+    // levelUnlockMinutes is fetched for future use (e.g. progress bar display)
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -485,6 +495,8 @@ class _LearningsPageState extends State<LearningsPage> {
     return null;
   }
 
+  // _getLevelUnlockMinutes kept for future use (e.g. progress bar display)
+  // ignore: unused_element
   int _getLevelUnlockMinutes(int levelNumber) {
     final value = _levelAccess[levelNumber]?['levelUnlockMinutes'];
     if (value == null) return 1440;

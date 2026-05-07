@@ -11,6 +11,8 @@ class UserModel {
   final String? pincode;
   final String authProvider; // 'phone' | 'google'
   final bool isProfileComplete;
+  final bool isBlocked;       // set from DB is_blocked column
+  final String? blockReason;
 
   const UserModel({
     required this.uid,
@@ -25,6 +27,8 @@ class UserModel {
     this.pincode,
     required this.authProvider,
     this.isProfileComplete = false,
+    this.isBlocked = false,
+    this.blockReason,
   });
 
   UserModel copyWith({
@@ -38,6 +42,8 @@ class UserModel {
     String? state,
     String? pincode,
     bool? isProfileComplete,
+    bool? isBlocked,
+    String? blockReason,
   }) {
     return UserModel(
       uid: uid,
@@ -52,6 +58,8 @@ class UserModel {
       pincode: pincode ?? this.pincode,
       authProvider: authProvider,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      isBlocked: isBlocked ?? this.isBlocked,
+      blockReason: blockReason ?? this.blockReason,
     );
   }
 
@@ -69,6 +77,8 @@ class UserModel {
       pincode: json['pincode'] as String?,
       authProvider: json['auth_provider'] as String? ?? 'phone',
       isProfileComplete: json['is_profile_complete'] as bool? ?? false,
+      isBlocked: json['is_blocked'] as bool? ?? false,
+      blockReason: json['block_reason'] as String?,
     );
   }
 
@@ -85,5 +95,7 @@ class UserModel {
     'pincode': pincode,
     'auth_provider': authProvider,
     'is_profile_complete': isProfileComplete,
+    'is_blocked': isBlocked,
+    'block_reason': blockReason,
   };
 }

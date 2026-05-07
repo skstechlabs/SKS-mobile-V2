@@ -63,4 +63,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    // FCM is required by OneSignal for push notifications on Android
+    implementation 'com.google.firebase:firebase-messaging'
 }

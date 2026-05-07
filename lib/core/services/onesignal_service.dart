@@ -2,7 +2,17 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'notification_storage_service.dart';
+import '../router.dart';
 
+/// OneSignal push notification service.
+///
+/// Initialization order (enforced in main.dart):
+///   1. OneSignal.Debug.setLogLevel(verbose)
+///   2. OneSignal.initialize(appId)          ← BEFORE runApp
+///   3. setupNotificationHandlers()
+///   4. markInitialized()
+///   5. runApp(...)
+///   6. setExternalUserId(uid)  + optIn()    ← after runApp, for logged-in users
 class OneSignalService {
   static final OneSignalService _instance = OneSignalService._internal();
   factory OneSignalService() => _instance;
@@ -10,288 +20,266 @@ class OneSignalService {
 
   String? _playerId;
   final bool _isWebPlatform = kIsWeb;
-  
-  // Callback for navigation (set from main.dart after router is available)
+  bool _initialized = false;
+
   Function(String)? onNavigateToNotification;
 
-  /// Set up notification event handlers (call this after OneSignal.initialize in main.dart)
+  // ── Init tracking ────────────────────────────────────────────────────────────
+
+  void markInitialized() {
+    _initialized = true;
+    debugPrint('✅ OneSignalService: initialized');
+  }
+
+  Future<void> _waitForInit() async {
+    if (_initialized || _isWebPlatform) return;
+    int waited = 0;
+    while (!_initialized && waited < 8000) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      waited += 100;
+    }
+    if (!_initialized) debugPrint('⚠️ OneSignal: not initialized after 8s, proceeding anyway');
+  }
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
   void setupNotificationHandlers() {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web platform - skipping handlers');
-      return;
-    }
-
+    if (_isWebPlatform) return;
     try {
-      _setupNotificationHandlers();
-      debugPrint('✅ OneSignal notification handlers configured');
+      // Foreground: display and store
+      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+        debugPrint('📬 Foreground notification: ${event.notification.notificationId}');
+        _storeNotification(event.notification);
+        event.notification.display(); // Always show even when app is open
+      });
+
+      // Click: store + navigate
+      OneSignal.Notifications.addClickListener((event) {
+        debugPrint('📱 Notification tapped: ${event.notification.notificationId}');
+        _storeNotification(event.notification);
+        _handleNotificationOpened(event);
+      });
+
+      // Permission changes
+      OneSignal.Notifications.addPermissionObserver((granted) {
+        debugPrint('🔔 Notification permission changed: $granted');
+      });
+
+      // Subscription changes — capture player ID
+      OneSignal.User.pushSubscription.addObserver((state) {
+        _playerId = state.current.id;
+        debugPrint('📊 Push subscription: id=${state.current.id}, optedIn=${state.current.optedIn}');
+      });
+
+      debugPrint('✅ OneSignal handlers registered');
     } catch (e) {
-      debugPrint('❌ Failed to setup notification handlers: $e');
+      debugPrint('❌ OneSignal handler setup failed: $e');
     }
   }
 
-  /// Set up notification event handlers
-  void _setupNotificationHandlers() {
-    // Notification opened handler
-    OneSignal.Notifications.addClickListener((event) {
-      debugPrint('📱 Notification clicked: ${event.notification.notificationId}');
-      debugPrint('📱 Title: ${event.notification.title}');
-      debugPrint('📱 Body: ${event.notification.body}');
-      debugPrint('📱 Additional Data: ${event.notification.additionalData}');
-      
-      // Store notification
-      _storeNotification(event.notification);
-      
-      // Handle notification click
-      _handleNotificationOpened(event);
-    });
+  // ── Notification storage ─────────────────────────────────────────────────────
 
-    // Notification received handler (foreground)
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      debugPrint('📬 Notification received in foreground: ${event.notification.notificationId}');
-      
-      // Store notification
-      _storeNotification(event.notification);
-      
-      // Display the notification even when app is in foreground
-      event.notification.display();
-    });
-
-    // Permission observer
-    OneSignal.Notifications.addPermissionObserver((state) {
-      debugPrint('🔔 Notification permission state changed: $state');
-    });
-
-    // Subscription observer
-    OneSignal.User.pushSubscription.addObserver((state) {
-      debugPrint('📊 Push subscription state changed');
-      debugPrint('   - ID: ${state.current.id}');
-      debugPrint('   - Token: ${state.current.token}');
-      debugPrint('   - Opted In: ${state.current.optedIn}');
-      
-      _playerId = state.current.id;
-    });
-  }
-
-  /// Store notification in local storage
   void _storeNotification(OSNotification notification) {
     try {
-      // OneSignal SDK guarantees notificationId is never null, but we add fallback for safety
-      final finalNotificationId = notification.notificationId.isEmpty
+      final id = notification.notificationId.isEmpty
           ? 'notif_${DateTime.now().millisecondsSinceEpoch}'
           : notification.notificationId;
-      
-      // Get TTL from notification additional data (default 30 days if not specified)
+
       int ttlDays = 30;
-      final additionalData = notification.additionalData;
-      if (additionalData != null) {
-        // Check for ttl_days, ttl, or expiry_days in additional data
-        final ttlValue = additionalData['ttl_days'] ?? 
-                        additionalData['ttl'] ??
-                        additionalData['expiry_days'];
-        if (ttlValue != null) {
-          ttlDays = int.tryParse(ttlValue.toString()) ?? 30;
-        }
+      final extra = notification.additionalData;
+      if (extra != null) {
+        final v = extra['ttl_days'] ?? extra['ttl'] ?? extra['expiry_days'];
+        if (v != null) ttlDays = int.tryParse(v.toString()) ?? 30;
       }
-      
-      final notificationModel = NotificationModel(
-        id: finalNotificationId,
+
+      NotificationStorageService().addNotification(NotificationModel(
+        id: id,
         title: notification.title ?? 'Notification',
         body: notification.body ?? '',
         receivedAt: DateTime.now(),
         additionalData: notification.additionalData,
         isRead: false,
         ttlDays: ttlDays,
-      );
-
-      NotificationStorageService().addNotification(notificationModel);
-      debugPrint('✅ Notification stored: ${notificationModel.title} (TTL: $ttlDays days)');
+      ));
     } catch (e) {
       debugPrint('❌ Error storing notification: $e');
     }
   }
 
-  /// Handle notification opened/clicked
   void _handleNotificationOpened(OSNotificationClickEvent event) {
-    final notification = event.notification;
-    final additionalData = notification.additionalData;
-    
-    debugPrint('🔗 Handling notification click');
-    
-    // Navigate to notification detail screen
-    final notificationId = notification.notificationId;
-    if (notificationId.isNotEmpty && onNavigateToNotification != null) {
-      onNavigateToNotification!(notificationId);
-      debugPrint('✅ Navigated to notification detail: $notificationId');
+    final notifId = event.notification.notificationId;
+    final extra = event.notification.additionalData;
+
+    // Deep link: navigate directly to the relevant screen based on notification data
+    if (extra != null) {
+      final screen = extra['screen'] as String?;
+      final classId = extra['classId'] as String?;
+      final dayId = extra['dayId'] as String?;
+      final dayNumber = extra['dayNumber'] as String?;
+
+      if (screen == 'DayVideoScreen' && classId != null && dayId != null) {
+        // Navigate directly to the specific day video
+        final title = event.notification.title ?? 'Day $dayNumber';
+        final dayNum = int.tryParse(dayNumber ?? '1') ?? 1;
+        Future.microtask(() {
+          appRouter.push(
+            '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNum',
+          );
+        });
+        _storeNotification(event.notification);
+        return;
+      }
+
+      if (screen == 'ClassDaysListScreen' && classId != null) {
+        // Navigate to the class days list
+        Future.microtask(() {
+          appRouter.push(
+            '/classes/$classId/days',
+            extra: {
+              'classTitle': event.notification.title ?? 'Class',
+              'level': extra['level'] ?? 'Level',
+            },
+          );
+        });
+        _storeNotification(event.notification);
+        return;
+      }
+
+      // URL-based navigation
+      if (extra.containsKey('open_url_immediately')) {
+        final url = extra['url'] as String?;
+        if (url != null) _openUrl(url);
+        _storeNotification(event.notification);
+        return;
+      }
     }
-    
-    // Handle additional actions from notification data
-    if (additionalData != null) {
-      // Handle direct URL opening (if specified to open immediately)
-      if (additionalData.containsKey('open_url_immediately')) {
-        final url = additionalData['url'] as String?;
-        if (url != null) {
-          _openUrl(url);
-        }
-      }
-      
-      // Handle screen navigation (custom deep linking)
-      if (additionalData.containsKey('screen')) {
-        final screen = additionalData['screen'];
-        debugPrint('🔗 Custom screen navigation: $screen');
-        // Can be extended for specific screen routing
-      }
+
+    // Default: go to notification detail screen
+    _storeNotification(event.notification);
+    if (notifId.isNotEmpty && onNavigateToNotification != null) {
+      onNavigateToNotification!(notifId);
     }
   }
-  
+
   Future<void> _openUrl(String url) async {
     try {
-      debugPrint('🔗 Attempting to open URL: $url');
-      
-      // Ensure URL has proper scheme
-      String finalUrl = url.trim();
-      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-        finalUrl = 'https://$finalUrl';
-      }
-      
-      final uri = Uri.parse(finalUrl);
-      debugPrint('🔗 Parsed URI: $uri');
-      
-      final canLaunch = await canLaunchUrl(uri);
-      debugPrint('🔗 Can launch URL: $canLaunch');
-      
-      if (canLaunch) {
-        final launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        debugPrint('✅ URL launched: $launched');
-      } else {
-        debugPrint('❌ Cannot launch URL: $finalUrl');
-      }
+      String u = url.trim();
+      if (!u.startsWith('http')) u = 'https://$u';
+      final uri = Uri.parse(u);
+      if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
       debugPrint('❌ Error opening URL: $e');
     }
   }
 
-  /// Check if notification permission is granted
+  // ── Permission ───────────────────────────────────────────────────────────────
+
   Future<bool> hasPermission() async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - returning false');
-      return false;
-    }
+    if (_isWebPlatform) return false;
     return OneSignal.Notifications.permission;
   }
 
-  /// Request notification permission
+  /// Request OS-level notification permission.
+  /// Pass fallbackToSettings=true to open settings if permanently denied.
   Future<bool> requestPermission() async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - simulating permission granted');
-      return true; // Simulate success on web
+    if (_isWebPlatform) return true;
+    try {
+      final granted = await OneSignal.Notifications.requestPermission(true);
+      debugPrint('🔔 requestPermission result: $granted');
+      return granted;
+    } catch (e) {
+      debugPrint('❌ requestPermission error: $e');
+      return false;
     }
-    return await OneSignal.Notifications.requestPermission(true);
   }
 
-  /// Get OneSignal Player ID (External User ID)
+  Future<OSNotificationPermission> getPermissionStatus() async {
+    if (_isWebPlatform) return OSNotificationPermission.notDetermined;
+    return OneSignal.Notifications.permissionNative();
+  }
+
+  // ── Subscription ─────────────────────────────────────────────────────────────
+
   String? get playerId {
     if (_isWebPlatform) return null;
     return _playerId ?? OneSignal.User.pushSubscription.id;
   }
 
-  /// Set external user ID (your backend user ID)
-  Future<void> setExternalUserId(String userId) async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping setExternalUserId');
-      return;
-    }
-    try {
-      OneSignal.login(userId);
-      debugPrint('✅ OneSignal external user ID set: $userId');
-    } catch (e) {
-      debugPrint('❌ Failed to set external user ID: $e');
-    }
-  }
-
-  /// Remove external user ID (on logout)
-  Future<void> removeExternalUserId() async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping removeExternalUserId');
-      return;
-    }
-    try {
-      OneSignal.logout();
-      debugPrint('✅ OneSignal external user ID removed');
-    } catch (e) {
-      debugPrint('❌ Failed to remove external user ID: $e');
-    }
-  }
-
-  /// Set user tags for targeting
-  Future<void> setTags(Map<String, String> tags) async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping setTags');
-      return;
-    }
-    try {
-      OneSignal.User.addTags(tags);
-      debugPrint('✅ OneSignal tags set: $tags');
-    } catch (e) {
-      debugPrint('❌ Failed to set tags: $e');
-    }
-  }
-
-  /// Remove user tags
-  Future<void> removeTags(List<String> keys) async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping removeTags');
-      return;
-    }
-    try {
-      OneSignal.User.removeTags(keys);
-      debugPrint('✅ OneSignal tags removed: $keys');
-    } catch (e) {
-      debugPrint('❌ Failed to remove tags: $e');
-    }
-  }
-
-  /// Opt in to push notifications
-  Future<void> optIn() async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping optIn');
-      return;
-    }
-    try {
-      OneSignal.User.pushSubscription.optIn();
-      debugPrint('✅ Opted in to push notifications');
-    } catch (e) {
-      debugPrint('❌ Failed to opt in: $e');
-    }
-  }
-
-  /// Opt out of push notifications
-  Future<void> optOut() async {
-    if (_isWebPlatform) {
-      debugPrint('⚠️ OneSignal not supported on web - skipping optOut');
-      return;
-    }
-    try {
-      OneSignal.User.pushSubscription.optOut();
-      debugPrint('✅ Opted out of push notifications');
-    } catch (e) {
-      debugPrint('❌ Failed to opt out: $e');
-    }
-  }
-
-  /// Check if user is subscribed to push notifications
   bool get isSubscribed {
     if (_isWebPlatform) return false;
     return OneSignal.User.pushSubscription.optedIn ?? false;
   }
 
-  /// Get notification permission status
-  Future<OSNotificationPermission> getPermissionStatus() async {
-    if (_isWebPlatform) {
-      return OSNotificationPermission.notDetermined;
+  /// Opt in to push notifications (call after permission is granted).
+  Future<void> optIn() async {
+    if (_isWebPlatform) return;
+    try {
+      await _waitForInit();
+      OneSignal.User.pushSubscription.optIn();
+      debugPrint('✅ OneSignal: opted in');
+    } catch (e) {
+      debugPrint('❌ optIn error: $e');
     }
-    return OneSignal.Notifications.permissionNative();
+  }
+
+  Future<void> optOut() async {
+    if (_isWebPlatform) return;
+    try {
+      OneSignal.User.pushSubscription.optOut();
+      debugPrint('✅ OneSignal: opted out');
+    } catch (e) {
+      debugPrint('❌ optOut error: $e');
+    }
+  }
+
+  // ── User identity ─────────────────────────────────────────────────────────────
+
+  /// Link this device to a user account.
+  /// Must be called after permission is granted and OneSignal is initialized.
+  /// This is what makes `include_aliases.external_id` targeting work on the backend.
+  Future<void> setExternalUserId(String userId) async {
+    if (_isWebPlatform || userId.isEmpty) return;
+    try {
+      await _waitForInit();
+      // OneSignal.login links the device subscription to this external_id
+      OneSignal.login(userId);
+      // Ensure the subscription is opted in
+      OneSignal.User.pushSubscription.optIn();
+      debugPrint('✅ OneSignal.login($userId) called');
+    } catch (e) {
+      debugPrint('❌ setExternalUserId error: $e');
+    }
+  }
+
+  Future<void> removeExternalUserId() async {
+    if (_isWebPlatform) return;
+    try {
+      OneSignal.logout();
+      debugPrint('✅ OneSignal: logged out');
+    } catch (e) {
+      debugPrint('❌ removeExternalUserId error: $e');
+    }
+  }
+
+  // ── Tags ─────────────────────────────────────────────────────────────────────
+
+  Future<void> setTags(Map<String, String> tags) async {
+    if (_isWebPlatform) return;
+    try {
+      await _waitForInit();
+      OneSignal.User.addTags(tags);
+      debugPrint('✅ OneSignal tags: $tags');
+    } catch (e) {
+      debugPrint('❌ setTags error: $e');
+    }
+  }
+
+  Future<void> removeTags(List<String> keys) async {
+    if (_isWebPlatform) return;
+    try {
+      OneSignal.User.removeTags(keys);
+    } catch (e) {
+      debugPrint('❌ removeTags error: $e');
+    }
   }
 }

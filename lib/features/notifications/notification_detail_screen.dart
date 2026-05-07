@@ -121,6 +121,70 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
     final actionUrl = notification.additionalData?['action_url'] as String?;
     final buttonText = notification.additionalData?['button_text'] as String?;
 
+    // Deep link data from class/day notifications
+    final screen = notification.additionalData?['screen'] as String?;
+    final classId = notification.additionalData?['classId'] as String?;
+    final dayId = notification.additionalData?['dayId'] as String?;
+    final dayNumber = notification.additionalData?['dayNumber'] as String?;
+    final level = notification.additionalData?['level'] as String?;
+
+    // Build deep link action if this is a class notification
+    Widget? deepLinkButton;
+    if (screen == 'DayVideoScreen' && classId != null && dayId != null) {
+      deepLinkButton = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: ElevatedButton.icon(
+          onPressed: () {
+            final dayNum = int.tryParse(dayNumber ?? '1') ?? 1;
+            context.push(
+              '/classes/days/$dayId/video?title=${Uri.encodeComponent(notification.title)}&dayNumber=$dayNum',
+            );
+          },
+          icon: const Icon(Icons.play_circle_outline, size: 22),
+          label: Text(
+            dayNumber != null
+                ? 'Watch Day $dayNumber${level != null ? ' · $level' : ''}'
+                : 'Watch Video',
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.saffron,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      );
+    } else if (screen == 'ClassDaysListScreen' && classId != null) {
+      deepLinkButton = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: ElevatedButton.icon(
+          onPressed: () {
+            context.push(
+              '/classes/$classId/days',
+              extra: {
+                'classTitle': level ?? 'Class',
+                'level': level ?? 'Level',
+              },
+            );
+          },
+          icon: const Icon(Icons.school_outlined, size: 22),
+          label: Text(
+            level != null ? 'Go to $level' : 'Go to Classes',
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.saffron,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -268,6 +332,12 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
             ),
 
             const SizedBox(height: 24),
+
+            // ── Deep link action (Go to Class / Watch Day) ─────────────────
+            if (deepLinkButton != null) ...[
+              deepLinkButton,
+              const SizedBox(height: 16),
+            ],
 
             // Action buttons from additionalData
             if (actionUrl != null || additionalUrl != null)

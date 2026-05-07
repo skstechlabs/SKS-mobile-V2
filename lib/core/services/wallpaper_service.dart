@@ -21,11 +21,14 @@ class WallpaperService {
   static const String _prefKeyCurrentIndex = 'wallpaper_current_index';
   static const String _prefKeyLastUpdate = 'wallpaper_last_update';
   static const String _prefKeyCachedWallpapers = 'wallpaper_cached_list';
+  // Key used by the native receiver to read cached URLs
+  static const String _prefKeyCachedUrls = 'wallpaper_cached_urls';
   static const Duration _rotationInterval = Duration(minutes: 15);
 
   final Dio _dio = Dio();
   List<Map<String, dynamic>> _wallpapers = [];
   bool _isLoaded = false;
+  // Dart-side timer for foreground rotation (backup to native alarm)
   Timer? _rotationTimer;
 
   /// Initialize the wallpaper service
@@ -74,11 +77,16 @@ class WallpaperService {
   Future<void> _cacheWallpapers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Legacy cache (kept for compatibility)
       final wallpapersJson = _wallpapers.map((w) => {
         'url': w['url'],
         'filename': w['filename'],
       }).toList();
       await prefs.setString(_prefKeyCachedWallpapers, wallpapersJson.toString());
+
+      // Native-readable JSON array of URLs (used by WallpaperRotationReceiver)
+      final urlsJson = '[${_wallpapers.map((w) => '"${w['url']}"').join(',')}]';
+      await prefs.setString(_prefKeyCachedUrls, urlsJson);
     } catch (e) {
       debugPrint('Error caching wallpapers: $e');
     }
@@ -154,37 +162,44 @@ class WallpaperService {
     }
   }
 
-  /// Start auto-rotation timer (changes wallpaper every 15 minutes)
+  /// Start auto-rotation — uses native AlarmManager for background support
   void _startAutoRotation() {
-    // Cancel existing timer if any
     _stopAutoRotation();
-
     debugPrint('🔄 Starting wallpaper auto-rotation (every 15 minutes)');
-    
+
+    // Schedule native alarm — works even when app is in background/killed
+    if (!kIsWeb) {
+      platform.invokeMethod('scheduleWallpaperAlarm', {
+        'intervalMs': _rotationInterval.inMilliseconds,
+      }).catchError((e) => debugPrint('⚠️ scheduleWallpaperAlarm error: $e'));
+    }
+
+    // Also keep a Dart timer as backup for foreground rotation
     _rotationTimer = Timer.periodic(_rotationInterval, (timer) async {
       try {
         final enabled = await isEnabled();
         if (!enabled) {
-          debugPrint('⚠️ Auto-rotation disabled, stopping timer');
           _stopAutoRotation();
           return;
         }
-
-        debugPrint('⏰ Auto-rotation triggered (15 minutes elapsed)');
+        debugPrint('⏰ Foreground auto-rotation triggered');
         await _setNextWallpaper();
       } catch (e) {
-        debugPrint('❌ Error in auto-rotation: $e');
+        debugPrint('❌ Error in foreground auto-rotation: $e');
       }
     });
   }
 
-  /// Stop auto-rotation timer
+  /// Stop auto-rotation — cancels both native alarm and Dart timer
   void _stopAutoRotation() {
-    if (_rotationTimer != null) {
-      _rotationTimer!.cancel();
-      _rotationTimer = null;
-      debugPrint('⏹️ Wallpaper auto-rotation stopped');
+    _rotationTimer?.cancel();
+    _rotationTimer = null;
+
+    if (!kIsWeb) {
+      platform.invokeMethod('cancelWallpaperAlarm')
+          .catchError((e) => debugPrint('⚠️ cancelWallpaperAlarm error: $e'));
     }
+    debugPrint('⏹️ Wallpaper auto-rotation stopped');
   }
 
   /// Set next wallpaper in rotation

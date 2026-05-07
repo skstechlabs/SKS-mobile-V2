@@ -1,16 +1,17 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/otp_input_widget.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
 import 'auth_service.dart';
 import 'auth_state.dart';
+import 'msg91_otp_service.dart';
 import 'user_model.dart';
 
+/// Login screen — shows sign-in UI only.
+/// All auto-login / session-restore logic lives in SplashScreen.
+/// This screen is only reached when the user genuinely needs to sign in.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,391 +19,148 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   late AnimationController _slideController;
   late AnimationController _fadeController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
-  final TextEditingController _phoneController = TextEditingController();
   final AuthService _authService = AuthService();
   final AuthState _authState = AuthState();
   final ApiService _apiService = ApiService();
   final OneSignalService _oneSignal = OneSignalService();
+  final Msg91OtpService _msg91 = Msg91OtpService();
 
   bool _isLoading = false;
-  bool _showOtpField = false;
-  String _enteredOtp = '';
-
-  // Resend timer
-  Timer? _resendTimer;
-  int _resendCountdown = 30;
-  bool _canResend = false;
+  // Prevents double-tap / concurrent sign-in attempts
+  bool _loginInProgress = false;
 
   @override
   void initState() {
     super.initState();
 
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 700),
       vsync: this,
     );
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
+      begin: const Offset(0, 0.25),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+    ).animate(
+        CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
-    );
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
 
     _slideController.forward();
     _fadeController.forward();
-    
-    // Check if user is already signed in (from Google redirect)
-    // Delay to ensure widget is fully built before checking
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkExistingUser();
-    });
-  }
-
-  Future<void> _checkExistingUser() async {
-    try {
-      final user = _authService.currentUser;
-      if (user != null && mounted) {
-        // User is already signed in (likely from Google redirect)
-        await _handleExistingUser(user);
-      }
-    } catch (e) {
-      debugPrint('Error checking existing user: $e');
-      // Silently fail - user can still login normally
-    }
-  }
-
-  Future<void> _handleExistingUser(user) async {
-    setState(() => _isLoading = true);
-
-    try {
-      // Determine auth provider
-      String authProvider = 'phone';
-      String mobile = user.phoneNumber ?? '';
-      
-      for (var info in user.providerData) {
-        if (info.providerId == 'google.com') {
-          authProvider = 'google';
-          // For Google sign-in, use email as mobile if phone number is not available
-          if (mobile.isEmpty && user.email != null) {
-            mobile = user.email!;
-          }
-          break;
-        }
-      }
-
-      // Ensure we have a mobile number
-      if (mobile.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to get user information. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _isLoading = false);
-        }
-        return;
-      }
-
-      // Call backend login API
-      final loginResult = await _apiService.login(
-        authProvider: authProvider,
-        mobile: mobile,
-        email: user.email,
-        name: user.displayName,
-        photo: user.photoURL,
-      );
-
-      if (loginResult['success'] == true) {
-        final userData = loginResult['user'] as Map<String, dynamic>;
-        final userModel = UserModel.fromJson(userData);
-        await _authState.setUser(userModel); // Now persists to cache
-
-        // Set OneSignal external user ID
-        await _oneSignal.setExternalUserId(userModel.uid);
-
-        // Set user tags for targeting
-        await _oneSignal.setTags({
-          'auth_provider': authProvider,
-          if (userModel.email.isNotEmpty) 'email': userModel.email,
-          if (userModel.mobile.isNotEmpty) 'mobile': userModel.mobile,
-        });
-
-        if (mounted) {
-          // Navigate based on profile completion status
-          final isNewUser = loginResult['is_new_user'] == true;
-          
-          if (isNewUser || !userModel.isProfileComplete) {
-            context.go('/profile-setup');
-          } else {
-            // Check if notification permission is granted
-            final hasNotificationPermission = await _oneSignal.hasPermission();
-            if (hasNotificationPermission) {
-              context.go('/');
-            } else {
-              context.go('/notification-permission');
-            }
-          }
-        }
-      } else {
-        // Login failed
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(loginResult['message'] ?? 'Login failed. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error handling existing user: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('An error occurred. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
   }
 
   @override
   void dispose() {
     _slideController.dispose();
     _fadeController.dispose();
-    _phoneController.dispose();
-    _resendTimer?.cancel();
     super.dispose();
   }
 
-  void _startResendTimer() {
-    setState(() {
-      _resendCountdown = 30;
-      _canResend = false;
-    });
-    _resendTimer?.cancel();
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_resendCountdown == 0) {
-        timer.cancel();
-        setState(() => _canResend = true);
-      } else {
-        setState(() => _resendCountdown--);
-      }
-    });
-  }
-
-  Future<void> _sendOtp() async {
-    // Validate phone number
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      _showSnackBar('Please enter your mobile number');
-      return;
-    }
-    if (phone.length != 10) {
-      _showSnackBar('Please enter a valid 10-digit mobile number');
-      return;
-    }
-    if (!RegExp(r'^[6-9]\d{9}$').hasMatch(phone)) {
-      _showSnackBar('Please enter a valid Indian mobile number');
-      return;
-    }
-    
+  // ── MSG91 OTP ──────────────────────────────────────────────────────────────
+  Future<void> _startOtpLogin() async {
+    if (_loginInProgress || !mounted) return;
+    _loginInProgress = true;
     setState(() => _isLoading = true);
 
     try {
-      final result = await _authService.sendOtp(
-        _phoneController.text,
-        onError: (error) {
-          // Error callback - will be called if verification fails
-          debugPrint('OTP Error callback: $error');
-        },
-      );
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        if (result['success'] == true) {
-          setState(() => _showOtpField = true);
-          _startResendTimer();
-          _showSnackBar('OTP sent to +91 ${_phoneController.text}');
-        } else {
-          _showSnackBar(result['message'] ?? 'Failed to send OTP');
-        }
+      final result = await _msg91.showOtpWidget(context);
+      if (!mounted) {
+        _loginInProgress = false;
+        return;
       }
-    } catch (e) {
-      debugPrint('Error sending OTP: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('Failed to send OTP. Please try again.');
-      }
-    }
-  }
 
-  Future<void> _verifyOtp() async {
-    if (_enteredOtp.length != 6) {
-      _showSnackBar('Please enter the complete 6-digit OTP');
-      return;
-    }
-    setState(() => _isLoading = true);
-
-    final result = await _authService.verifyOtp(_enteredOtp);
-
-    if (result['success'] == true) {
-      // Call backend login API
-      final loginResult = await _apiService.login(
-        authProvider: 'phone',
-        mobile: result['mobile'] as String,
-      );
-
-      setState(() => _isLoading = false);
-
-      if (loginResult['success'] == true) {
-        final userData = loginResult['user'] as Map<String, dynamic>;
-        final user = UserModel.fromJson(userData);
-        await _authState.setUser(user); // Now persists to cache
-
-        // Set OneSignal external user ID
-        await _oneSignal.setExternalUserId(user.uid);
-
-        // Set user tags for targeting
-        await _oneSignal.setTags({
-          'auth_provider': 'phone',
-          'mobile': user.mobile,
-        });
-
-        if (mounted) {
-          // Navigate based on profile completion status
-          final isNewUser = loginResult['is_new_user'] == true;
-          
-          if (isNewUser || !user.isProfileComplete) {
-            context.go('/profile-setup');
-          } else {
-            // Check if notification permission is granted
-            final hasNotificationPermission = await _oneSignal.hasPermission();
-            if (hasNotificationPermission) {
-              context.go('/');
-            } else {
-              context.go('/notification-permission');
-            }
-          }
+      if (result['success'] == true) {
+        final accessToken = result['access_token'] as String? ?? '';
+        if (accessToken.isEmpty) {
+          _resetLoading();
+          _showSnackBar('OTP verification failed. Please try again.');
+          return;
         }
+        final loginResult = await _apiService.loginWithPhone(accessToken);
+        _loginInProgress = false;
+        if (!mounted) return;
+        await _handleLoginResult(loginResult, authProvider: 'phone');
       } else {
-        _showSnackBar(loginResult['message'] ?? 'Login failed. Please try again.');
-      }
-    } else {
-      setState(() => _isLoading = false);
-      _showSnackBar(result['message'] ?? 'Invalid OTP. Please try again.');
-    }
-  }
-
-  Future<void> _resendOtp() async {
-    if (!_canResend) return;
-    setState(() => _isLoading = true);
-
-    try {
-      final result = await _authService.resendOtp(
-        _phoneController.text,
-        onError: (error) {
-          debugPrint('Resend OTP Error callback: $error');
-        },
-      );
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        if (result['success'] == true) {
-          _startResendTimer();
-          _showSnackBar('OTP resent successfully');
-        } else {
-          _showSnackBar(result['message'] ?? 'Failed to resend OTP');
-        }
+        _resetLoading();
+        final msg = result['message'] as String? ?? '';
+        if (msg.isNotEmpty && msg != 'OTP cancelled.') _showSnackBar(msg);
       }
     } catch (e) {
-      debugPrint('Error resending OTP: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('Failed to resend OTP. Please try again.');
-      }
+      _resetLoading();
+      debugPrint('OTP login error: $e');
+      if (mounted) _showSnackBar('OTP verification failed. Please try again.');
     }
   }
 
+  // ── Google Sign-In ─────────────────────────────────────────────────────────
   Future<void> _signInWithGoogle() async {
-    // Don't validate phone number for Google sign-in
+    if (_loginInProgress || !mounted) return;
+    _loginInProgress = true;
     setState(() => _isLoading = true);
 
     try {
+      // Step 1: Google / Firebase sign-in on device
       final result = await _authService.signInWithGoogle();
+      _loginInProgress = false;
 
-    if (result['success'] == true) {
-      // Call backend login API
-      final loginResult = await _apiService.login(
-        authProvider: 'google',
-        mobile: result['mobile'] as String? ?? '',
-        email: result['email'] as String?,
-        name: result['name'] as String?,
-        photo: result['photo'] as String?,
-      );
+      if (!mounted) return;
 
-      setState(() => _isLoading = false);
-
-      if (loginResult['success'] == true) {
-        final userData = loginResult['user'] as Map<String, dynamic>;
-        final user = UserModel.fromJson(userData);
-        await _authState.setUser(user); // Now persists to cache
-
-        // Set OneSignal external user ID
-        await _oneSignal.setExternalUserId(user.uid);
-
-        // Set user tags for targeting
-        await _oneSignal.setTags({
-          'auth_provider': 'google',
-          'email': user.email,
-          if (user.mobile.isNotEmpty) 'mobile': user.mobile,
-        });
-
-        if (mounted) {
-          // Navigate based on profile completion status
-          final isNewUser = loginResult['is_new_user'] == true;
-          
-          if (isNewUser || !user.isProfileComplete) {
-            context.go('/profile-setup');
-          } else {
-            // Check if notification permission is granted
-            final hasNotificationPermission = await _oneSignal.hasPermission();
-            if (hasNotificationPermission) {
-              context.go('/');
-            } else {
-              context.go('/notification-permission');
-            }
-          }
-        }
-      } else {
-        _showSnackBar(loginResult['message'] ?? 'Login failed. Please try again.');
-      }
-      } else {
+      if (result['success'] != true) {
         setState(() => _isLoading = false);
-        _showSnackBar(result['message'] ?? 'Google sign-in failed.');
+        if (result['pending'] == true) return; // web redirect in progress
+        final msg = result['message'] as String? ?? 'Google sign-in failed.';
+        if (!msg.contains('cancelled')) _showSnackBar(msg);
+        return;
       }
+
+      // Step 2: Backend login — use the fresh token returned by signInWithGoogle
+      final freshIdToken = result['idToken'] as String?;
+      final mobile = (result['mobile'] as String?)?.isNotEmpty == true
+          ? result['mobile'] as String
+          : (result['email'] as String? ?? '');
+
+      Map<String, dynamic>? loginResult;
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        loginResult = await _apiService.loginWithGoogle(
+          mobile: mobile,
+          email: result['email'] as String?,
+          name: result['name'] as String?,
+          photo: result['photo'] as String?,
+          // Use fresh token on first attempt; re-fetch on retries
+          idToken: attempt == 1 ? freshIdToken : null,
+        );
+        if (loginResult['success'] == true) break;
+
+        final errCode = loginResult['error_code'] as String? ?? '';
+        if (errCode == 'TOKEN_EXPIRED' ||
+            errCode == 'TOKEN_INVALID' ||
+            errCode == 'TOKEN_REVOKED') {
+          debugPrint('❌ Token rejected on attempt $attempt: $errCode');
+          break;
+        }
+        if (attempt < 3) {
+          debugPrint('⚠️ Backend attempt $attempt failed, retrying...');
+          await Future.delayed(Duration(milliseconds: 600 * attempt));
+        }
+      }
+
+      if (!mounted) return;
+      await _handleLoginResult(loginResult!, authProvider: 'google');
     } catch (e) {
+      _loginInProgress = false;
       debugPrint('Google sign-in error: $e');
       if (mounted) {
         setState(() => _isLoading = false);
@@ -411,7 +169,53 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     }
   }
 
+  // ── Handle backend response ────────────────────────────────────────────────
+  Future<void> _handleLoginResult(
+    Map<String, dynamic> loginResult, {
+    required String authProvider,
+  }) async {
+    if (!mounted) return;
+
+    if (loginResult['success'] != true) {
+      setState(() => _isLoading = false);
+      _showSnackBar(
+          loginResult['message'] as String? ?? 'Login failed. Please try again.');
+      return;
+    }
+
+    // Cache the user
+    final user =
+        UserModel.fromJson(loginResult['user'] as Map<String, dynamic>);
+    await _authState.setUser(user);
+
+    // OneSignal — fire and forget
+    _oneSignal.setExternalUserId(user.uid).catchError((_) {});
+    _oneSignal.setTags({
+      'auth_provider': authProvider,
+      if (user.email.isNotEmpty) 'email': user.email,
+      if (user.mobile.isNotEmpty) 'mobile': user.mobile,
+    }).catchError((_) {});
+
+    if (!mounted) return;
+
+    final isNewUser = loginResult['is_new_user'] == true;
+    if (isNewUser || !user.isProfileComplete) {
+      final isLanguageSelected = await LocalizationService.isLanguageSelected();
+      if (!mounted) return;
+      context.go(isLanguageSelected ? '/profile-setup' : '/language-selection');
+    } else {
+      if (!mounted) return;
+      context.go('/');
+    }
+  }
+
+  void _resetLoading() {
+    _loginInProgress = false;
+    if (mounted) setState(() => _isLoading = false);
+  }
+
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -422,16 +226,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     );
   }
 
-  void _goBackToPhone() {
-    _resendTimer?.cancel();
-    _authService.clearSession();
-    setState(() {
-      _showOtpField = false;
-      _enteredOtp = '';
-      _canResend = false;
-    });
-  }
-
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -440,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppTheme.white, AppTheme.beige.withOpacity(0.2)],
+            colors: [AppTheme.white, AppTheme.beige.withValues(alpha: 0.2)],
           ),
         ),
         child: SafeArea(
@@ -457,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const SizedBox(height: 48),
+                            const SizedBox(height: 60),
 
                             // Logo
                             Container(
@@ -473,17 +268,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Container(
                                     color: AppTheme.beige,
-                                    child: Icon(Icons.person, size: 60, color: AppTheme.primary),
+                                    child: const Icon(Icons.person,
+                                        size: 60, color: AppTheme.primary),
                                   ),
                                 ),
                               ),
                             ),
 
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 32),
 
                             Text(
-                              _showOtpField ? context.tr('verify_otp') : context.tr('welcome'),
-                              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                              context.tr('welcome'),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .displayMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.primary,
                                   ),
@@ -492,143 +291,44 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             const SizedBox(height: 8),
 
                             Text(
-                              _showOtpField
-                                  ? '${context.tr('enter_otp')}\n+91 ${_phoneController.text}'
-                                  : context.tr('login_subtitle'),
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: AppTheme.textSecondary,
-                                  ),
+                              context.tr('login_subtitle'),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(color: AppTheme.textSecondary),
                               textAlign: TextAlign.center,
                             ),
 
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 48),
 
-                            // ── Phone Input ──
-                            if (!_showOtpField) ...[
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [AppTheme.softShadow],
+                            // OTP button
+                            _buildPrimaryButton(
+                              label: context.tr('send_otp'),
+                              icon: Icons.phone_android,
+                              onPressed: _isLoading ? null : _startOtpLogin,
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Divider
+                            Row(
+                              children: [
+                                const Expanded(child: Divider()),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16),
+                                  child: Text(context.tr('or'),
+                                      style: const TextStyle(
+                                          color: AppTheme.textSecondary)),
                                 ),
-                                child: TextField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                    LengthLimitingTextInputFormatter(10),
-                                  ],
-                                  decoration: InputDecoration(
-                                    hintText: context.tr('enter_mobile_number'),
-                                    prefixIcon: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                      child: Text(
-                                        '+91',
-                                        style: TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    contentPadding: const EdgeInsets.all(18),
-                                  ),
-                                ),
-                              ),
+                                const Expanded(child: Divider()),
+                              ],
+                            ),
 
-                              const SizedBox(height: 24),
+                            const SizedBox(height: 16),
 
-                              // Send OTP Button
-                              _buildPrimaryButton(context.tr('send_otp'), _isLoading ? null : _sendOtp),
-
-                              const SizedBox(height: 32),
-
-                              // Divider
-                              Row(
-                                children: [
-                                  Expanded(child: Divider(color: AppTheme.softGray)),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    child: Text(context.tr('or'),
-                                        style: TextStyle(
-                                            color: AppTheme.textSecondary,
-                                            fontWeight: FontWeight.w500)),
-                                  ),
-                                  Expanded(child: Divider(color: AppTheme.softGray)),
-                                ],
-                              ),
-
-                              const SizedBox(height: 32),
-
-                              // Google Sign-In
-                              _buildGoogleButton(),
-                            ],
-
-                            // ── OTP Input ──
-                            if (_showOtpField) ...[
-                              OtpInputWidget(
-                                key: ValueKey(_showOtpField),
-                                onCompleted: (otp) => setState(() => _enteredOtp = otp),
-                              ),
-
-                              const SizedBox(height: 32),
-
-                              // Verify Button
-                              _buildPrimaryButton(context.tr('verify_otp'), _isLoading ? null : _verifyOtp),
-
-                              const SizedBox(height: 20),
-
-                              // Resend Row
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    context.tr('didnt_receive_otp'),
-                                    style: TextStyle(color: AppTheme.textSecondary),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  _canResend
-                                      ? GestureDetector(
-                                          onTap: _resendOtp,
-                                          child: Text(
-                                            context.tr('resend'),
-                                            style: TextStyle(
-                                              color: AppTheme.primary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        )
-                                      : Text(
-                                          '${context.tr('resend_in')} ${_resendCountdown}s',
-                                          style: TextStyle(
-                                            color: AppTheme.textSecondary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 12),
-
-                              // Change number
-                              TextButton(
-                                onPressed: _isLoading ? null : _goBackToPhone,
-                                child: Text(
-                                  context.tr('change_mobile_number'),
-                                  style: TextStyle(
-                                    color: AppTheme.primary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            // Google button
+                            _buildGoogleButton(),
 
                             const SizedBox(height: 24),
                           ],
@@ -640,10 +340,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
                       child: TextButton(
-                        onPressed: () => context.go('/notification-permission'),
+                        onPressed: _isLoading
+                            ? null
+                            : () => context.go('/notification-permission'),
                         child: Text(
                           context.tr('skip_for_now'),
-                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 15),
                         ),
                       ),
                     ),
@@ -657,27 +360,35 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildPrimaryButton(String label, VoidCallback? onPressed) {
+  Widget _buildPrimaryButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
     return SizedBox(
       width: double.infinity,
       height: 56,
-      child: ElevatedButton(
+      child: ElevatedButton.icon(
         onPressed: onPressed,
+        icon: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2.5),
+              )
+            : Icon(icon, color: Colors.white),
+        label: Text(
+          label,
+          style: const TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primary,
-          disabledBackgroundColor: AppTheme.primary.withOpacity(0.6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          disabledBackgroundColor: AppTheme.primary.withValues(alpha: 0.6),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-              )
-            : Text(
-                label,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-              ),
       ),
     );
   }
@@ -690,13 +401,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         onPressed: _isLoading ? null : _signInWithGoogle,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.textPrimary,
-          side: BorderSide(color: AppTheme.softGray),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          side: const BorderSide(color: AppTheme.softGray),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Google "G" icon using colored text as placeholder
             Container(
               width: 24,
               height: 24,
@@ -705,21 +416,17 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                 border: Border.all(color: AppTheme.softGray),
               ),
               child: const Center(
-                child: Text(
-                  'G',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                  ),
-                ),
+                child: Text('G',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red)),
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Continue with Google',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+            const Text('Continue with Google',
+                style:
+                    TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

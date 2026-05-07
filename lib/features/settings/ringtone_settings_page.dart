@@ -7,24 +7,36 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
 
 class RingtoneSettingsPage extends StatefulWidget {
-  const RingtoneSettingsPage({Key? key}) : super(key: key);
+  const RingtoneSettingsPage({super.key});
 
   @override
   State<RingtoneSettingsPage> createState() => _RingtoneSettingsPageState();
 }
 
-class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with WidgetsBindingObserver {
+class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
+    with WidgetsBindingObserver {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
-  bool _isLoading = false;
-  String? _pendingAction; // Track which action is pending after permission grant
-  
-  static const platform = MethodChannel('com.spiritual.app/ringtone');
+  String? _loadingType; // which card is currently loading
+
+  // Current enabled state for each type
+  bool _ringtoneEnabled = false;
+  bool _notificationEnabled = false;
+  bool _appNotificationEnabled = false;
+  bool _alarmEnabled = false;
+
+  // Pending action to retry after returning from system settings
+  String? _pendingType;
+
+  static const _channel = MethodChannel('com.spiritual.app/ringtone');
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkAllStates();
   }
 
   @override
@@ -36,474 +48,314 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app resumes from settings, retry the pending action
-    if (state == AppLifecycleState.resumed && _pendingAction != null) {
-      debugPrint('App resumed, retrying pending action: $_pendingAction');
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _retryPendingAction();
-      });
+    if (state == AppLifecycleState.resumed) {
+      // Always refresh states when returning to app (e.g. from system settings)
+      _checkAllStates();
+      // If user went to settings for a pending action, retry it
+      if (_pendingType != null) {
+        final type = _pendingType!;
+        _pendingType = null;
+        Future.delayed(const Duration(milliseconds: 600), () => _set(type));
+      }
     }
   }
 
-  Future<void> _retryPendingAction() async {
-    if (_pendingAction == null) return;
-    
-    final action = _pendingAction;
-    _pendingAction = null;
-    
-    // Check if permission is now granted
+  // ── State checks ───────────────────────────────────────────────────────────
+
+  Future<void> _checkAllStates() async {
+    if (!Platform.isAndroid) return;
     try {
-      final hasPermission = await platform.invokeMethod('checkPermission');
-      if (hasPermission == true) {
-        debugPrint('Permission granted, executing: $action');
-        switch (action) {
-          case 'ringtone':
-            await _executeSetRingtone();
-            break;
-          case 'notification':
-            await _executeSetNotification();
-            break;
-          case 'alarm':
-            await _executeSetAlarm();
-            break;
-        }
-      } else {
-        debugPrint('Permission still not granted');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permission not granted. Please enable "Modify system settings" permission.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
+      final results = await Future.wait([
+        _channel.invokeMethod<bool>('checkRingtone').catchError((_) => false),
+        _channel.invokeMethod<bool>('checkNotification').catchError((_) => false),
+        _channel.invokeMethod<bool>('checkAppNotification').catchError((_) => false),
+        _channel.invokeMethod<bool>('checkAlarm').catchError((_) => false),
+      ]);
+      if (mounted) {
+        setState(() {
+          _ringtoneEnabled        = results[0] ?? false;
+          _notificationEnabled    = results[1] ?? false;
+          _appNotificationEnabled = results[2] ?? false;
+          _alarmEnabled           = results[3] ?? false;
+        });
       }
     } catch (e) {
-      debugPrint('Error retrying action: $e');
+      debugPrint('checkAllStates error: $e');
     }
   }
 
-  Future<void> _playPreview() async {
+  // ── Preview ────────────────────────────────────────────────────────────────
+
+  Future<void> _togglePreview() async {
     try {
       if (_isPlaying) {
         await _audioPlayer.stop();
-        setState(() => _isPlaying = false);
+        if (mounted) setState(() => _isPlaying = false);
         return;
       }
-
-      setState(() => _isPlaying = true);
-
+      if (mounted) setState(() => _isPlaying = true);
       await _audioPlayer.setAudioSource(
-        AudioSource.asset('assets/audio/Sivoham_ringtone.mp3'),
-      );
+          AudioSource.asset('assets/audio/Sivoham_ringtone.mp3'));
       await _audioPlayer.play();
-
-      // Listen for completion
-      _audioPlayer.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          if (mounted) {
-            setState(() => _isPlaying = false);
-          }
+      _audioPlayer.playerStateStream.listen((s) {
+        if (s.processingState == ProcessingState.completed && mounted) {
+          setState(() => _isPlaying = false);
         }
       });
     } catch (e) {
-      debugPrint('Error playing preview: $e');
-      setState(() => _isPlaying = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not play preview: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+      if (mounted) setState(() => _isPlaying = false);
+      _snack('Could not play preview', Colors.orange);
     }
   }
 
-  Future<File> _copyAssetToFile() async {
-    try {
-      // Load asset
-      final byteData = await rootBundle.load('assets/audio/Sivoham_ringtone.mp3');
-      
-      // Get external storage directory
-      final directory = await getExternalStorageDirectory();
-      final filePath = '${directory!.path}/Sivoham_ringtone.mp3';
-      
-      // Write to file
-      final file = File(filePath);
-      await file.writeAsBytes(byteData.buffer.asUint8List());
-      
-      return file;
-    } catch (e) {
-      debugPrint('Error copying asset: $e');
-      rethrow;
-    }
+  // ── Copy asset to external storage ────────────────────────────────────────
+
+  Future<File> _copyAsset() async {
+    final data = await rootBundle.load('assets/audio/Sivoham_ringtone.mp3');
+    final dir = await getExternalStorageDirectory();
+    final file = File('${dir!.path}/Sivoham_ringtone.mp3');
+    await file.writeAsBytes(data.buffer.asUint8List());
+    return file;
   }
 
-  Future<void> _setAsRingtone() async {
+  // ── Set a sound type ───────────────────────────────────────────────────────
+
+  Future<void> _set(String type) async {
     if (!Platform.isAndroid) {
-      _showPlatformNotSupported();
+      _snack('Only supported on Android', Colors.orange);
       return;
     }
+    if (_loadingType != null) return; // already busy
 
-    // Check permission first
-    try {
-      final hasPermission = await platform.invokeMethod('checkPermission');
-      if (hasPermission != true) {
-        _pendingAction = 'ringtone';
-        _showPermissionDialog('ringtone');
+    // App notification doesn't need WRITE_SETTINGS
+    if (type != 'appNotification') {
+      bool hasPermission = false;
+      try {
+        hasPermission =
+            await _channel.invokeMethod<bool>('checkPermission') ?? false;
+      } catch (_) {}
+
+      if (!hasPermission) {
+        // Store pending action BEFORE opening settings dialog
+        _pendingType = type;
+        _showPermissionDialog(type);
         return;
       }
-    } catch (e) {
-      debugPrint('Error checking permission: $e');
     }
 
-    await _executeSetRingtone();
+    await _executeSet(type);
   }
 
-  Future<void> _executeSetRingtone() async {
-    setState(() => _isLoading = true);
+  Future<void> _executeSet(String type) async {
+    final methodMap = {
+      'ringtone': 'setRingtone',
+      'notification': 'setNotification',
+      'appNotification': 'setAppNotification',
+      'alarm': 'setAlarm',
+    };
 
+    if (mounted) setState(() => _loadingType = type);
     try {
-      // Copy asset to file
-      final file = await _copyAssetToFile();
-      
-      // Call platform method
-      final result = await platform.invokeMethod('setRingtone', {
-        'path': file.path,
-        'title': 'Sivoham',
-      });
+      final file = await _copyAsset();
+      final ok = await _channel.invokeMethod<bool>(methodMap[type]!, {
+            'path': file.path,
+            'title': 'Sivoham',
+          }) ??
+          false;
 
-      setState(() => _isLoading = false);
-
-      if (mounted) {
-        if (result == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Sivoham ringtone set successfully!'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to set ringtone. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (ok) {
+        await _checkAllStates();
+        _snack('Sivoham set successfully ✓', Colors.green);
+      } else {
+        _snack('Failed to set. Please try again.', Colors.red);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
-      debugPrint('Error setting ringtone: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _snack('Error: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loadingType = null);
     }
   }
 
-  Future<void> _setAsNotification() async {
-    if (!Platform.isAndroid) {
-      _showPlatformNotSupported();
-      return;
-    }
+  // ── Disable / reset a sound type ──────────────────────────────────────────
 
-    // Check permission first
-    try {
-      final hasPermission = await platform.invokeMethod('checkPermission');
-      if (hasPermission != true) {
-        _pendingAction = 'notification';
-        _showPermissionDialog('notification');
+  Future<void> _disable(String type) async {
+    if (!Platform.isAndroid) return;
+
+    if (type != 'appNotification') {
+      bool hasPermission = false;
+      try {
+        hasPermission =
+            await _channel.invokeMethod<bool>('checkPermission') ?? false;
+      } catch (_) {}
+      if (!hasPermission) {
+        _pendingType = null; // no pending action for disable
+        _showPermissionDialog(type);
         return;
       }
-    } catch (e) {
-      debugPrint('Error checking permission: $e');
     }
 
-    await _executeSetNotification();
-  }
+    final methodMap = {
+      'ringtone': 'resetRingtone',
+      'notification': 'resetNotification',
+      'appNotification': 'resetAppNotification',
+      'alarm': 'resetAlarm',
+    };
 
-  Future<void> _executeSetNotification() async {
-    setState(() => _isLoading = true);
-
+    if (mounted) setState(() => _loadingType = type);
     try {
-      // Copy asset to file
-      final file = await _copyAssetToFile();
-      
-      // Call platform method
-      final result = await platform.invokeMethod('setNotification', {
-        'path': file.path,
-        'title': 'Sivoham',
-      });
-
-      setState(() => _isLoading = false);
-
-      if (mounted) {
-        if (result == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Sivoham notification sound set successfully!'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to set notification sound. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      final ok =
+          await _channel.invokeMethod<bool>(methodMap[type]!) ?? false;
+      if (ok) {
+        await _checkAllStates();
+        _snack('Reset to system default', Colors.orange);
+      } else {
+        _snack('Failed to reset. Please try again.', Colors.red);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
-      debugPrint('Error setting notification: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _snack('Error: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loadingType = null);
     }
   }
 
-  Future<void> _setAsAppNotification() async {
-    if (!Platform.isAndroid) {
-      _showPlatformNotSupported();
-      return;
-    }
+  // ── Permission dialog ──────────────────────────────────────────────────────
+  // Key fix: use a local BuildContext from the dialog builder, and use
+  // Navigator.of(dialogContext) to pop — avoids navigating the main route.
 
-    setState(() => _isLoading = true);
+  void _showPermissionDialog(String type) {
+    final names = {
+      'ringtone': 'phone ringtone',
+      'notification': 'notification sound',
+      'alarm': 'alarm sound',
+    };
 
-    try {
-      // Copy asset to file
-      final file = await _copyAssetToFile();
-      
-      debugPrint('Setting app notification sound with file: ${file.path}');
-      
-      // Call platform method to set as app notification sound
-      final result = await platform.invokeMethod('setAppNotification', {
-        'path': file.path,
-        'title': 'Sivoham',
-      });
-
-      debugPrint('App notification result: $result');
-      
-      setState(() => _isLoading = false);
-
-      if (mounted) {
-        if (result == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Sivoham set as app notification sound! All app notifications will use this sound.'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to set app notification sound. This feature requires Android 8.0 or higher.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      debugPrint('Error setting app notification: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _setAsAlarm() async {
-    if (!Platform.isAndroid) {
-      _showPlatformNotSupported();
-      return;
-    }
-
-    // Check permission first
-    try {
-      final hasPermission = await platform.invokeMethod('checkPermission');
-      if (hasPermission != true) {
-        _pendingAction = 'alarm';
-        _showPermissionDialog('alarm');
-        return;
-      }
-    } catch (e) {
-      debugPrint('Error checking permission: $e');
-    }
-
-    await _executeSetAlarm();
-  }
-
-  Future<void> _executeSetAlarm() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // Copy asset to file
-      final file = await _copyAssetToFile();
-      
-      // Call platform method
-      final result = await platform.invokeMethod('setAlarm', {
-        'path': file.path,
-        'title': 'Sivoham',
-      });
-
-      setState(() => _isLoading = false);
-
-      if (mounted) {
-        if (result == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Sivoham alarm sound set successfully!'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to set alarm sound. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      debugPrint('Error setting alarm: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showPlatformNotSupported() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Not Supported'),
-        content: const Text('Setting ringtones is currently only supported on Android devices.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPermissionDialog(String actionType) {
-    String actionName = '';
-    switch (actionType) {
-      case 'ringtone':
-        actionName = 'phone ringtone';
-        break;
-      case 'notification':
-        actionName = 'notification sound';
-        break;
-      case 'alarm':
-        actionName = 'alarm sound';
-        break;
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Permission Required'),
-        content: Text(
-          'To set $actionName, you need to grant "Modify system settings" permission.\n\n'
-          'Steps:\n'
-          '1. Tap "Open Settings" below\n'
-          '2. Enable "Allow modifying system settings"\n'
-          '3. Return to this app\n\n'
-          'The ringtone will be set automatically when you return.',
+      barrierDismissible: false, // prevent accidental dismiss
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.settings, color: AppTheme.saffron),
+            SizedBox(width: 10),
+            Text('Permission Required'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'To set the ${names[type] ?? 'sound'} to Sivoham, '
+              'grant "Modify system settings" permission.',
+              style: const TextStyle(fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.saffron.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Steps:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  SizedBox(height: 4),
+                  Text('1. Tap "Open Settings"', style: TextStyle(fontSize: 13)),
+                  Text('2. Enable "Allow modifying system settings"', style: TextStyle(fontSize: 13)),
+                  Text('3. Press Back — app will continue automatically', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () {
-              _pendingAction = null; // Cancel pending action
-              Navigator.pop(context);
+              _pendingType = null; // cancel pending
+              Navigator.of(dialogContext).pop();
             },
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () async {
-              Navigator.pop(context);
+              // Close dialog first, THEN open settings
+              Navigator.of(dialogContext).pop();
               try {
-                await platform.invokeMethod('openSettings');
+                await _channel.invokeMethod('openSettings');
               } catch (e) {
-                debugPrint('Error opening settings: $e');
+                debugPrint('openSettings error: $e');
               }
+              // didChangeAppLifecycleState(resumed) will retry _pendingType
             },
-            child: const Text('Open Settings'),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('Open Settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.saffron,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ── Confirm disable dialog ─────────────────────────────────────────────────
+
+  void _confirmDisable(String type, String title, Color color) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.music_off, color: color, size: 24),
+            const SizedBox(width: 10),
+            const Text('Disable Sivoham?'),
+          ],
+        ),
+        content: Text(
+          'This will reset "$title" back to your device\'s default sound.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _disable(type);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade400,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Disable'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Snackbar ───────────────────────────────────────────────────────────────
+
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -511,6 +363,13 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
       backgroundColor: AppTheme.white,
       appBar: AppBar(
         title: Text(context.tr('sivoham_ringtone_page_title')),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh status',
+            onPressed: _loadingType != null ? null : _checkAllStates,
+          ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -519,7 +378,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header with preview - Full width within constraints
+                // ── Header card ──────────────────────────────────────────────
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.all(20),
@@ -530,7 +389,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
                       end: Alignment.bottomRight,
                       colors: [
                         AppTheme.saffron,
-                        AppTheme.saffron.withValues(alpha: 0.8),
+                        AppTheme.saffron.withValues(alpha: 0.8)
                       ],
                     ),
                     borderRadius: BorderRadius.circular(20),
@@ -551,46 +410,40 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
                           color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.music_note,
-                          color: Colors.white,
-                          size: 40,
-                        ),
+                        child: const Icon(Icons.music_note,
+                            color: Colors.white, size: 40),
                       ),
                       const SizedBox(height: 16),
                       Text(
                         context.tr('sivoham_ringtone_page_title'),
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         context.tr('sacred_mantra_device'),
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 14,
-                        ),
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 14),
                       ),
                       const SizedBox(height: 20),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _playPreview,
+                          onPressed: _loadingType != null ? null : _togglePreview,
                           icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                          label: Text(_isPlaying ? context.tr('stop_preview') : context.tr('play_preview')),
+                          label: Text(_isPlaying
+                              ? context.tr('stop_preview')
+                              : context.tr('play_preview')),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: AppTheme.saffron,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
+                                horizontal: 24, vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
@@ -598,100 +451,98 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
                   ),
                 ),
 
-            // Info section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.tr('set_device_sound'),
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.tr('choose_sacred_sound'),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                // ── Active summary banner ────────────────────────────────────
+                _buildActiveSummary(),
 
-            const SizedBox(height: 20),
-
-            // Options
-            _buildOptionCard(
-              icon: Icons.phone_in_talk,
-              title: context.tr('phone_ringtone'),
-              description: context.tr('set_default_ringtone'),
-              color: Colors.blue,
-              onTap: _isLoading ? null : _setAsRingtone,
-            ),
-
-            _buildOptionCard(
-              icon: Icons.notifications_active,
-              title: context.tr('system_notification_sound'),
-              description: context.tr('set_default_notification'),
-              color: Colors.green,
-              onTap: _isLoading ? null : _setAsNotification,
-            ),
-
-            _buildOptionCard(
-              icon: Icons.notifications,
-              title: context.tr('app_notification_sound'),
-              description: context.tr('set_app_notification_only'),
-              color: Colors.purple,
-              onTap: _isLoading ? null : _setAsAppNotification,
-              isRecommended: true,
-            ),
-
-            _buildOptionCard(
-              icon: Icons.alarm,
-              title: context.tr('alarm_sound'),
-              description: context.tr('set_default_alarm'),
-              color: Colors.orange,
-              onTap: _isLoading ? null : _setAsAlarm,
-            ),
-
-            const SizedBox(height: 20),
-
-            // Info note
-            Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.blue.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: Colors.blue,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Note: You may need to grant system settings permission to change ringtones on some devices.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.blue.shade700,
-                        height: 1.4,
+                // ── Section title ────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr('set_device_sound'),
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontSize: 20, fontWeight: FontWeight.bold),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        context.tr('choose_sacred_sound'),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppTheme.textSecondary),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ── Sound type cards ─────────────────────────────────────────
+                _buildCard(
+                  icon: Icons.phone_in_talk,
+                  title: context.tr('phone_ringtone'),
+                  description: context.tr('set_default_ringtone'),
+                  color: Colors.blue,
+                  type: 'ringtone',
+                  isEnabled: _ringtoneEnabled,
+                ),
+                _buildCard(
+                  icon: Icons.notifications_active,
+                  title: context.tr('system_notification_sound'),
+                  description: context.tr('set_default_notification'),
+                  color: Colors.green,
+                  type: 'notification',
+                  isEnabled: _notificationEnabled,
+                ),
+                _buildCard(
+                  icon: Icons.notifications,
+                  title: context.tr('app_notification_sound'),
+                  description: context.tr('set_app_notification_only'),
+                  color: Colors.purple,
+                  type: 'appNotification',
+                  isEnabled: _appNotificationEnabled,
+                  isRecommended: true,
+                ),
+                _buildCard(
+                  icon: Icons.alarm,
+                  title: context.tr('alarm_sound'),
+                  description: context.tr('set_default_alarm'),
+                  color: Colors.orange,
+                  type: 'alarm',
+                  isEnabled: _alarmEnabled,
+                ),
+
+                // ── Info note ────────────────────────────────────────────────
+                Container(
+                  margin: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: Colors.blue.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline,
+                          color: Colors.blue, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Tap SET to activate Sivoham for that sound type. '
+                          'Tap the ON badge to disable it. '
+                          'Some devices require "Modify system settings" permission — '
+                          'the app will guide you automatically.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.blue.shade700, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
                 const SizedBox(height: 40),
               ],
@@ -702,107 +553,211 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage> with Widget
     );
   }
 
-  Widget _buildOptionCard({
+  // ── Active summary banner ──────────────────────────────────────────────────
+
+  Widget _buildActiveSummary() {
+    final activeCount = [
+      _ringtoneEnabled,
+      _notificationEnabled,
+      _appNotificationEnabled,
+      _alarmEnabled,
+    ].where((e) => e).length;
+
+    if (activeCount == 0) return const SizedBox.shrink();
+
+    final activeNames = <String>[];
+    if (_ringtoneEnabled) activeNames.add('Ringtone');
+    if (_notificationEnabled) activeNames.add('Notification');
+    if (_appNotificationEnabled) activeNames.add('App Notification');
+    if (_alarmEnabled) activeNames.add('Alarm');
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Sivoham active for: ${activeNames.join(', ')}',
+              style: const TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Card widget ────────────────────────────────────────────────────────────
+
+  Widget _buildCard({
     required IconData icon,
     required String title,
     required String description,
     required Color color,
-    required VoidCallback? onTap,
+    required String type,
+    required bool isEnabled,
     bool isRecommended = false,
   }) {
+    final isLoading = _loadingType == type;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isRecommended ? color : AppTheme.softGray,
-                width: isRecommended ? 2 : 1,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: isEnabled ? color.withValues(alpha: 0.06) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isEnabled ? color : Colors.grey.shade200,
+          width: isEnabled ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: isEnabled ? 0.18 : 0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              borderRadius: BorderRadius.circular(16),
+              child: Icon(icon, color: color, size: 24),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: color,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 14),
+
+            // Text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            color: isEnabled ? color : AppTheme.textPrimary,
                           ),
-                          if (isRecommended)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'RECOMMENDED',
-                                style: TextStyle(
-                                  color: color,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 4),
+                      if (isRecommended && !isEnabled)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'RECOMMENDED',
+                            style: TextStyle(
+                                color: color,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    isEnabled ? '✓ Sivoham is active' : description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isEnabled ? color : AppTheme.textSecondary,
+                      fontWeight:
+                          isEnabled ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Action button
+            if (isLoading)
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              )
+            else if (isEnabled)
+              // ON badge — tap to disable
+              GestureDetector(
+                onTap: () => _confirmDisable(type, title, color),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: color.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, color: color, size: 16),
+                      const SizedBox(width: 5),
                       Text(
-                        description,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                          fontSize: 13,
+                        'ON',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (_isLoading)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    color: AppTheme.textSecondary,
-                    size: 16,
+              )
+            else
+              // SET button
+              GestureDetector(
+                onTap: _loadingType != null ? null : () => _set(type),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: _loadingType != null
+                        ? Colors.grey.shade300
+                        : color,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-              ],
-            ),
-          ),
+                  child: Text(
+                    'SET',
+                    style: TextStyle(
+                      color: _loadingType != null
+                          ? Colors.grey.shade600
+                          : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -17,8 +17,8 @@ class _PermissionItem {
     required this.description,
     required this.icon,
     required this.permission,
-    this.status = PermissionStatus.denied,
-  });
+    PermissionStatus? initialStatus,
+  }) : status = initialStatus ?? PermissionStatus.denied;
 }
 
 class PermissionScreen extends StatefulWidget {

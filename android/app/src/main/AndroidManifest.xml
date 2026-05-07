@@ -1,53 +1,79 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ── Network ── -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- ── Camera / Mic / Storage ── -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+
+    <!-- ── Location ── -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <!-- ── Push Notifications (Android 13+) ── -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    
-    <!-- Ringtone Permissions -->
+
+    <!-- ── Ringtone / Settings ── -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
-        tools:ignore="ProtectedPermissions" />
-    
-    <!-- Wallpaper Permissions -->
-    <uses-permission android:name="android.permission.SET_WALLPAPER" />
-    
-    <!-- Reminder/Alarm Permissions -->
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- ── Wallpaper ── -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+
+    <!-- ── Reminders / Alarms ── -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    
-    <!-- Required for url_launcher to open external links -->
+
+    <!-- ── URL Launcher ── -->
     <queries>
         <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" />
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
         <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="http" />
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
     </queries>
-    
+
     <application
         android:label="SKS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        
-        <!-- OneSignal App ID -->
+
+        <!-- ── OneSignal App ID ── -->
         <meta-data
             android:name="onesignal_app_id"
-            android:value="b89d199e-15be-4343-9e04-640c43f355e9" />
-        
+            android:value="b89d199e-15be-4343-9e04-640c43f355e9"/>
+
+        <!-- ── OneSignal default notification channel ──────────────────────────
+             Must match ONESIGNAL_CHANNEL_ID in MainActivity.kt
+             and android_channel_id in the backend payload.
+        ── -->
+        <meta-data
+            android:name="com.onesignal.NotificationChannelId"
+            android:value="sks_notifications_v2"/>
+
+        <!-- ── OneSignal default notification icon (small white icon) ── -->
+        <meta-data
+            android:name="com.onesignal.DefaultNotificationIcon"
+            android:resource="@mipmap/ic_launcher"/>
+
+        <!-- ── OneSignal default notification accent color ── -->
+        <meta-data
+            android:name="com.onesignal.DefaultNotificationColor"
+            android:resource="@color/notification_color"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -59,34 +85,41 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true">
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        
-        <!-- Receiver for boot completed to reschedule reminders -->
+
+        <!-- ── flutter_local_notifications receivers ── -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
-        
-        <!-- Receiver for scheduled notifications -->
+
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
-            android:exported="false" />
-        
+            android:exported="false"/>
+
+        <!-- ── Wallpaper auto-rotation receiver ── -->
+        <receiver
+            android:name=".WallpaperRotationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
+
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2" />
+            android:value="2"/>
     </application>
 </manifest>

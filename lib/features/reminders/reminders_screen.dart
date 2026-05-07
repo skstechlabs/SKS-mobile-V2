@@ -172,7 +172,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Delete Reminder'),
-        content: const Text('Are you sure you want to delete this reminder? This action cannot be undone.'),
+        content: const Text('Are you sure you want to delete this reminder?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -187,49 +187,40 @@ class _RemindersScreenState extends State<RemindersScreen> {
       ),
     );
 
-    if (confirmed == true) {
-      // Show loading dialog
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Deleting reminder...'),
-                ],
-              ),
+    if (confirmed != true || !mounted) return;
+
+    // Optimistically remove from list immediately — no loading dialog needed
+    final removedIndex = _reminders.indexWhere((r) => r['id'] == id);
+    final removedReminder = removedIndex >= 0 ? _reminders[removedIndex] : null;
+    if (removedIndex >= 0) {
+      setState(() => _reminders.removeAt(removedIndex));
+    }
+
+    try {
+      final response = await _apiService.deleteReminder(id);
+
+      if (response['success'] == true) {
+        // Cancel local notifications
+        await _notificationService.cancelReminder(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Reminder deleted'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
-          ),
-        ),
-      );
-      
-      try {
-        final response = await _apiService.deleteReminder(id);
-        
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
-        
-        if (response['success'] == true) {
-          // Cancel notifications
-          await _notificationService.cancelReminder(id);
-          
-          _loadReminders();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Reminder deleted successfully'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } else if (mounted) {
+          );
+        }
+      } else {
+        // Revert — put it back
+        if (mounted && removedReminder != null) {
+          setState(() {
+            if (removedIndex <= _reminders.length) {
+              _reminders.insert(removedIndex, removedReminder);
+            } else {
+              _reminders.add(removedReminder);
+            }
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(response['message'] ?? 'Failed to delete reminder'),
@@ -237,18 +228,23 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ),
           );
         }
-      } catch (e) {
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Network error. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      }
+    } catch (e) {
+      // Revert on error
+      if (mounted && removedReminder != null) {
+        setState(() {
+          if (removedIndex <= _reminders.length) {
+            _reminders.insert(removedIndex, removedReminder);
+          } else {
+            _reminders.add(removedReminder);
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Network error. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -257,6 +253,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     if (days.length == 7) return 'Every day';
     return days.map((d) => dayNames[d as int]).join(', ');
+  }
+
+  /// Format time string — handles both HH:MM and HH:MM:SS from API
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return '';
+    final parts = timeStr.split(':');
+    if (parts.length >= 2) {
+      final h = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts[1]) ?? 0;
+      final period = h >= 12 ? 'PM' : 'AM';
+      final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+      return '${displayH.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} $period';
+    }
+    return timeStr;
   }
 
   @override
@@ -324,7 +334,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               children: [
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${reminder['reminderTime']} • ${_formatDays(reminder['daysOfWeek'])}',
+                                  '${_formatTime(reminder['reminderTime'] as String?)} • ${_formatDays(reminder['daysOfWeek'])}',
                                   style: TextStyle(
                                     color: isActive ? Colors.black87 : Colors.grey,
                                   ),

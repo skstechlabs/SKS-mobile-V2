@@ -54,7 +54,7 @@ class WallpaperService {
     try {
       final baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
           ? AppEnv.apiBaseUrl 
-          : 'https://sivakundalini.org';
+          : 'https://app.sivakundalini.org';
       
       final response = await _dio.get('$baseUrl/api/wallpapers');
       

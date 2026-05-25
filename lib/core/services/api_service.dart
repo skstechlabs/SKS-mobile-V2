@@ -20,7 +20,7 @@ class ApiService {
     // Use base URL as-is, don't modify it
     String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
         ? AppEnv.apiBaseUrl 
-        : 'https://sivakundalini.org';
+        : 'https://app.sivakundalini.org';
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,

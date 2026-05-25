@@ -5,7 +5,7 @@ echo "  Backend API Connectivity Test"
 echo "========================================="
 echo ""
 
-BASE_URL="https://sivakundalini.org"
+BASE_URL="https://app.sivakundalini.org"
 
 echo "Testing backend at: $BASE_URL"
 echo ""

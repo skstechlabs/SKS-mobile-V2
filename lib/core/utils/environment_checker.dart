@@ -47,6 +47,6 @@ class EnvironmentChecker {
       return AppEnv.apiBaseUrl;
     }
     // Fallback for development
-    return 'https://sivakundalini.org';
+    return 'https://app.sivakundalini.org';
   }
 }

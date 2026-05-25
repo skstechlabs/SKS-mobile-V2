@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import 'widgets/cloudflare_video_player.dart';
+import 'widgets/hls_video_player.dart';
 import 'widgets/secure_screen_wrapper.dart';
 
 class DayVideoScreen extends StatefulWidget {
@@ -156,7 +157,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     try {
       debugPrint('🎥 Loading video config for day ${widget.dayId}');
       final response = await _apiService.get(
-        '/api/classes/days/${widget.dayId}/video-config',
+        '/api/classes-v2/days/${widget.dayId}/video-config',
       );
 
       debugPrint('📦 Video config response: $response');
@@ -164,22 +165,36 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       if (response['success'] == true) {
         final videoConfig = response['videoConfig'];
         
-        // Validate required fields
-        if (videoConfig == null || 
-            videoConfig['cloudflareVideoId'] == null || 
-            videoConfig['cloudflareAccountId'] == null) {
-          setState(() {
-            _error = 'Video configuration is incomplete';
-            _isLoading = false;
-          });
-          return;
+        // Detect streaming type
+        final streamingType = videoConfig['streamingType'] ?? 'cloudflare';
+        
+        // Validate required fields based on streaming type
+        if (streamingType == 'hls') {
+          if (videoConfig == null || videoConfig['hlsUrl'] == null) {
+            setState(() {
+              _error = 'HLS video configuration is incomplete';
+              _isLoading = false;
+            });
+            return;
+          }
+        } else {
+          // Cloudflare Stream validation
+          if (videoConfig == null || 
+              videoConfig['cloudflareVideoId'] == null || 
+              videoConfig['cloudflareAccountId'] == null) {
+            setState(() {
+              _error = 'Video configuration is incomplete';
+              _isLoading = false;
+            });
+            return;
+          }
         }
         
         setState(() {
           _videoConfig = videoConfig;
           _isLoading = false;
         });
-        debugPrint('✅ Video config loaded successfully');
+        debugPrint('✅ Video config loaded successfully (Type: $streamingType)');
       } else {
         final errorMsg = response['message'] ?? 'Failed to load video';
         debugPrint('❌ Failed to load video: $errorMsg');
@@ -687,6 +702,40 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     return 0;
   }
 
+  /// Build video player based on streaming type
+  Widget _buildVideoPlayer() {
+    final streamingType = _videoConfig!['streamingType'] ?? 'cloudflare';
+    final videoDuration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
+    
+    if (streamingType == 'hls') {
+      // Use HLS Video Player
+      return HLSVideoPlayer(
+        hlsUrl: _videoConfig!['hlsUrl']?.toString() ?? '',
+        thumbnailUrl: _videoConfig!['thumbnailUrl']?.toString(),
+        lastPositionSeconds: _parseIntSafely(_videoConfig!['lastPositionSeconds']),
+        allowSkip: _videoConfig!['allowSkip'] == true,
+        onStart: _markDayAsStarted,
+        onProgress: _trackProgress,
+        onComplete: () {
+          _trackProgress(videoDuration, videoDuration, 'complete');
+        },
+      );
+    } else {
+      // Use Cloudflare Video Player (backward compatibility)
+      return CloudflareVideoPlayer(
+        videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
+        accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
+        lastPositionSeconds: 0,
+        allowSkip: _videoConfig!['allowSkip'] == true,
+        onStart: _markDayAsStarted,
+        onProgress: _trackProgress,
+        onComplete: () {
+          _trackProgress(videoDuration, videoDuration, 'complete');
+        },
+      );
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -786,17 +835,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       return Stack(
         children: [
           Positioned.fill(
-            child: CloudflareVideoPlayer(
-              videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
-              accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
-              lastPositionSeconds: 0,
-              allowSkip: _videoConfig!['allowSkip'] == true,
-              onStart: _markDayAsStarted,
-              onProgress: _trackProgress,
-              onComplete: () {
-                _trackProgress(videoDuration, videoDuration, 'complete');
-              },
-            ),
+            child: _buildVideoPlayer(),
           ),
           // Back button overlay in landscape
           Positioned(
@@ -824,17 +863,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     return Column(
       children: [
         // Video Player
-        CloudflareVideoPlayer(
-          videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
-          accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
-          lastPositionSeconds: 0, // always start from beginning
-          allowSkip: _videoConfig!['allowSkip'] == true,
-          onStart: _markDayAsStarted,
-          onProgress: _trackProgress,
-          onComplete: () {
-            _trackProgress(videoDuration, videoDuration, 'complete');
-          },
-        ),
+        _buildVideoPlayer(),
         
         // Video Duration Display
         Container(

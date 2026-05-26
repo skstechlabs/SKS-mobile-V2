@@ -32,12 +32,15 @@ void main() async {
       developer.log('⚠️⚠️⚠️ WARNING: Environment not configured! ⚠️⚠️⚠️');
     }
 
-    // Firebase
+    // Firebase - CRITICAL: Must succeed or app cannot function
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      developer.log('✅ Firebase initialized');
+      developer.log('✅ Firebase initialized successfully');
     } catch (e) {
-      developer.log('❌ Firebase init failed: $e');
+      developer.log('❌ CRITICAL: Firebase initialization failed: $e');
+      developer.log('Stack trace: ${StackTrace.current}');
+      // Rethrow to prevent app from continuing without Firebase
+      rethrow;
     }
 
     // API Service

@@ -671,15 +671,15 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
               behavior: HitTestBehavior.opaque,
               onTap: _onTapPlay,
               child: Container(
-                color: Colors.black,
-                decoration: widget.thumbnailUrl != null
-                    ? BoxDecoration(
-                        image: DecorationImage(
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  image: widget.thumbnailUrl != null
+                      ? DecorationImage(
                           image: NetworkImage(widget.thumbnailUrl!),
                           fit: BoxFit.contain,
-                        ),
-                      )
-                    : null,
+                        )
+                      : null,
+                ),
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

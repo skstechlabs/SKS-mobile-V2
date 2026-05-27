@@ -142,10 +142,6 @@ class MainActivity : FlutterActivity() {
                         if (path == null) { result.error("INVALID_ARGUMENT", "path required", null); return@setMethodCallHandler }
                         result.success(setSystemSound(path, title, RingtoneManager.TYPE_RINGTONE))
                     }
-                    "setNotification" -> {
-                        if (path == null) { result.error("INVALID_ARGUMENT", "path required", null); return@setMethodCallHandler }
-                        result.success(setSystemSound(path, title, RingtoneManager.TYPE_NOTIFICATION))
-                    }
                     "setAlarm" -> {
                         if (path == null) { result.error("INVALID_ARGUMENT", "path required", null); return@setMethodCallHandler }
                         result.success(setSystemSound(path, title, RingtoneManager.TYPE_ALARM))
@@ -156,12 +152,10 @@ class MainActivity : FlutterActivity() {
                     }
                     // ── Check if Sivoham is currently set ──────────────────────
                     "checkRingtone"      -> result.success(isSivohamSet(RingtoneManager.TYPE_RINGTONE))
-                    "checkNotification"  -> result.success(isSivohamSet(RingtoneManager.TYPE_NOTIFICATION))
                     "checkAlarm"         -> result.success(isSivohamSet(RingtoneManager.TYPE_ALARM))
                     "checkAppNotification" -> result.success(isSivohamAppNotificationSet())
                     // ── Reset to system default ────────────────────────────────
                     "resetRingtone"      -> result.success(resetSystemSound(RingtoneManager.TYPE_RINGTONE))
-                    "resetNotification"  -> result.success(resetSystemSound(RingtoneManager.TYPE_NOTIFICATION))
                     "resetAlarm"         -> result.success(resetSystemSound(RingtoneManager.TYPE_ALARM))
                     "resetAppNotification" -> result.success(resetAppNotificationSound())
                     "openSettings"   -> { openSystemSettings(); result.success(true) }
@@ -235,8 +229,7 @@ class MainActivity : FlutterActivity() {
      * Sets a system sound (ringtone / notification / alarm) using the modern
      * MediaStore API that works on Android 10+ (API 29+).
      *
-     * The old approach using MediaStore.Audio.Media.getContentUriForPath() and
-     * MediaStore.MediaColumns.DATA is deprecated and broken on Android 10+.
+     * Enhanced version with better compatibility across all Android devices.
      */
     private fun setSystemSound(filePath: String, title: String, type: Int): Boolean {
         return try {
@@ -271,12 +264,11 @@ class MainActivity : FlutterActivity() {
                 // Android 10+: use MediaStore without DATA column
                 val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
-                // Delete existing entries with the same title AND same folder to avoid duplicates
-                // Use both TITLE and RELATIVE_PATH to be precise
+                // Delete existing entries with the same title to avoid duplicates
                 contentResolver.delete(
                     collection,
-                    "${MediaStore.MediaColumns.TITLE} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
-                    arrayOf(title, relativePath)
+                    "${MediaStore.MediaColumns.TITLE} = ?",
+                    arrayOf(title)
                 )
 
                 val values = ContentValues().apply {
@@ -301,21 +293,35 @@ class MainActivity : FlutterActivity() {
                 soundUri = newUri
             } else {
                 // Android 9 and below: legacy approach
+                // Copy file to the appropriate public directory
+                val publicDir = when {
+                    isAlarm        -> android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_ALARMS)
+                    isNotification -> android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_NOTIFICATIONS)
+                    else           -> android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_RINGTONES)
+                }
+                
+                if (!publicDir.exists()) {
+                    publicDir.mkdirs()
+                }
+                
+                val destFile = File(publicDir, "$title.mp3")
+                sourceFile.copyTo(destFile, overwrite = true)
+                
                 @Suppress("DEPRECATION")
-                val collection = MediaStore.Audio.Media.getContentUriForPath(filePath)!!
+                val collection = MediaStore.Audio.Media.getContentUriForPath(destFile.absolutePath)!!
 
                 contentResolver.delete(
                     collection,
                     "${MediaStore.MediaColumns.DATA} = ?",
-                    arrayOf(filePath)
+                    arrayOf(destFile.absolutePath)
                 )
 
                 val values = ContentValues().apply {
                     @Suppress("DEPRECATION")
-                    put(MediaStore.MediaColumns.DATA, filePath)
+                    put(MediaStore.MediaColumns.DATA, destFile.absolutePath)
                     put(MediaStore.MediaColumns.TITLE, title)
                     put(MediaStore.MediaColumns.MIME_TYPE, "audio/mpeg")
-                    put(MediaStore.MediaColumns.SIZE, sourceFile.length())
+                    put(MediaStore.MediaColumns.SIZE, destFile.length())
                     put(MediaStore.Audio.Media.IS_RINGTONE,     if (isRingtone)     1 else 0)
                     put(MediaStore.Audio.Media.IS_NOTIFICATION, if (isNotification) 1 else 0)
                     put(MediaStore.Audio.Media.IS_ALARM,        if (isAlarm)        1 else 0)
@@ -326,7 +332,18 @@ class MainActivity : FlutterActivity() {
                     ?: run { println("❌ MediaStore insert failed (legacy)"); return false }
             }
 
-            RingtoneManager.setActualDefaultRingtoneUri(this, type, soundUri)
+            // Set as default with retry logic for better compatibility
+            try {
+                RingtoneManager.setActualDefaultRingtoneUri(this, type, soundUri)
+            } catch (e: SecurityException) {
+                println("⚠️ SecurityException, retrying with permission check...")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+                    startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).setData(Uri.parse("package:$packageName")))
+                    return false
+                }
+                throw e
+            }
+
             println("✅ System sound set: $title (type=$type, path=$relativePath, uri=$soundUri)")
             true
         } catch (e: Exception) {

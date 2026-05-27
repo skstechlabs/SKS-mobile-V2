@@ -21,7 +21,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
 
   // Current enabled state for each type
   bool _ringtoneEnabled = false;
-  bool _notificationEnabled = false;
   bool _appNotificationEnabled = false;
   bool _alarmEnabled = false;
 
@@ -67,16 +66,14 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     try {
       final results = await Future.wait([
         _channel.invokeMethod<bool>('checkRingtone').catchError((_) => false),
-        _channel.invokeMethod<bool>('checkNotification').catchError((_) => false),
         _channel.invokeMethod<bool>('checkAppNotification').catchError((_) => false),
         _channel.invokeMethod<bool>('checkAlarm').catchError((_) => false),
       ]);
       if (mounted) {
         setState(() {
           _ringtoneEnabled        = results[0] ?? false;
-          _notificationEnabled    = results[1] ?? false;
-          _appNotificationEnabled = results[2] ?? false;
-          _alarmEnabled           = results[3] ?? false;
+          _appNotificationEnabled = results[1] ?? false;
+          _alarmEnabled           = results[2] ?? false;
         });
       }
     } catch (e) {
@@ -149,7 +146,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
   Future<void> _executeSet(String type) async {
     final methodMap = {
       'ringtone': 'setRingtone',
-      'notification': 'setNotification',
       'appNotification': 'setAppNotification',
       'alarm': 'setAlarm',
     };
@@ -196,7 +192,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
 
     final methodMap = {
       'ringtone': 'resetRingtone',
-      'notification': 'resetNotification',
       'appNotification': 'resetAppNotification',
       'alarm': 'resetAlarm',
     };
@@ -225,7 +220,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
   void _showPermissionDialog(String type) {
     final names = {
       'ringtone': 'phone ringtone',
-      'notification': 'notification sound',
       'alarm': 'alarm sound',
     };
 
@@ -489,14 +483,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
                   isEnabled: _ringtoneEnabled,
                 ),
                 _buildCard(
-                  icon: Icons.notifications_active,
-                  title: context.tr('system_notification_sound'),
-                  description: context.tr('set_default_notification'),
-                  color: Colors.green,
-                  type: 'notification',
-                  isEnabled: _notificationEnabled,
-                ),
-                _buildCard(
                   icon: Icons.notifications,
                   title: context.tr('app_notification_sound'),
                   description: context.tr('set_app_notification_only'),
@@ -558,7 +544,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
   Widget _buildActiveSummary() {
     final activeCount = [
       _ringtoneEnabled,
-      _notificationEnabled,
       _appNotificationEnabled,
       _alarmEnabled,
     ].where((e) => e).length;
@@ -567,7 +552,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
 
     final activeNames = <String>[];
     if (_ringtoneEnabled) activeNames.add('Ringtone');
-    if (_notificationEnabled) activeNames.add('Notification');
     if (_appNotificationEnabled) activeNames.add('App Notification');
     if (_alarmEnabled) activeNames.add('Alarm');
 

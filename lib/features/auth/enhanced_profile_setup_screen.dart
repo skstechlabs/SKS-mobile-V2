@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
@@ -175,6 +176,18 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
 
   Future<void> _pickProfileImage() async {
     try {
+      // Request camera permission when user wants to upload image
+      final cameraStatus = await Permission.camera.status;
+      if (!cameraStatus.isGranted) {
+        final result = await Permission.camera.request();
+        if (!result.isGranted) {
+          if (mounted) {
+            _showSnackBar('Camera permission is required to upload photos');
+          }
+          return;
+        }
+      }
+
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 800,
@@ -204,10 +217,6 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
       _showSnackBar(context.tr('please_select_language'));
       return;
     }
-    if (_selectedReferralSource == null) {
-      _showSnackBar(context.tr('please_select_referral_source'));
-      return;
-    }
     if (_selectedCountry == null) {
       _showSnackBar(context.tr('please_select_country'));
       return;
@@ -219,13 +228,7 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
       return;
     }
 
-    // Validate full address
-    if (_fullAddressController.text.trim().isEmpty) {
-      _showSnackBar(context.tr('address_required'));
-      return;
-    }
-
-    // Validate conditional fields
+    // Validate conditional fields (only if user selected them)
     if (_selectedReferralSource == 'Other' && _referralOtherController.text.trim().isEmpty) {
       _showSnackBar(context.tr('please_specify_other_referral'));
       return;
@@ -541,9 +544,9 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         ),
                         const SizedBox(height: 16),
 
-                        // 8. How did you know about SKS?
+                        // 8. How did you know about SKS? (Optional)
                         _buildDropdownField(
-                          label: context.tr('how_did_you_know_sks'),
+                          label: '${context.tr('how_did_you_know_sks')} (${context.tr('optional')})',
                           icon: Icons.info_outline,
                           value: _selectedReferralSource,
                           items: _referralSources,
@@ -560,9 +563,9 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         ],
                         const SizedBox(height: 16),
 
-                        // 9. Referrer Name & Mobile
+                        // 9. Referrer Name & Mobile (Optional)
                         Text(
-                          context.tr('referrer_info'),
+                          '${context.tr('referrer_info')} (${context.tr('optional')})',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -572,13 +575,13 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         const SizedBox(height: 8),
                         _buildField(
                           controller: _referrerNameController,
-                          label: context.tr('referrer_name'),
+                          label: '${context.tr('referrer_name')} (${context.tr('optional')})',
                           icon: Icons.person_add_outlined,
                         ),
                         const SizedBox(height: 16),
                         _buildField(
                           controller: _referrerMobileController,
-                          label: context.tr('referrer_mobile'),
+                          label: '${context.tr('referrer_mobile')} (${context.tr('optional')})',
                           icon: Icons.phone_outlined,
                           keyboardType: TextInputType.phone,
                           inputFormatters: [
@@ -607,13 +610,12 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         ],
                         const SizedBox(height: 16),
 
-                        // 11. Full Address (mandatory)
+                        // 11. Full Address (Optional)
                         _buildField(
                           controller: _fullAddressController,
-                          label: context.tr('full_address'),
+                          label: '${context.tr('full_address')} (${context.tr('optional')})',
                           icon: Icons.home_outlined,
                           maxLines: 3,
-                          validator: (v) => v!.trim().isEmpty ? context.tr('address_required') : null,
                         ),
                         const SizedBox(height: 16),
 

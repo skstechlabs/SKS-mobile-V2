@@ -234,201 +234,254 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileContent() {
     final user = _user!;
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.05),
+            Colors.white,
+          ],
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 32),
 
-          // Profile Picture
-          Center(
-            child: Stack(
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.primary, width: 3),
-                  ),
-                  child: ClipOval(
-                    child: user.photo.isNotEmpty
-                        ? CachedImage(
-                            imageUrl: user.photo,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          )
-                        : const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: AppTheme.primary,
-                          ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
+            // Profile Picture with gradient background
+            Center(
+              child: Stack(
+                children: [
+                  Container(
+                    width: 140,
+                    height: 140,
                     decoration: BoxDecoration(
-                      color: AppTheme.primary,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      gradient: LinearGradient(
+                        colors: [AppTheme.primary, AppTheme.saffron],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primary.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      size: 20,
-                      color: Colors.white,
+                    padding: const EdgeInsets.all(4),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: ClipOval(
+                        child: user.photo.isNotEmpty
+                            ? CachedImage(
+                                imageUrl: user.photo,
+                                width: 130,
+                                height: 130,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                color: AppTheme.primary.withValues(alpha: 0.1),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 70,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                      ),
                     ),
                   ),
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppTheme.primary, AppTheme.saffron],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Name with better typography
+            Text(
+              user.name.isNotEmpty ? user.name : context.tr('profile'),
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 8),
+
+            // Auth Provider Badge with improved design
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: user.authProvider == 'google'
+                      ? [Colors.red.shade50, Colors.red.shade100]
+                      : [Colors.blue.shade50, Colors.blue.shade100],
                 ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Name
-          Text(
-            user.name.isNotEmpty ? user.name : context.tr('profile'),
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          // Auth Provider Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: user.authProvider == 'google'
-                  ? Colors.red.shade50
-                  : Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  user.authProvider == 'google'
-                      ? Icons.g_mobiledata
-                      : Icons.phone,
-                  size: 16,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
                   color: user.authProvider == 'google'
-                      ? Colors.red.shade700
-                      : Colors.blue.shade700,
+                      ? Colors.red.shade200
+                      : Colors.blue.shade200,
+                  width: 1,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  user.authProvider == 'google' ? context.tr('google') : context.tr('phone'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    user.authProvider == 'google'
+                        ? Icons.g_mobiledata
+                        : Icons.phone,
+                    size: 18,
                     color: user.authProvider == 'google'
                         ? Colors.red.shade700
                         : Colors.blue.shade700,
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Profile Information
-          _buildSection(
-            title: context.tr('personal_information'),
-            children: [
-              _buildInfoTile(
-                icon: Icons.phone,
-                label: context.tr('mobile'),
-                value: user.mobile,
+                  const SizedBox(width: 6),
+                  Text(
+                    user.authProvider == 'google' ? context.tr('google') : context.tr('phone'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: user.authProvider == 'google'
+                          ? Colors.red.shade700
+                          : Colors.blue.shade700,
+                    ),
+                  ),
+                ],
               ),
-              if (user.email.isNotEmpty)
-                _buildInfoTile(
-                  icon: Icons.email,
-                  label: context.tr('email'),
-                  value: user.email,
-                ),
-              if (user.gender != null)
-                _buildInfoTile(
-                  icon: Icons.person_outline,
-                  label: context.tr('gender'),
-                  value: user.gender!,
-                ),
-              if (user.dateOfBirth != null)
-                _buildInfoTile(
-                  icon: Icons.cake,
-                  label: context.tr('date_of_birth'),
-                  value: user.dateOfBirth!,
-                ),
-            ],
-          ),
+            ),
 
-          if (user.address != null || user.state != null || user.pincode != null)
+            const SizedBox(height: 40),
+
+            // Profile Information
             _buildSection(
-              title: context.tr('address_info'),
+              title: context.tr('personal_information'),
               children: [
-                if (user.address != null)
+                _buildInfoTile(
+                  icon: Icons.phone,
+                  label: context.tr('mobile'),
+                  value: user.mobile,
+                ),
+                if (user.email.isNotEmpty)
                   _buildInfoTile(
-                    icon: Icons.home,
-                    label: context.tr('address'),
-                    value: user.address!,
+                    icon: Icons.email,
+                    label: context.tr('email'),
+                    value: user.email,
                   ),
-                if (user.state != null)
+                if (user.gender != null)
                   _buildInfoTile(
-                    icon: Icons.location_on,
-                    label: context.tr('state'),
-                    value: user.state!,
+                    icon: Icons.person_outline,
+                    label: context.tr('gender'),
+                    value: user.gender!,
                   ),
-                if (user.pincode != null)
+                if (user.dateOfBirth != null)
                   _buildInfoTile(
-                    icon: Icons.pin_drop,
-                    label: context.tr('pincode'),
-                    value: user.pincode!,
+                    icon: Icons.cake,
+                    label: context.tr('date_of_birth'),
+                    value: user.dateOfBirth!,
                   ),
               ],
             ),
 
-          // Account Actions
-          _buildSection(
-            title: context.tr('account'),
-            children: [
-              _buildActionTile(
-                icon: Icons.edit,
-                label: context.tr('edit_profile'),
-                onTap: () => context.push('/edit-profile'),
+            if (user.address != null || user.state != null || user.pincode != null)
+              _buildSection(
+                title: context.tr('address_info'),
+                children: [
+                  if (user.address != null)
+                    _buildInfoTile(
+                      icon: Icons.home,
+                      label: context.tr('address'),
+                      value: user.address!,
+                    ),
+                  if (user.state != null)
+                    _buildInfoTile(
+                      icon: Icons.location_on,
+                      label: context.tr('state'),
+                      value: user.state!,
+                    ),
+                  if (user.pincode != null)
+                    _buildInfoTile(
+                      icon: Icons.pin_drop,
+                      label: context.tr('pincode'),
+                      value: user.pincode!,
+                    ),
+                ],
               ),
-              _buildActionTile(
-                icon: Icons.people,
-                label: context.tr('manage_profiles'),
-                onTap: () => context.push('/profile/list'),
-              ),
-              _buildActionTile(
-                icon: Icons.language,
-                label: context.tr('change_language'),
-                onTap: () => context.push('/settings/language'),
-              ),
-              _buildActionTile(
-                icon: Icons.help_outline,
-                label: context.tr('help_support'),
-                onTap: () {
-                  _showError(context.tr('feature_coming_soon'));
-                },
-              ),
-              _buildActionTile(
-                icon: Icons.logout,
-                label: context.tr('logout'),
-                onTap: _handleLogout,
-                isDestructive: true,
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 40),
-        ],
+            // Account Actions
+            _buildSection(
+              title: context.tr('account'),
+              children: [
+                _buildActionTile(
+                  icon: Icons.edit,
+                  label: context.tr('edit_profile'),
+                  onTap: () => context.push('/edit-profile'),
+                ),
+                _buildActionTile(
+                  icon: Icons.people,
+                  label: context.tr('manage_profiles'),
+                  onTap: () => context.push('/profile/list'),
+                ),
+                _buildActionTile(
+                  icon: Icons.language,
+                  label: context.tr('change_language'),
+                  onTap: () => context.push('/settings/language'),
+                ),
+                _buildActionTile(
+                  icon: Icons.help_outline,
+                  label: context.tr('help_support'),
+                  onTap: () {
+                    _showError(context.tr('feature_coming_soon'));
+                  },
+                ),
+                _buildActionTile(
+                  icon: Icons.logout,
+                  label: context.tr('logout'),
+                  onTap: _handleLogout,
+                  isDestructive: true,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
@@ -470,17 +523,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required String value,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+      ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primary.withValues(alpha: 0.1),
+                  AppTheme.saffron.withValues(alpha: 0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 20, color: AppTheme.primary),
+            child: Icon(icon, size: 22, color: AppTheme.primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -492,14 +554,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
               ],
@@ -518,21 +582,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+        ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isDestructive
-                    ? Colors.red.shade50
-                    : AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                gradient: isDestructive
+                    ? LinearGradient(
+                        colors: [
+                          Colors.red.shade50,
+                          Colors.red.shade100,
+                        ],
+                      )
+                    : LinearGradient(
+                        colors: [
+                          AppTheme.primary.withValues(alpha: 0.1),
+                          AppTheme.saffron.withValues(alpha: 0.1),
+                        ],
+                      ),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
-                size: 20,
+                size: 22,
                 color: isDestructive ? Colors.red.shade700 : AppTheme.primary,
               ),
             ),
@@ -541,15 +620,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: isDestructive ? Colors.red.shade700 : Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDestructive ? Colors.red.shade700 : Colors.black87,
                 ),
               ),
             ),
             Icon(
               Icons.chevron_right,
               color: AppTheme.textSecondary,
+              size: 20,
             ),
           ],
         ),

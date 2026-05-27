@@ -175,23 +175,11 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
       // Permission granted — set up OneSignal subscription + user identity
       await _setupOneSignalUser();
 
-      // ── Step 2: Camera (optional) ────────────────────────────────────────────
-      if (!_cameraGranted) {
-        final status = await Permission.camera.request();
-        if (mounted) setState(() => _cameraGranted = status.isGranted);
-      }
-
-      // ── Step 3: Microphone (optional) ────────────────────────────────────────
-      if (!_microphoneGranted) {
-        final status = await Permission.microphone.request();
-        if (mounted) setState(() => _microphoneGranted = status.isGranted);
-      }
-
-      // ── Step 4: Location (optional) ──────────────────────────────────────────
-      if (!_locationGranted) {
-        final status = await Permission.location.request();
-        if (mounted) setState(() => _locationGranted = status.isGranted);
-      }
+      // ── Camera, Microphone, Location are NOT requested here ──
+      // They will be requested when needed:
+      // - Camera: when user clicks upload image
+      // - Microphone: when user joins audio/video session
+      // - Location: when user accesses location-based features
 
       if (mounted) context.go('/');
     } catch (e) {
@@ -361,30 +349,6 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                       granted: _notificationGranted,
                       permanentlyDenied: _notificationPermanentlyDenied,
                     ),
-                    const SizedBox(height: 12),
-                    _buildPermissionItem(
-                      icon: Icons.camera_alt_outlined,
-                      title: 'Camera',
-                      description: 'Share photos and videos',
-                      required: false,
-                      granted: _cameraGranted,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildPermissionItem(
-                      icon: Icons.mic_outlined,
-                      title: 'Microphone',
-                      description: 'Record audio messages',
-                      required: false,
-                      granted: _microphoneGranted,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildPermissionItem(
-                      icon: Icons.location_on_outlined,
-                      title: 'Location',
-                      description: 'Find nearby events and centers',
-                      required: false,
-                      granted: _locationGranted,
-                    ),
 
                     const SizedBox(height: 24),
 
@@ -418,19 +382,19 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
+                          color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade200),
+                          border: Border.all(color: Colors.blue.shade200),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.info_outline, color: Colors.orange.shade700, size: 24),
+                            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 24),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Notifications are required. Camera, microphone, and location are optional.',
+                                'Notifications are required to receive updates from Guruji. Other permissions like camera will be requested when needed.',
                                 style: TextStyle(
-                                  color: Colors.orange.shade900,
+                                  color: Colors.blue.shade900,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),

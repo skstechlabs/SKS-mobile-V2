@@ -89,16 +89,16 @@ class _MainScaffoldState extends State<MainScaffold> {
         title: Text(
           context.tr('app_full_name'),
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Color(0xFFD84315),
+            color: const Color(0xFFD84315),
             letterSpacing: 0.8,
             height: 1.3,
             fontFamily: 'serif',
             shadows: [
               Shadow(
                 color: AppTheme.saffron.withValues(alpha: 0.1),
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
                 blurRadius: 2,
               ),
             ],

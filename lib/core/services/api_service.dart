@@ -24,9 +24,9 @@ class ApiService {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 30), // Increased from 10s
-      receiveTimeout: const Duration(seconds: 30), // Increased from 10s
-      sendTimeout: const Duration(seconds: 30), // Added send timeout
+      connectTimeout: const Duration(seconds: 45), // Increased to 45s for slow networks
+      receiveTimeout: const Duration(seconds: 45), // Increased to 45s
+      sendTimeout: const Duration(seconds: 45), // Increased to 45s
       headers: {
         'Content-Type': 'application/json',
       },
@@ -40,17 +40,37 @@ class ApiService {
       logPrint: (obj) => debugPrint(obj.toString()),
     ));
 
-    // Add retry interceptor for network failures
+    // Add retry interceptor for network failures with exponential backoff
     _dio.interceptors.add(
       InterceptorsWrapper(
         onError: (error, handler) async {
+          // Check if we should retry
           if (_shouldRetry(error)) {
-            try {
-              debugPrint('🔄 Retrying request: ${error.requestOptions.path}');
-              final response = await _dio.fetch(error.requestOptions);
-              return handler.resolve(response);
-            } catch (e) {
-              return handler.next(error);
+            // Get retry count from request options
+            final retryCount = error.requestOptions.extra['retryCount'] as int? ?? 0;
+            
+            // Max 2 retries
+            if (retryCount < 2) {
+              try {
+                // Exponential backoff: 1s, 2s
+                final delaySeconds = (retryCount + 1);
+                debugPrint('🔄 Retrying request (attempt ${retryCount + 1}/2): ${error.requestOptions.path}');
+                debugPrint('⏳ Waiting ${delaySeconds}s before retry...');
+                
+                await Future.delayed(Duration(seconds: delaySeconds));
+                
+                // Increment retry count
+                error.requestOptions.extra['retryCount'] = retryCount + 1;
+                
+                // Retry the request
+                final response = await _dio.fetch(error.requestOptions);
+                return handler.resolve(response);
+              } catch (e) {
+                debugPrint('❌ Retry failed: $e');
+                return handler.next(error);
+              }
+            } else {
+              debugPrint('❌ Max retries reached for: ${error.requestOptions.path}');
             }
           }
           return handler.next(error);
@@ -60,23 +80,38 @@ class ApiService {
   }
 
   bool _shouldRetry(DioException error) {
-    // Retry on connection timeout, send timeout, or connection error
+    // Retry on connection timeout, send timeout, receive timeout, or connection error
     return error.type == DioExceptionType.connectionTimeout ||
            error.type == DioExceptionType.sendTimeout ||
+           error.type == DioExceptionType.receiveTimeout ||
            error.type == DioExceptionType.connectionError;
   }
 
   Future<String?> _getIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-    // Use cached token for normal API calls — Firebase auto-refreshes when
-    // within 5 minutes of expiry. This avoids a network round-trip per request.
+    
     try {
-      return await user.getIdToken(false);
+      // First try cached token
+      final cachedToken = await user.getIdToken(false);
+      if (cachedToken != null && cachedToken.isNotEmpty) {
+        return cachedToken;
+      }
     } catch (e) {
-      debugPrint('❌ getIdToken failed: $e');
-      return null;
+      debugPrint('⚠️ Cached token failed: $e, trying force refresh');
     }
+    
+    // If cached token fails, force refresh
+    try {
+      final freshToken = await user.getIdToken(true);
+      if (freshToken != null && freshToken.isNotEmpty) {
+        return freshToken;
+      }
+    } catch (e) {
+      debugPrint('❌ getIdToken force refresh failed: $e');
+    }
+    
+    return null;
   }
 
   /// Force-refresh the Firebase ID token. Use ONLY for the login call where

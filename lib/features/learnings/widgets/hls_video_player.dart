@@ -67,6 +67,13 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       _isLoading = true;
     });
     _initWebView();
+    
+    // Auto-play after a short delay to ensure WebView is ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && _controller != null) {
+        _controller!.runJavaScript('video.play();');
+      }
+    });
   }
 
   void _initWebView() {
@@ -193,7 +200,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     ''';
 
     final thumbnailHtml = widget.thumbnailUrl != null
-        ? '<img id="poster" src="${widget.thumbnailUrl}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;" />'
+        ? '''<img id="poster" 
+             src="${widget.thumbnailUrl}" 
+             crossorigin="anonymous"
+             style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;" 
+             onerror="this.style.display='none';" />'''
         : '';
 
     return '''
@@ -229,10 +240,15 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       z-index: 10;
       opacity: 0;
       transition: opacity 0.3s;
+      pointer-events: none;
     }
-    #container:hover .controls,
-    #container.show-controls .controls {
+    .controls.show {
       opacity: 1;
+      pointer-events: auto;
+    }
+    #container:hover .controls {
+      opacity: 1;
+      pointer-events: auto;
     }
     .progress-bar {
       width: 100%;
@@ -344,6 +360,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     var hasStarted = false;
     var lastReportedTime = 0;
     var hideControlsTimeout = null;
+    var controlsElement = document.querySelector('.controls');
 
     function send(obj) {
       try { FlutterChannel.postMessage(JSON.stringify(obj)); } catch(e) {}
@@ -364,13 +381,19 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     }
 
     function showControls() {
-      container.classList.add('show-controls');
+      controlsElement.classList.add('show');
       clearTimeout(hideControlsTimeout);
-      hideControlsTimeout = setTimeout(function() {
-        if (!video.paused) {
-          container.classList.remove('show-controls');
-        }
-      }, 3000);
+      
+      // Auto-hide controls after 3 seconds if video is playing
+      if (!video.paused) {
+        hideControlsTimeout = setTimeout(function() {
+          controlsElement.classList.remove('show');
+        }, 3000);
+      }
+    }
+
+    function hideControls() {
+      controlsElement.classList.remove('show');
     }
 
     // Initialize HLS
@@ -488,6 +511,10 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         });
       }
       playBtn.textContent = '⏸';
+      
+      // Hide controls after 3 seconds when playing
+      showControls();
+      
       send({
         type: 'play',
         position: Math.floor(video.currentTime || 0),
@@ -497,6 +524,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
     video.addEventListener('pause', function() {
       playBtn.textContent = '▶';
+      
+      // Show controls when paused
+      showControls();
+      clearTimeout(hideControlsTimeout);
+      
       send({
         type: 'pause',
         position: Math.floor(video.currentTime || 0),
@@ -544,21 +576,28 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     fullscreenBtn.addEventListener('click', function() {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        container.requestFullscreen();
-      }
+      send({ type: 'fullscreen' });
     });
 
     container.addEventListener('click', function(e) {
       if (e.target === container || e.target === video) {
-        showControls();
+        if (controlsElement.classList.contains('show')) {
+          hideControls();
+        } else {
+          showControls();
+        }
       }
     });
 
-    container.addEventListener('mousemove', showControls);
-    container.addEventListener('touchstart', showControls);
+    container.addEventListener('touchstart', function(e) {
+      if (e.target === container || e.target === video) {
+        if (controlsElement.classList.contains('show')) {
+          hideControls();
+        } else {
+          showControls();
+        }
+      }
+    });
 
     $skipJs
 
@@ -583,6 +622,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           return;
         case 'error':
           debugPrint('❌ Player error: ${data['message']}');
+          return;
+        case 'fullscreen':
+          _toggleFullscreen();
           return;
         case 'start':
           if (!_hasStarted) {

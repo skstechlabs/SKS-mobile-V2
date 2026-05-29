@@ -10,8 +10,9 @@ import 'dart:convert';
 /// - Automatic quality switching based on network speed
 /// - Progress tracking and completion detection
 /// - Skip prevention
-/// - Fullscreen support
+/// - Fullscreen support with seamless rotation
 /// - Smooth streaming for high concurrent users
+/// - Single-tap play with thumbnail preview
 class HLSVideoPlayer extends StatefulWidget {
   final String hlsUrl;
   final String? thumbnailUrl;
@@ -40,7 +41,6 @@ class HLSVideoPlayer extends StatefulWidget {
 class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   WebViewController? _controller;
 
-  bool _iframeLoaded = false;
   bool _isLoading = false;
   bool _hasError = false;
   String? _errorMessage;
@@ -50,30 +50,25 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   bool _isFullscreen = false;
   bool _hasStarted = false;
   bool _isCompleted = false;
+  
+  // State preservation for rotation/fullscreen
+  int _currentPosition = 0;
+  bool _wasPlaying = false;
 
   final Set<int> _reportedMilestones = {};
   static const List<int> _milestones = [25, 50, 75, 90, 100];
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize player immediately
+    _initWebView();
+  }
+
+  @override
   void dispose() {
     if (_isFullscreen) _exitFullscreen();
     super.dispose();
-  }
-
-  void _onTapPlay() {
-    if (_isCompleted) return;
-    setState(() {
-      _iframeLoaded = true;
-      _isLoading = true;
-    });
-    _initWebView();
-    
-    // Auto-play after a short delay to ensure WebView is ready
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted && _controller != null) {
-        _controller!.runJavaScript('video.play();');
-      }
-    });
   }
 
   void _initWebView() {
@@ -95,7 +90,14 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             if (mounted) setState(() => _isLoading = true);
           },
           onPageFinished: (_) {
-            if (mounted) setState(() => _isLoading = false);
+            if (mounted) {
+              setState(() => _isLoading = false);
+              // Seek to last position if available
+              if (widget.lastPositionSeconds > 0) {
+                _controller?.runJavaScript(
+                    'if(video && video.duration > 0) { video.currentTime = ${widget.lastPositionSeconds}; }');
+              }
+            }
           },
           onWebResourceError: (WebResourceError error) {
             if (error.isForMainFrame == true) {
@@ -144,16 +146,57 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     _initWebView();
   }
 
-  void _enterFullscreen() {
+  void _enterFullscreen() async {
+    // Save current state before entering fullscreen
+    if (_controller != null) {
+      try {
+        final positionStr = await _controller!.runJavaScriptReturningResult(
+          'Math.floor(video.currentTime || 0).toString()'
+        );
+        final playingStr = await _controller!.runJavaScriptReturningResult(
+          '(!video.paused).toString()'
+        );
+        _currentPosition = int.tryParse(positionStr.toString().replaceAll('"', '')) ?? 0;
+        _wasPlaying = playingStr.toString().contains('true');
+      } catch (e) {
+        debugPrint('Failed to save video state: $e');
+      }
+    }
+    
     setState(() => _isFullscreen = true);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    
+    // Restore state after a short delay
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_controller != null && _currentPosition > 0) {
+        _controller!.runJavaScript(
+          'if(video && video.duration > 0) { video.currentTime = $_currentPosition; ${_wasPlaying ? 'video.play();' : ''} }'
+        );
+      }
+    });
   }
 
-  void _exitFullscreen() {
+  void _exitFullscreen() async {
+    // Save current state before exiting fullscreen
+    if (_controller != null) {
+      try {
+        final positionStr = await _controller!.runJavaScriptReturningResult(
+          'Math.floor(video.currentTime || 0).toString()'
+        );
+        final playingStr = await _controller!.runJavaScriptReturningResult(
+          '(!video.paused).toString()'
+        );
+        _currentPosition = int.tryParse(positionStr.toString().replaceAll('"', '')) ?? 0;
+        _wasPlaying = playingStr.toString().contains('true');
+      } catch (e) {
+        debugPrint('Failed to save video state: $e');
+      }
+    }
+    
     setState(() => _isFullscreen = false);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -165,6 +208,15 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       SystemUiMode.edgeToEdge,
       overlays: SystemUiOverlay.values,
     );
+    
+    // Restore state after a short delay
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_controller != null && _currentPosition > 0) {
+        _controller!.runJavaScript(
+          'if(video && video.duration > 0) { video.currentTime = $_currentPosition; ${_wasPlaying ? 'video.play();' : ''} }'
+        );
+      }
+    });
   }
 
   void _toggleFullscreen() {
@@ -200,11 +252,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     ''';
 
     final thumbnailHtml = widget.thumbnailUrl != null
-        ? '''<img id="poster" 
-             src="${widget.thumbnailUrl}" 
-             crossorigin="anonymous"
-             style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;" 
-             onerror="this.style.display='none';" />'''
+        ? 'poster="${widget.thumbnailUrl}"'
         : '';
 
     return '''
@@ -229,6 +277,48 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     }
     #poster {
       z-index: 1;
+    }
+    #video[poster] {
+      background: #000;
+    }
+    .play-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.3);
+      z-index: 5;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+    .play-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .play-button {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 2.5px solid white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .play-button:hover {
+      transform: scale(1.1);
+      background: rgba(255,255,255,0.25);
+    }
+    .play-button svg {
+      width: 48px;
+      height: 48px;
+      fill: white;
+      margin-left: 4px;
     }
     .controls {
       position: absolute;
@@ -319,8 +409,15 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 </head>
 <body>
   <div id="container">
-    $thumbnailHtml
-    <video id="video" playsinline webkit-playsinline></video>
+    <video id="video" playsinline webkit-playsinline $thumbnailHtml></video>
+    
+    <div class="play-overlay" id="play-overlay">
+      <div class="play-button">
+        <svg viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+    </div>
     
     <div class="controls">
       <div class="progress-bar" id="progress-bar">
@@ -353,7 +450,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     var qualityMenu = document.getElementById('quality-menu');
     var fullscreenBtn = document.getElementById('fullscreen-btn');
     var container = document.getElementById('container');
-    var poster = document.getElementById('poster');
+    var playOverlay = document.getElementById('play-overlay');
     
     var hls = null;
     var isCompleted = false;
@@ -394,6 +491,20 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
     function hideControls() {
       controlsElement.classList.remove('show');
+    }
+    
+    function hidePlayOverlay() {
+      playOverlay.classList.add('hidden');
+      setTimeout(function() {
+        playOverlay.style.display = 'none';
+      }, 300);
+    }
+    
+    function playVideo() {
+      hidePlayOverlay();
+      video.play().catch(function(err) {
+        console.error('Play failed:', err);
+      });
     }
 
     // Initialize HLS
@@ -497,10 +608,14 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     // Video events
     video.addEventListener('loadedmetadata', function() {
       updateProgress();
+      // Seek to last position if provided
+      if (${widget.lastPositionSeconds} > 0 && video.duration > 0) {
+        video.currentTime = ${widget.lastPositionSeconds};
+      }
     });
 
     video.addEventListener('play', function() {
-      if (poster) poster.style.display = 'none';
+      hidePlayOverlay();
       if (isCompleted) { video.pause(); return; }
       if (!hasStarted) {
         hasStarted = true;
@@ -557,6 +672,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     // Controls
+    playOverlay.addEventListener('click', playVideo);
+    
     playBtn.addEventListener('click', function() {
       if (video.paused) {
         video.play();
@@ -707,53 +824,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
     final videoArea = Stack(
       children: [
-        if (!_iframeLoaded)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _onTapPlay,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  image: widget.thumbnailUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(widget.thumbnailUrl!),
-                          fit: BoxFit.contain,
-                        )
-                      : null,
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2.5),
-                        ),
-                        child: const Icon(Icons.play_arrow,
-                            color: Colors.white, size: 48),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Tap to play',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (_iframeLoaded && _controller != null)
+        // WebView is always loaded - no Flutter overlay blocking it
+        if (_controller != null)
           Positioned.fill(child: WebViewWidget(controller: _controller!)),
 
         if (_isLoading)

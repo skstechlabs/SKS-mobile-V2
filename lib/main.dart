@@ -146,18 +146,20 @@ void main() async {
         oneSignalService.setupNotificationHandlers();
         oneSignalService.markInitialized();
 
-        // Step 4: request permission NOW — this registers the FCM token with OneSignal.
-        // Must happen BEFORE login(uid) so the token exists when we link the user.
+        // Step 4: Check if permission was already granted
         // requestPermission(false) = silent check, no OS dialog shown on startup.
+        // We only want to link the user if they already granted permission previously.
         final permissionGranted = await OneSignal.Notifications.requestPermission(false);
         developer.log('🔔 Notification permission on startup: $permissionGranted');
 
-        // Step 5: if user is already logged in, link them to OneSignal immediately
+        // Step 5: if user is already logged in AND permission granted, link them immediately
         final authState = AuthState();
         if (authState.user != null && permissionGranted) {
           OneSignal.login(authState.user!.uid);
           OneSignal.User.pushSubscription.optIn();
           developer.log('✅ OneSignal.login(${authState.user!.uid}) called on startup');
+        } else if (authState.user != null && !permissionGranted) {
+          developer.log('⚠️ User logged in but no notification permission - will register after permission granted');
         }
 
         // Step 6: set navigation callback (router available after runApp)

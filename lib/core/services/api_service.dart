@@ -20,7 +20,11 @@ class ApiService {
     // Use base URL as-is, don't modify it
     String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
         ? AppEnv.apiBaseUrl 
-        : 'https://app.sivakundalini.org';
+        : 'http://localhost:3000'; // Default to localhost for development
+    
+    debugPrint('🔧 API Service Initializing...');
+    debugPrint('📍 Base URL: $baseUrl');
+    debugPrint('🌐 Environment API_BASE_URL: ${AppEnv.apiBaseUrl}');
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,

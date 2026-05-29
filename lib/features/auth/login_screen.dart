@@ -188,13 +188,25 @@ class _LoginScreenState extends State<LoginScreen>
         UserModel.fromJson(loginResult['user'] as Map<String, dynamic>);
     await _authState.setUser(user);
 
-    // OneSignal — fire and forget
-    _oneSignal.setExternalUserId(user.uid).catchError((_) {});
-    _oneSignal.setTags({
-      'auth_provider': authProvider,
-      if (user.email.isNotEmpty) 'email': user.email,
-      if (user.mobile.isNotEmpty) 'mobile': user.mobile,
-    }).catchError((_) {});
+    // OneSignal — CRITICAL: Only register if permission was granted
+    // This ensures the push token exists before linking to user
+    try {
+      final hasPermission = await _oneSignal.hasPermission();
+      if (hasPermission) {
+        await _oneSignal.setExternalUserId(user.uid);
+        await _oneSignal.setTags({
+          'auth_provider': authProvider,
+          if (user.email.isNotEmpty) 'email': user.email,
+          if (user.mobile.isNotEmpty) 'mobile': user.mobile,
+        });
+        debugPrint('✅ OneSignal registered for user: ${user.uid}');
+      } else {
+        debugPrint('⚠️ OneSignal: Permission not granted, skipping registration');
+        debugPrint('   User will be registered when they grant permission later');
+      }
+    } catch (e) {
+      debugPrint('❌ OneSignal registration error: $e');
+    }
 
     if (!mounted) return;
 

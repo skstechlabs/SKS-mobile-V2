@@ -1,0 +1,101 @@
+================================================================================
+  🎯 QUICK FIX: Testing Locally Against Production Server
+================================================================================
+
+YOUR SITUATION:
+---------------
+✓ Running Flutter app locally on Chrome (localhost:50000)
+✓ Connecting to production server (http://app.sivakundalini.org)
+✗ Getting CORS errors
+
+THE PROBLEM:
+------------
+Production server doesn't allow "localhost" origins in CORS configuration.
+
+================================================================================
+  ✅ QUICK FIX (Choose ONE)
+================================================================================
+
+OPTION 1: Install Chrome CORS Extension (EASIEST)
+--------------------------------------------------
+1. Open Chrome Web Store
+2. Search for "Allow CORS: Access-Control-Allow-Origin"
+3. Install the extension
+4. Click extension icon to ENABLE it
+5. Run your Flutter app:
+
+   flutter run -d chrome --dart-define=API_BASE_URL=http://app.sivakundalini.org --dart-define=MSG91_WIDGET_ID=366379717055333935353237 --dart-define=MSG91_AUTH_TOKEN=503409TcpVDVCsWuiQ69c418f1P1 --dart-define=GOOGLE_CLIENT_ID=107751006310624717047-kcqvvvvvvvvvvvvvvvvvvvvvvvvvvvvv.apps.googleusercontent.com --dart-define=ONESIGNAL_APP_ID=b89d199e-15be-4343-9e04-640c43f355e9
+
+6. Test your app - NO MORE CORS ERRORS!
+7. Disable extension when done
+
+CHROME EXTENSIONS TO TRY:
+- "Allow CORS: Access-Control-Allow-Origin"
+- "CORS Unblock"
+- "Moesif Origin & CORS Changer"
+
+================================================================================
+
+OPTION 2: Run Chrome with CORS Disabled (QUICK)
+------------------------------------------------
+1. Close ALL Chrome windows
+2. Run this batch file:
+   
+   run-chrome-no-cors.bat
+
+3. In the new Chrome window, run your Flutter app:
+
+   flutter run -d chrome --dart-define=API_BASE_URL=http://app.sivakundalini.org --dart-define=MSG91_WIDGET_ID=366379717055333935353237 --dart-define=MSG91_AUTH_TOKEN=503409TcpVDVCsWuiQ69c418f1P1 --dart-define=GOOGLE_CLIENT_ID=107751006310624717047-kcqvvvvvvvvvvvvvvvvvvvvvvvvvvvvv.apps.googleusercontent.com --dart-define=ONESIGNAL_APP_ID=b89d199e-15be-4343-9e04-640c43f355e9
+
+⚠️ WARNING: This disables web security. Only use for testing!
+
+================================================================================
+
+OPTION 3: Configure Production Server (PERMANENT FIX)
+------------------------------------------------------
+If you have access to production server:
+
+1. SSH to production server
+2. Edit API Gateway .env file:
+   
+   CORS_ORIGINS=*,http://localhost:3000,http://localhost:50000,http://localhost:50001,http://localhost:50002,http://localhost:50003,http://app.sivakundalini.org
+
+3. Restart API Gateway:
+   
+   pm2 restart api-gateway
+
+4. Test from local:
+   
+   curl -H "Origin: http://localhost:50000" -X OPTIONS http://app.sivakundalini.org/api/events -v
+
+================================================================================
+  ✅ VERIFICATION
+================================================================================
+
+After applying fix, check Chrome DevTools:
+
+CONSOLE should show:
+  📍 Base URL: http://app.sivakundalini.org
+  ✅ No CORS errors
+
+NETWORK tab should show:
+  ✓ http://app.sivakundalini.org/api/events → 200 OK
+  ✓ http://app.sivakundalini.org/api/gatherings → 200 OK
+  ✓ http://app.sivakundalini.org/api/quotes → 200 OK
+
+Response Headers should include:
+  Access-Control-Allow-Origin: http://localhost:50000
+
+================================================================================
+  📚 MORE INFORMATION
+================================================================================
+
+See detailed guide: CORS_PRODUCTION_TESTING.md
+
+================================================================================
+  🎉 RECOMMENDED: Use CORS Extension (Option 1)
+================================================================================
+
+It's the easiest and safest way to test locally against production!
+
+Last Updated: January 2024

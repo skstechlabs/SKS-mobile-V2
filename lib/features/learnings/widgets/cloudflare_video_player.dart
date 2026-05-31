@@ -49,6 +49,7 @@ class CloudflareVideoPlayer extends StatefulWidget {
 
 class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
   WebViewController? _controller;
+  final GlobalKey _webViewKey = GlobalKey(); // Preserve WebView across rebuilds
 
   bool _iframeLoaded = false; // false = show tap-to-play poster
   bool _isLoading = false;
@@ -57,7 +58,6 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
   int _retryCount = 0;
   static const int _maxRetries = 3;
 
-  bool _isFullscreen = false;
   bool _hasStarted = false;
   bool _isCompleted = false;
 
@@ -66,7 +66,6 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
 
   @override
   void dispose() {
-    if (_isFullscreen) _exitFullscreen();
     super.dispose();
   }
 
@@ -148,38 +147,6 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
       _isLoading = true;
     });
     _initWebView();
-  }
-
-  // ── Fullscreen ─────────────────────────────────────────────────────────────
-  void _enterFullscreen() {
-    setState(() => _isFullscreen = true);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  }
-
-  void _exitFullscreen() {
-    setState(() => _isFullscreen = false);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.edgeToEdge,
-      overlays: SystemUiOverlay.values,
-    );
-  }
-
-  void _toggleFullscreen() {
-    if (_isFullscreen) {
-      _exitFullscreen();
-    } else {
-      _enterFullscreen();
-    }
   }
 
   // ── HTML ───────────────────────────────────────────────────────────────────
@@ -497,7 +464,12 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
 
         // ── WebView (after first tap) ───────────────────────────────────────
         if (_iframeLoaded && _controller != null)
-          Positioned.fill(child: WebViewWidget(controller: _controller!)),
+          Positioned.fill(
+            child: WebViewWidget(
+              key: _webViewKey, // Preserve WebView instance across rebuilds
+              controller: _controller!,
+            ),
+          ),
 
         // ── Loading spinner ─────────────────────────────────────────────────
         if (_isLoading)
@@ -505,29 +477,6 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
             child: ColoredBox(
               color: Colors.black54,
               child: Center(child: CircularProgressIndicator(color: Colors.white)),
-            ),
-          ),
-
-        // ── Fullscreen button (top-right corner, always visible after load) ─
-        if (_iframeLoaded && !_isLoading)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: _toggleFullscreen,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
             ),
           ),
 
@@ -584,20 +533,7 @@ class _CloudflareVideoPlayerState extends State<CloudflareVideoPlayer> {
       ],
     );
 
-    // Fullscreen: expand to fill entire screen with back gesture support
-    if (_isFullscreen) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: PopScope(
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) _exitFullscreen();
-          },
-          child: SizedBox.expand(child: videoArea),
-        ),
-      );
-    }
-
-    // Normal: 16:9 aspect ratio
+    // Always return 16:9 aspect ratio - parent handles fullscreen
     return AspectRatio(aspectRatio: 16 / 9, child: videoArea);
   }
 }

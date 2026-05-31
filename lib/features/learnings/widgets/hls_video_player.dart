@@ -48,7 +48,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   int _retryCount = 0;
   static const int _maxRetries = 3;
 
-  bool _isFullscreen = false;
   bool _hasStarted = false;
   bool _isCompleted = false;
 
@@ -64,7 +63,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
   @override
   void dispose() {
-    if (_isFullscreen) _exitFullscreen();
+    // Exit fullscreen if active
+    _controller?.runJavaScript('exitFullscreenMode();');
     super.dispose();
   }
 
@@ -143,40 +143,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     _initWebView();
   }
 
-  void _enterFullscreen() {
-    setState(() => _isFullscreen = true);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  }
-
-  void _exitFullscreen() {
-    setState(() => _isFullscreen = false);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.edgeToEdge,
-      overlays: SystemUiOverlay.values,
-    );
-  }
-
-  void _toggleFullscreen() {
-    // Save current position before toggling
-    _controller?.runJavaScript('FlutterChannel.postMessage(JSON.stringify({type:"savePosition"}));');
-    
-    if (_isFullscreen) {
-      _exitFullscreen();
-    } else {
-      _enterFullscreen();
-    }
-  }
-
   /// Build HTML with HLS.js player
   /// HLS.js provides:
   /// - Adaptive bitrate streaming
@@ -184,6 +150,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   /// - Buffer management
   /// - Error recovery
   /// - Works on all browsers (including those without native HLS support)
+  /// - Native fullscreen API for seamless fullscreen transitions
   String _buildHtml() {
     final skipJs = widget.allowSkip
         ? ''
@@ -222,13 +189,30 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       height: 100%; 
       background: #000; 
       overflow: hidden;
-      position: fixed; /* Prevent scrolling flicker */
+      position: fixed;
     }
     #container {
-      position: fixed; /* Prevent any movement */
+      position: fixed;
       width: 100%;
       height: 100%;
       background: #000;
+    }
+    /* Fullscreen styles */
+    #container:-webkit-full-screen {
+      width: 100%;
+      height: 100%;
+    }
+    #container:-moz-full-screen {
+      width: 100%;
+      height: 100%;
+    }
+    #container:-ms-fullscreen {
+      width: 100%;
+      height: 100%;
+    }
+    #container:fullscreen {
+      width: 100%;
+      height: 100%;
     }
     #video {
       position: absolute;
@@ -557,10 +541,71 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     var lastReportedTime = 0;
     var hideControlsTimeout = null;
     var controlsElement = document.querySelector('.controls');
-    var savedPosition = 0;
+    var isFullscreen = false;
 
     function send(obj) {
       try { FlutterChannel.postMessage(JSON.stringify(obj)); } catch(e) {}
+    }
+
+    // Fullscreen functions
+    function enterFullscreen() {
+      var elem = container;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.mozRequestFullScreen) {
+        elem.mozRequestFullScreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+    }
+
+    function exitFullscreenMode() {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!isFullscreen) {
+        enterFullscreen();
+      } else {
+        exitFullscreenMode();
+      }
+    }
+
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    function handleFullscreenChange() {
+      isFullscreen = !!(document.fullscreenElement || 
+                        document.webkitFullscreenElement || 
+                        document.mozFullScreenElement ||
+                        document.msFullscreenElement);
+      
+      // Update fullscreen button icon
+      if (isFullscreen) {
+        fullscreenIcon.style.display = 'none';
+        fullscreenExitIcon.style.display = 'block';
+      } else {
+        fullscreenIcon.style.display = 'block';
+        fullscreenExitIcon.style.display = 'none';
+      }
+      
+      // Show controls briefly when entering/exiting fullscreen
+      showControls();
+      
+      send({ type: 'fullscreenChange', isFullscreen: isFullscreen });
     }
 
     function formatTime(seconds) {
@@ -774,11 +819,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       if (${widget.lastPositionSeconds} > 0 && video.duration > 0) {
         video.currentTime = ${widget.lastPositionSeconds};
       }
-      // Restore saved position after fullscreen toggle
-      if (savedPosition > 0 && video.duration > 0) {
-        video.currentTime = savedPosition;
-        savedPosition = 0;
-      }
     });
 
     video.addEventListener('play', function() {
@@ -930,8 +970,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     // Fullscreen
     fullscreenBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      savedPosition = video.currentTime;
-      send({ type: 'fullscreen' });
+      toggleFullscreen();
     });
 
     container.addEventListener('click', function(e) {
@@ -995,7 +1034,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           break;
         case 'f':
           e.preventDefault();
-          send({ type: 'fullscreen' });
+          toggleFullscreen();
           break;
       }
     });
@@ -1024,11 +1063,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         case 'error':
           debugPrint('❌ Player error: ${data['message']}');
           return;
-        case 'savePosition':
-          // Position saved in JS before fullscreen toggle
-          return;
-        case 'fullscreen':
-          _toggleFullscreen();
+        case 'fullscreenChange':
+          // Fullscreen state changed in JS - just log it
+          debugPrint('🖥️ Fullscreen: ${data['isFullscreen']}');
           return;
         case 'start':
           if (!_hasStarted) {
@@ -1109,95 +1146,84 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       );
     }
 
-    // Build WebView widget once with GlobalKey to preserve state
-    final webViewWidget = _controller != null
-        ? WebViewWidget(
-            key: _webViewKey, // Preserve across rebuilds
-            controller: _controller!,
-          )
-        : const SizedBox.shrink();
-
-    final videoArea = Stack(
-      children: [
-        // WebView always visible - NEVER conditionally rendered
-        Positioned.fill(child: webViewWidget),
-
-        // Loading overlay - ONLY on initial load, never during playback
-        if (_isInitialLoading)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+    // Build WebView widget once with GlobalKey to preserve state across rebuilds
+    // This ensures the video never restarts when toggling fullscreen
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Stack(
+        children: [
+          // WebView - NEVER conditionally rendered, always present
+          if (_controller != null)
+            Positioned.fill(
+              child: WebViewWidget(
+                key: _webViewKey, // Preserve state across rebuilds
+                controller: _controller!,
               ),
             ),
-          ),
 
-        // Completion overlay
-        if (_isCompleted)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.88),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check_circle,
-                          color: Colors.green, size: 72),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Video Completed!',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: Colors.green.withValues(alpha: 0.5),
-                            width: 1.5),
-                      ),
-                      child: const Text(
-                        '✓ Progress saved',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                  ],
+          // Loading overlay - ONLY on initial load
+          if (_isInitialLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
                 ),
               ),
             ),
-          ),
-      ],
+
+          // Completion overlay
+          if (_isCompleted)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.88),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check_circle,
+                            color: Colors.green, size: 72),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Video Completed!',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Colors.green.withValues(alpha: 0.5),
+                              width: 1.5),
+                        ),
+                        child: const Text(
+                          '✓ Progress saved',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
-
-    if (_isFullscreen) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: PopScope(
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) _exitFullscreen();
-          },
-          child: SizedBox.expand(child: videoArea),
-        ),
-      );
-    }
-
-    return AspectRatio(aspectRatio: 16 / 9, child: videoArea);
   }
 }

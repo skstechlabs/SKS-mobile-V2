@@ -234,14 +234,30 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       return;
     }
     
-    // For milestone events, always track immediately
-    final isMilestone = eventType.startsWith('milestone_');
+    // ═══════════════════════════════════════════════════════════════
+    // OPTIMIZATION: Smart Tracking Strategy
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ ALWAYS track: milestones, start, complete, pause
+    // ⏱️ PERIODIC track: progress every 30 seconds (not 5!)
+    // ❌ SKIP: frequent progress updates
+    // ═══════════════════════════════════════════════════════════════
     
-    // Only track every 5 seconds to reduce API calls (except for milestones)
-    if (!isMilestone && eventType == 'progress' && (positionSeconds - _lastTrackedPosition).abs() < 5) {
-      return;
+    final isMilestone = eventType.startsWith('milestone_');
+    final isCriticalEvent = eventType == 'start' || eventType == 'complete' || 
+                            eventType == 'pause' || isMilestone;
+    
+    // For regular progress updates, only track every 30 seconds
+    if (eventType == 'progress') {
+      final timeSinceLastTrack = positionSeconds - _lastTrackedPosition;
+      
+      // Skip if less than 30 seconds passed AND position changed less than 30 seconds
+      if (timeSinceLastTrack.abs() < 30) {
+        debugPrint('⏭️ Skipping progress update (${timeSinceLastTrack}s since last track)');
+        return;
+      }
     }
 
+    // Update last tracked position for non-milestone events
     if (!isMilestone) {
       _lastTrackedPosition = positionSeconds;
     }
@@ -703,6 +719,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   }
 
   /// Build video player based on streaming type
+  /// Uses a single instance with key to prevent rebuilds
   Widget _buildVideoPlayer() {
     final streamingType = _videoConfig!['streamingType'] ?? 'cloudflare';
     final videoDuration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
@@ -710,6 +727,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     if (streamingType == 'hls') {
       // Use HLS Video Player
       return HLSVideoPlayer(
+        key: const ValueKey('hls_player'), // Preserve player instance
         hlsUrl: _videoConfig!['hlsUrl']?.toString() ?? '',
         thumbnailUrl: _videoConfig!['thumbnailUrl']?.toString(),
         lastPositionSeconds: _parseIntSafely(_videoConfig!['lastPositionSeconds']),
@@ -723,6 +741,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     } else {
       // Use Cloudflare Video Player (backward compatibility)
       return CloudflareVideoPlayer(
+        key: const ValueKey('cloudflare_player'), // Preserve player instance
         videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
         accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
         lastPositionSeconds: 0,
@@ -763,6 +782,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     return SecureScreenWrapper(
       child: Scaffold(
         backgroundColor: Colors.black,
+        resizeToAvoidBottomInset: false, // Prevent rebuilds on keyboard
         // Hide AppBar in landscape — video fills the screen
         appBar: isLandscape ? null : AppBar(
           backgroundColor: Colors.black,
@@ -832,38 +852,82 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
 
     // In landscape: video fills the entire screen, no info panel
     if (isLandscape) {
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: _buildVideoPlayer(),
-          ),
-          // Back button overlay in landscape
-          Positioned(
-            top: 8,
-            left: 8,
-            child: SafeArea(
+      return SafeArea(
+        child: Stack(
+          children: [
+            // Video player fills entire screen
+            Positioned.fill(
+              child: Container(
+                color: Colors.black,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: _buildVideoPlayer(),
+                  ),
+                ),
+              ),
+            ),
+            // Back button overlay in landscape (top-left)
+            Positioned(
+              top: 8,
+              left: 8,
               child: GestureDetector(
-                onTap: () => context.pop(),
+                onTap: () {
+                  // Rotate back to portrait when back is pressed
+                  SystemChrome.setPreferredOrientations([
+                    DeviceOrientation.portraitUp,
+                  ]).then((_) => context.pop());
+                },
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: Colors.black.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
                 ),
               ),
             ),
-          ),
-        ],
+            // Fullscreen exit hint (top-right)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.screen_rotation, color: Colors.white70, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Rotate to exit fullscreen',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     // Portrait mode: video + info panel
     return Column(
       children: [
-        // Video Player
-        _buildVideoPlayer(),
+        // Video Player - wrapped in Container to prevent size changes
+        Container(
+          color: Colors.black,
+          child: _buildVideoPlayer(),
+        ),
         
         // Video Duration Display
         Container(

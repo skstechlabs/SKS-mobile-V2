@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_service.dart';
 
 class LocalizationService extends ChangeNotifier {
   static final LocalizationService _instance = LocalizationService._internal();
@@ -10,6 +11,8 @@ class LocalizationService extends ChangeNotifier {
 
   static const String _languageKey = 'selected_language';
   static const String _defaultLanguage = 'en';
+  
+  final ApiService _apiService = ApiService();
   
   Locale _currentLocale = const Locale('en');
   Map<String, String> _localizedStrings = {};
@@ -80,8 +83,23 @@ class LocalizationService extends ChangeNotifier {
       _currentLocale = Locale(languageCode);
 
       if (savePreference) {
+        // Save to local storage
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_languageKey, languageCode);
+        
+        // Sync with backend API
+        try {
+          debugPrint('🌐 Syncing language preference with backend: $languageCode');
+          final response = await _apiService.setUserLanguage(languageCode);
+          if (response['success'] == true) {
+            debugPrint('✅ Language preference synced with backend');
+          } else {
+            debugPrint('⚠️ Failed to sync language with backend: ${response['message']}');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error syncing language with backend (non-critical): $e');
+          // Don't fail the language change if backend sync fails
+        }
       }
 
       notifyListeners();

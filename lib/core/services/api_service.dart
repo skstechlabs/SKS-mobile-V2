@@ -1052,4 +1052,47 @@ class ApiService {
       return _handleError(e);
     }
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MULTI-LANGUAGE VIDEO SYSTEM APIs (V2)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── 34. POST /api/classes-v2/user/language - Set user's language preference ─
+  Future<Map<String, dynamic>> setUserLanguage(String languageCode) async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.post(
+        '/api/classes-v2/user/language',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+        data: {'language': languageCode},
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 35. GET /api/classes-v2/user/language - Get user's language preference ─
+  Future<Map<String, dynamic>> getUserLanguage() async {
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _dio.get(
+        '/api/classes-v2/user/language',
+        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
 }

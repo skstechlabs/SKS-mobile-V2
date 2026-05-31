@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 
 class ClassDaysListScreen extends StatefulWidget {
   final int classId;
@@ -41,8 +42,14 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
 
     try {
       debugPrint('📚 Loading days for class ${widget.classId}');
+      
+      // Get user's current language preference
+      final currentLanguage = LocalizationService().currentLocale.languageCode;
+      debugPrint('🌐 Using language: $currentLanguage');
+      
       final response = await _apiService.get(
-        '/api/classes/${widget.classId}/days',
+        '/api/classes-v2/${widget.classId}/days',
+        queryParameters: {'language': currentLanguage},
       );
 
       debugPrint('📦 Days response: $response');

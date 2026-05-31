@@ -156,8 +156,14 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   Future<void> _loadVideoConfig() async {
     try {
       debugPrint('🎥 Loading video config for day ${widget.dayId}');
+      
+      // Get user's current language preference
+      final currentLanguage = LocalizationService().currentLocale.languageCode;
+      debugPrint('🌐 Using language: $currentLanguage');
+      
       final response = await _apiService.get(
         '/api/classes-v2/days/${widget.dayId}/video-config',
+        queryParameters: {'language': currentLanguage},
       );
 
       debugPrint('📦 Video config response: $response');
@@ -194,7 +200,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
           _videoConfig = videoConfig;
           _isLoading = false;
         });
-        debugPrint('✅ Video config loaded successfully (Type: $streamingType)');
+        debugPrint('✅ Video config loaded successfully (Type: $streamingType, Language: ${videoConfig['language']})');
       } else {
         final errorMsg = response['message'] ?? 'Failed to load video';
         debugPrint('❌ Failed to load video: $errorMsg');

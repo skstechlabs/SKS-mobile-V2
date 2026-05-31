@@ -40,8 +40,9 @@ class HLSVideoPlayer extends StatefulWidget {
 
 class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   WebViewController? _controller;
+  final GlobalKey _webViewKey = GlobalKey(); // Preserve WebView across rebuilds
 
-  bool _isLoading = false;
+  bool _isInitialLoading = true; // Only show loader on first load
   bool _hasError = false;
   String? _errorMessage;
   int _retryCount = 0;
@@ -50,10 +51,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   bool _isFullscreen = false;
   bool _hasStarted = false;
   bool _isCompleted = false;
-  
-  // State preservation for rotation/fullscreen
-  int _currentPosition = 0;
-  bool _wasPlaying = false;
 
   final Set<int> _reportedMilestones = {};
   static const List<int> _milestones = [25, 50, 75, 90, 100];
@@ -76,7 +73,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       setState(() {
         _hasError = true;
         _errorMessage = 'Invalid video URL';
-        _isLoading = false;
+        _isInitialLoading = false;
       });
       return;
     }
@@ -87,11 +84,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         ..setBackgroundColor(Colors.black)
         ..setNavigationDelegate(NavigationDelegate(
           onPageStarted: (_) {
-            if (mounted) setState(() => _isLoading = true);
+            // Don't show loading overlay after initial load
           },
           onPageFinished: (_) {
             if (mounted) {
-              setState(() => _isLoading = false);
+              setState(() => _isInitialLoading = false); // Hide loader permanently
               // Seek to last position if available
               if (widget.lastPositionSeconds > 0) {
                 _controller?.runJavaScript(
@@ -105,7 +102,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
                 setState(() {
                   _hasError = true;
                   _errorMessage = 'Failed to load video. Tap retry.';
-                  _isLoading = false;
+                  _isInitialLoading = false;
                 });
               }
             }
@@ -123,7 +120,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         setState(() {
           _hasError = true;
           _errorMessage = 'Failed to initialize player';
-          _isLoading = false;
+          _isInitialLoading = false;
         });
       }
     }
@@ -141,62 +138,21 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     setState(() {
       _hasError = false;
       _errorMessage = null;
-      _isLoading = true;
+      _isInitialLoading = true;
     });
     _initWebView();
   }
 
-  void _enterFullscreen() async {
-    // Save current state before entering fullscreen
-    if (_controller != null) {
-      try {
-        final positionStr = await _controller!.runJavaScriptReturningResult(
-          'Math.floor(video.currentTime || 0).toString()'
-        );
-        final playingStr = await _controller!.runJavaScriptReturningResult(
-          '(!video.paused).toString()'
-        );
-        _currentPosition = int.tryParse(positionStr.toString().replaceAll('"', '')) ?? 0;
-        _wasPlaying = playingStr.toString().contains('true');
-      } catch (e) {
-        debugPrint('Failed to save video state: $e');
-      }
-    }
-    
+  void _enterFullscreen() {
     setState(() => _isFullscreen = true);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    
-    // Restore state after a short delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (_controller != null && _currentPosition > 0) {
-        _controller!.runJavaScript(
-          'if(video && video.duration > 0) { video.currentTime = $_currentPosition; ${_wasPlaying ? 'video.play();' : ''} }'
-        );
-      }
-    });
   }
 
-  void _exitFullscreen() async {
-    // Save current state before exiting fullscreen
-    if (_controller != null) {
-      try {
-        final positionStr = await _controller!.runJavaScriptReturningResult(
-          'Math.floor(video.currentTime || 0).toString()'
-        );
-        final playingStr = await _controller!.runJavaScriptReturningResult(
-          '(!video.paused).toString()'
-        );
-        _currentPosition = int.tryParse(positionStr.toString().replaceAll('"', '')) ?? 0;
-        _wasPlaying = playingStr.toString().contains('true');
-      } catch (e) {
-        debugPrint('Failed to save video state: $e');
-      }
-    }
-    
+  void _exitFullscreen() {
     setState(() => _isFullscreen = false);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -208,15 +164,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       SystemUiMode.edgeToEdge,
       overlays: SystemUiOverlay.values,
     );
-    
-    // Restore state after a short delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (_controller != null && _currentPosition > 0) {
-        _controller!.runJavaScript(
-          'if(video && video.duration > 0) { video.currentTime = $_currentPosition; ${_wasPlaying ? 'video.play();' : ''} }'
-        );
-      }
-    });
   }
 
   void _toggleFullscreen() {
@@ -261,19 +208,33 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 <head>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { width:100%; height:100%; background:#000; overflow:hidden; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body { 
+      width: 100%; 
+      height: 100%; 
+      background: #000; 
+      overflow: hidden;
+      position: fixed; /* Prevent scrolling flicker */
+    }
     #container {
-      position: relative;
+      position: fixed; /* Prevent any movement */
       width: 100%;
       height: 100%;
       background: #000;
     }
     #video {
       position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
+      top: 0; 
+      left: 0;
+      width: 100%; 
+      height: 100%;
       object-fit: contain;
+      background: #000;
     }
     #poster {
       z-index: 1;
@@ -329,8 +290,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       padding: 20px 15px 15px;
       z-index: 10;
       opacity: 0;
-      transition: opacity 0.3s;
+      transition: opacity 0.3s ease-in-out;
       pointer-events: none;
+      will-change: opacity; /* GPU acceleration */
     }
     .controls.show {
       opacity: 1;
@@ -512,42 +474,62 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        
+        // Buffer settings - more conservative for mobile
         backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        highBufferWatchdogPeriod: 2,
+        maxBufferLength: 60,        // Increased from 30
+        maxMaxBufferLength: 120,    // Increased from 60
+        maxBufferSize: 120 * 1000 * 1000, // Increased buffer size
+        maxBufferHole: 1.0,         // Increased tolerance
+        highBufferWatchdogPeriod: 3,
         nudgeOffset: 0.1,
-        nudgeMaxRetry: 3,
-        maxFragLookUpTolerance: 0.25,
+        nudgeMaxRetry: 5,           // Increased retries
+        maxFragLookUpTolerance: 0.5,
+        
+        // Live streaming settings
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 10,
         liveDurationInfinity: false,
+        
+        // Encryption
         enableSoftwareAES: true,
-        manifestLoadingTimeOut: 10000,
-        manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingTimeOut: 10000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
-        fragLoadingTimeOut: 20000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
+        
+        // Manifest loading - more retries and longer timeouts
+        manifestLoadingTimeOut: 20000,  // Increased from 10s
+        manifestLoadingMaxRetry: 5,     // Increased from 3
+        manifestLoadingRetryDelay: 2000, // Increased from 1s
+        
+        // Level loading - more retries and longer timeouts
+        levelLoadingTimeOut: 20000,     // Increased from 10s
+        levelLoadingMaxRetry: 6,        // Increased from 4
+        levelLoadingRetryDelay: 2000,   // Increased from 1s
+        
+        // Fragment loading - more retries and longer timeouts
+        fragLoadingTimeOut: 30000,      // Increased from 20s
+        fragLoadingMaxRetry: 10,        // Increased from 6
+        fragLoadingRetryDelay: 2000,    // Increased from 1s
+        
+        // Quality settings
         startLevel: -1, // Auto quality
         abrEwmaDefaultEstimate: 500000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         abrMaxWithRealBitrate: false,
-        maxStarvationDelay: 4,
-        maxLoadingDelay: 4,
-        minAutoBitrate: 0
+        
+        // Starvation settings
+        maxStarvationDelay: 6,          // Increased from 4
+        maxLoadingDelay: 6,             // Increased from 4
+        minAutoBitrate: 0,
+        
+        // Enable debug logging
+        debug: false
       });
 
       hls.loadSource('${widget.hlsUrl}');
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+        console.log('Manifest parsed, levels:', hls.levels.length);
         send({ type: 'ready', duration: Math.floor(video.duration || 0) });
         
         // Build quality menu
@@ -556,6 +538,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           hls.levels.forEach(function(level, index) {
             var height = level.height;
             var label = height + 'p';
+            console.log('Quality level ' + index + ':', label, level.bitrate);
             qualityMenu.innerHTML += '<div class="quality-option" data-level="' + index + '">' + label + '</div>';
           });
           
@@ -580,22 +563,63 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           });
         }
       });
+      
+      // Track fragment loading
+      hls.on(Hls.Events.FRAG_LOADING, function(event, data) {
+        console.log('Loading fragment:', data.frag.sn, 'level:', data.frag.level);
+      });
+      
+      hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
+        console.log('Fragment loaded:', data.frag.sn, 'duration:', data.frag.duration);
+      });
+      
+      hls.on(Hls.Events.FRAG_LOAD_EMERGENCY_ABORTED, function(event, data) {
+        console.log('Fragment load aborted:', data.frag.sn);
+      });
 
+      var networkErrorCount = 0;
+      var mediaErrorCount = 0;
+      
       hls.on(Hls.Events.ERROR, function(event, data) {
+        console.log('HLS Error:', data.type, data.details, data.fatal);
+        
         if (data.fatal) {
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              send({ type: 'error', message: 'Network error' });
-              hls.startLoad();
+              networkErrorCount++;
+              console.log('Network error count:', networkErrorCount);
+              
+              if (networkErrorCount <= 5) {
+                console.log('Attempting to recover from network error...');
+                setTimeout(function() {
+                  hls.startLoad();
+                }, 1000 * networkErrorCount); // Exponential backoff
+              } else {
+                send({ type: 'error', message: 'Network error - Unable to load video' });
+              }
               break;
+              
             case Hls.ErrorTypes.MEDIA_ERROR:
-              send({ type: 'error', message: 'Media error' });
-              hls.recoverMediaError();
+              mediaErrorCount++;
+              console.log('Media error count:', mediaErrorCount);
+              
+              if (mediaErrorCount <= 3) {
+                console.log('Attempting to recover from media error...');
+                hls.recoverMediaError();
+              } else {
+                console.log('Too many media errors, swapping audio codec...');
+                hls.swapAudioCodec();
+                hls.recoverMediaError();
+              }
               break;
+              
             default:
-              send({ type: 'error', message: 'Fatal error' });
+              send({ type: 'error', message: 'Fatal playback error' });
               break;
           }
+        } else {
+          // Non-fatal errors - just log them
+          console.log('Non-fatal HLS error:', data.details);
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -822,20 +846,31 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       );
     }
 
+    // Build WebView widget once with GlobalKey to preserve state
+    final webViewWidget = _controller != null
+        ? WebViewWidget(
+            key: _webViewKey, // Preserve across rebuilds
+            controller: _controller!,
+          )
+        : const SizedBox.shrink();
+
     final videoArea = Stack(
       children: [
-        // WebView is always loaded - no Flutter overlay blocking it
-        if (_controller != null)
-          Positioned.fill(child: WebViewWidget(controller: _controller!)),
+        // WebView always visible - NEVER conditionally rendered
+        Positioned.fill(child: webViewWidget),
 
-        if (_isLoading)
-          const Positioned.fill(
-            child: ColoredBox(
-              color: Colors.black54,
-              child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        // Loading overlay - ONLY on initial load, never during playback
+        if (_isInitialLoading)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
           ),
 
+        // Completion overlay
         if (_isCompleted)
           Positioned.fill(
             child: Container(

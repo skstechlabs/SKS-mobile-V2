@@ -167,6 +167,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   }
 
   void _toggleFullscreen() {
+    // Save current position before toggling
+    _controller?.runJavaScript('FlutterChannel.postMessage(JSON.stringify({type:"savePosition"}));');
+    
     if (_isFullscreen) {
       _exitFullscreen();
     } else {
@@ -286,13 +289,13 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       bottom: 0;
       left: 0;
       right: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,0.8));
-      padding: 20px 15px 15px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      padding: 30px 15px 15px;
       z-index: 10;
       opacity: 0;
       transition: opacity 0.3s ease-in-out;
       pointer-events: none;
-      will-change: opacity; /* GPU acceleration */
+      will-change: opacity;
     }
     .controls.show {
       opacity: 1;
@@ -302,20 +305,43 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       opacity: 1;
       pointer-events: auto;
     }
+    .progress-container {
+      width: 100%;
+      margin-bottom: 12px;
+    }
     .progress-bar {
       width: 100%;
-      height: 4px;
+      height: 5px;
       background: rgba(255,255,255,0.3);
-      border-radius: 2px;
+      border-radius: 3px;
       cursor: pointer;
-      margin-bottom: 10px;
+      position: relative;
+    }
+    .progress-bar:hover {
+      height: 7px;
     }
     .progress-filled {
       height: 100%;
       background: #ff6b00;
-      border-radius: 2px;
+      border-radius: 3px;
       width: 0%;
       transition: width 0.1s;
+      position: relative;
+    }
+    .progress-handle {
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px;
+      height: 12px;
+      background: #ff6b00;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .progress-bar:hover .progress-handle {
+      opacity: 1;
     }
     .control-buttons {
       display: flex;
@@ -325,47 +351,106 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       font-family: Arial, sans-serif;
       font-size: 14px;
     }
+    .left-controls, .right-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .btn {
       background: none;
       border: none;
       color: white;
-      font-size: 24px;
       cursor: pointer;
-      padding: 5px;
+      padding: 8px;
       display: flex;
       align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+      min-width: 36px;
+      height: 36px;
+    }
+    .btn:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    .btn svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
     }
     .time {
       font-size: 13px;
-      margin: 0 10px;
+      font-weight: 500;
+      margin: 0 4px;
+      min-width: 100px;
+      text-align: center;
     }
-    .quality-selector {
+    .speed-selector, .quality-selector {
       position: relative;
     }
-    .quality-menu {
+    .speed-menu, .quality-menu {
       position: absolute;
       bottom: 100%;
       right: 0;
-      background: rgba(0,0,0,0.9);
-      border-radius: 4px;
-      padding: 5px 0;
-      margin-bottom: 5px;
+      background: rgba(28,28,28,0.95);
+      border-radius: 8px;
+      padding: 8px 0;
+      margin-bottom: 8px;
       display: none;
+      min-width: 120px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    .quality-menu.show {
+    .speed-menu.show, .quality-menu.show {
       display: block;
     }
-    .quality-option {
-      padding: 8px 15px;
+    .speed-option, .quality-option {
+      padding: 10px 16px;
       cursor: pointer;
       white-space: nowrap;
-      font-size: 13px;
+      font-size: 14px;
+      transition: background 0.2s;
     }
-    .quality-option:hover {
+    .speed-option:hover, .quality-option:hover {
       background: rgba(255,255,255,0.1);
     }
-    .quality-option.active {
+    .speed-option.active, .quality-option.active {
       color: #ff6b00;
+      font-weight: 600;
+    }
+    .volume-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .volume-slider {
+      width: 0;
+      opacity: 0;
+      transition: width 0.3s, opacity 0.3s;
+      -webkit-appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 2px;
+      outline: none;
+    }
+    .volume-container:hover .volume-slider {
+      width: 60px;
+      opacity: 1;
+    }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #ff6b00;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .volume-slider::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      background: #ff6b00;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
     }
   </style>
 </head>
@@ -382,20 +467,62 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     </div>
     
     <div class="controls">
-      <div class="progress-bar" id="progress-bar">
-        <div class="progress-filled" id="progress-filled"></div>
+      <div class="progress-container">
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-filled" id="progress-filled">
+            <div class="progress-handle"></div>
+          </div>
+        </div>
       </div>
       <div class="control-buttons">
-        <div style="display:flex;align-items:center;">
-          <button class="btn" id="play-btn">▶</button>
+        <div class="left-controls">
+          <button class="btn" id="play-btn" title="Play/Pause">
+            <svg viewBox="0 0 24 24" id="play-icon">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <svg viewBox="0 0 24 24" id="pause-icon" style="display:none;">
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+            </svg>
+          </button>
+          <div class="volume-container">
+            <button class="btn" id="volume-btn" title="Mute/Unmute">
+              <svg viewBox="0 0 24 24" id="volume-icon">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+              </svg>
+              <svg viewBox="0 0 24 24" id="mute-icon" style="display:none;">
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+              </svg>
+            </button>
+            <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="100">
+          </div>
           <span class="time" id="time">0:00 / 0:00</span>
         </div>
-        <div style="display:flex;align-items:center;">
+        <div class="right-controls">
+          <div class="speed-selector">
+            <button class="btn" id="speed-btn" title="Playback Speed">1x</button>
+            <div class="speed-menu" id="speed-menu">
+              <div class="speed-option" data-speed="0.25">0.25x</div>
+              <div class="speed-option" data-speed="0.5">0.5x</div>
+              <div class="speed-option" data-speed="0.75">0.75x</div>
+              <div class="speed-option active" data-speed="1">Normal</div>
+              <div class="speed-option" data-speed="1.25">1.25x</div>
+              <div class="speed-option" data-speed="1.5">1.5x</div>
+              <div class="speed-option" data-speed="1.75">1.75x</div>
+              <div class="speed-option" data-speed="2">2x</div>
+            </div>
+          </div>
           <div class="quality-selector">
-            <button class="btn" id="quality-btn">HD</button>
+            <button class="btn" id="quality-btn" title="Quality">Auto</button>
             <div class="quality-menu" id="quality-menu"></div>
           </div>
-          <button class="btn" id="fullscreen-btn">⛶</button>
+          <button class="btn" id="fullscreen-btn" title="Fullscreen">
+            <svg viewBox="0 0 24 24" id="fullscreen-icon">
+              <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+            </svg>
+            <svg viewBox="0 0 24 24" id="fullscreen-exit-icon" style="display:none;">
+              <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -405,12 +532,22 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   <script>
     var video = document.getElementById('video');
     var playBtn = document.getElementById('play-btn');
+    var playIcon = document.getElementById('play-icon');
+    var pauseIcon = document.getElementById('pause-icon');
     var progressBar = document.getElementById('progress-bar');
     var progressFilled = document.getElementById('progress-filled');
     var timeDisplay = document.getElementById('time');
+    var volumeBtn = document.getElementById('volume-btn');
+    var volumeIcon = document.getElementById('volume-icon');
+    var muteIcon = document.getElementById('mute-icon');
+    var volumeSlider = document.getElementById('volume-slider');
+    var speedBtn = document.getElementById('speed-btn');
+    var speedMenu = document.getElementById('speed-menu');
     var qualityBtn = document.getElementById('quality-btn');
     var qualityMenu = document.getElementById('quality-menu');
     var fullscreenBtn = document.getElementById('fullscreen-btn');
+    var fullscreenIcon = document.getElementById('fullscreen-icon');
+    var fullscreenExitIcon = document.getElementById('fullscreen-exit-icon');
     var container = document.getElementById('container');
     var playOverlay = document.getElementById('play-overlay');
     
@@ -420,6 +557,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     var lastReportedTime = 0;
     var hideControlsTimeout = null;
     var controlsElement = document.querySelector('.controls');
+    var savedPosition = 0;
 
     function send(obj) {
       try { FlutterChannel.postMessage(JSON.stringify(obj)); } catch(e) {}
@@ -636,6 +774,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       if (${widget.lastPositionSeconds} > 0 && video.duration > 0) {
         video.currentTime = ${widget.lastPositionSeconds};
       }
+      // Restore saved position after fullscreen toggle
+      if (savedPosition > 0 && video.duration > 0) {
+        video.currentTime = savedPosition;
+        savedPosition = 0;
+      }
     });
 
     video.addEventListener('play', function() {
@@ -649,7 +792,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           duration: Math.floor(video.duration || 0)
         });
       }
-      playBtn.textContent = '⏸';
+      playIcon.style.display = 'none';
+      pauseIcon.style.display = 'block';
       
       // Hide controls after 3 seconds when playing
       showControls();
@@ -662,7 +806,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     video.addEventListener('pause', function() {
-      playBtn.textContent = '▶';
+      playIcon.style.display = 'block';
+      pauseIcon.style.display = 'none';
       
       // Show controls when paused
       showControls();
@@ -698,7 +843,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     // Controls
     playOverlay.addEventListener('click', playVideo);
     
-    playBtn.addEventListener('click', function() {
+    playBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
       if (video.paused) {
         video.play();
       } else {
@@ -706,17 +852,85 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       }
     });
 
+    // Volume controls
+    volumeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (video.muted || video.volume === 0) {
+        video.muted = false;
+        video.volume = volumeSlider.value / 100;
+        volumeIcon.style.display = 'block';
+        muteIcon.style.display = 'none';
+      } else {
+        video.muted = true;
+        volumeIcon.style.display = 'none';
+        muteIcon.style.display = 'block';
+      }
+    });
+
+    volumeSlider.addEventListener('input', function(e) {
+      e.stopPropagation();
+      var volume = this.value / 100;
+      video.volume = volume;
+      video.muted = volume === 0;
+      if (volume === 0) {
+        volumeIcon.style.display = 'none';
+        muteIcon.style.display = 'block';
+      } else {
+        volumeIcon.style.display = 'block';
+        muteIcon.style.display = 'none';
+      }
+    });
+
+    video.addEventListener('volumechange', function() {
+      volumeSlider.value = video.muted ? 0 : video.volume * 100;
+    });
+
+    // Progress bar
     progressBar.addEventListener('click', function(e) {
+      e.stopPropagation();
       var rect = progressBar.getBoundingClientRect();
       var percent = (e.clientX - rect.left) / rect.width;
       video.currentTime = percent * video.duration;
     });
 
-    qualityBtn.addEventListener('click', function() {
-      qualityMenu.classList.toggle('show');
+    // Speed controls
+    speedBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      speedMenu.classList.toggle('show');
+      qualityMenu.classList.remove('show');
     });
 
-    fullscreenBtn.addEventListener('click', function() {
+    speedMenu.querySelectorAll('.speed-option').forEach(function(option) {
+      option.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var speed = parseFloat(this.getAttribute('data-speed'));
+        video.playbackRate = speed;
+        speedMenu.classList.remove('show');
+        
+        speedMenu.querySelectorAll('.speed-option').forEach(function(opt) {
+          opt.classList.remove('active');
+        });
+        this.classList.add('active');
+        
+        if (speed === 1) {
+          speedBtn.textContent = '1x';
+        } else {
+          speedBtn.textContent = speed + 'x';
+        }
+      });
+    });
+
+    // Quality controls
+    qualityBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      qualityMenu.classList.toggle('show');
+      speedMenu.classList.remove('show');
+    });
+
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      savedPosition = video.currentTime;
       send({ type: 'fullscreen' });
     });
 
@@ -737,6 +951,52 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         } else {
           showControls();
         }
+      }
+    });
+
+    // Close menus when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!speedBtn.contains(e.target) && !speedMenu.contains(e.target)) {
+        speedMenu.classList.remove('show');
+      }
+      if (!qualityBtn.contains(e.target) && !qualityMenu.contains(e.target)) {
+        qualityMenu.classList.remove('show');
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      switch(e.key) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          if (video.paused) video.play();
+          else video.pause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          video.currentTime = Math.min(video.duration, video.currentTime + 5);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          video.volume = Math.min(1, video.volume + 0.1);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          video.volume = Math.max(0, video.volume - 0.1);
+          break;
+        case 'm':
+          e.preventDefault();
+          video.muted = !video.muted;
+          break;
+        case 'f':
+          e.preventDefault();
+          send({ type: 'fullscreen' });
+          break;
       }
     });
 
@@ -763,6 +1023,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           return;
         case 'error':
           debugPrint('❌ Player error: ${data['message']}');
+          return;
+        case 'savePosition':
+          // Position saved in JS before fullscreen toggle
           return;
         case 'fullscreen':
           _toggleFullscreen();

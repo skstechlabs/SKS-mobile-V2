@@ -84,3 +84,6 @@ app.*.map.json
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 
 app/sks-release-key.jks
+
+# Development documentation (not for production)
+docs/

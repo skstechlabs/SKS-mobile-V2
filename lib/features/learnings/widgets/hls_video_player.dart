@@ -658,7 +658,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         enableWorker: true,
         lowLatencyMode: false,
         
-        // Buffer settings - more conservative for mobile
+        // Buffer settings - optimized for smooth quality switching
         backBufferLength: 90,
         maxBufferLength: 60,        // Increased from 30
         maxMaxBufferLength: 120,    // Increased from 60
@@ -668,6 +668,10 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         nudgeOffset: 0.1,
         nudgeMaxRetry: 5,           // Increased retries
         maxFragLookUpTolerance: 0.5,
+        
+        // Progressive loading for quality switches
+        progressive: true,
+        lowLatencyMode: false,
         
         // Live streaming settings
         liveSyncDurationCount: 3,
@@ -692,12 +696,17 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         fragLoadingMaxRetry: 10,        // Increased from 6
         fragLoadingRetryDelay: 2000,    // Increased from 1s
         
-        // Quality settings
+        // Quality settings for smooth switching
         startLevel: -1, // Auto quality
         abrEwmaDefaultEstimate: 500000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         abrMaxWithRealBitrate: false,
+        
+        // Smooth level switching
+        capLevelToPlayerSize: false,
+        capLevelOnFPSDrop: false,
+        smoothQualitySwitching: true,
         
         // Starvation settings
         maxStarvationDelay: 6,          // Increased from 4
@@ -717,7 +726,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         
         // Build quality menu
         if (hls.levels.length > 1) {
-          qualityMenu.innerHTML = '<div class="quality-option" data-level="-1">Auto</div>';
+          qualityMenu.innerHTML = '<div class="quality-option active" data-level="-1">Auto</div>';
           hls.levels.forEach(function(level, index) {
             var height = level.height;
             var label = height + 'p';
@@ -725,39 +734,86 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             qualityMenu.innerHTML += '<div class="quality-option" data-level="' + index + '">' + label + '</div>';
           });
           
-          // Quality selection
+          // Quality selection with smooth switching
           qualityMenu.querySelectorAll('.quality-option').forEach(function(option) {
             option.addEventListener('click', function() {
               var level = parseInt(this.getAttribute('data-level'));
-              hls.currentLevel = level;
-              qualityMenu.classList.remove('show');
+              var wasPlaying = !video.paused;
+              var currentTime = video.currentTime;
               
+              console.log('Switching quality to level:', level, 'at time:', currentTime);
+              
+              // Smooth quality switch
+              if (level === -1) {
+                // Auto quality
+                hls.currentLevel = -1;
+                qualityBtn.textContent = 'Auto';
+              } else {
+                // Manual quality - use nextLevel for smoother transition
+                hls.nextLevel = level;
+                hls.currentLevel = level;
+                qualityBtn.textContent = hls.levels[level].height + 'p';
+              }
+              
+              // Update active state
               qualityMenu.querySelectorAll('.quality-option').forEach(function(opt) {
                 opt.classList.remove('active');
               });
               this.classList.add('active');
               
-              if (level === -1) {
-                qualityBtn.textContent = 'Auto';
-              } else {
-                qualityBtn.textContent = hls.levels[level].height + 'p';
+              // Close menu
+              qualityMenu.classList.remove('show');
+              
+              // Resume playback if it was playing
+              if (wasPlaying) {
+                video.play().catch(function(err) {
+                  console.error('Resume play failed:', err);
+                });
               }
             });
           });
         }
       });
       
-      // Track fragment loading
+      // Track level switching for smooth quality changes
+      hls.on(Hls.Events.LEVEL_SWITCHING, function(event, data) {
+        console.log('Switching to level:', data.level);
+      });
+      
+      hls.on(Hls.Events.LEVEL_SWITCHED, function(event, data) {
+        console.log('Switched to level:', data.level, hls.levels[data.level].height + 'p');
+        
+        // Update quality button to show current level
+        if (hls.currentLevel === -1) {
+          var autoLevel = hls.levels[hls.loadLevel] || hls.levels[0];
+          qualityBtn.textContent = 'Auto (' + autoLevel.height + 'p)';
+        } else {
+          qualityBtn.textContent = hls.levels[data.level].height + 'p';
+        }
+      });
+      
+      // Track auto level changes
+      hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
+        // Update Auto button to show current auto-selected quality
+        if (hls.currentLevel === -1 && hls.loadLevel >= 0) {
+          var currentLevel = hls.levels[hls.loadLevel];
+          if (currentLevel) {
+            qualityBtn.textContent = 'Auto (' + currentLevel.height + 'p)';
+          }
+        }
+      });
+      
+      // Track fragment loading (reduced logging)
       hls.on(Hls.Events.FRAG_LOADING, function(event, data) {
-        console.log('Loading fragment:', data.frag.sn, 'level:', data.frag.level);
+        // Silent - only log if debugging
       });
       
       hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
-        console.log('Fragment loaded:', data.frag.sn, 'duration:', data.frag.duration);
+        // Silent - only log if debugging
       });
       
       hls.on(Hls.Events.FRAG_LOAD_EMERGENCY_ABORTED, function(event, data) {
-        console.log('Fragment load aborted:', data.frag.sn);
+        console.warn('Fragment load aborted:', data.frag.sn);
       });
 
       var networkErrorCount = 0;

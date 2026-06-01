@@ -25,14 +25,12 @@ class LocalizationService extends ChangeNotifier {
   static const List<Locale> supportedLocales = [
     Locale('en'), // English
     Locale('te'), // Telugu
-    Locale('hi'), // Hindi
   ];
 
   // Language names for display
   static const Map<String, String> languageNames = {
     'en': 'English',
     'te': 'తెలుగు (Telugu)',
-    'hi': 'हिंदी (Hindi)',
   };
 
   /// Initialize localization service

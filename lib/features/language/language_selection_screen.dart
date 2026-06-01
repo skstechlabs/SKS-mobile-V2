@@ -188,12 +188,6 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
                           languageName: context.tr('telugu'),
                           icon: '🇮🇳',
                         ),
-                        const SizedBox(height: 16),
-                        _buildLanguageOption(
-                          languageCode: 'hi',
-                          languageName: context.tr('hindi'),
-                          icon: '🇮🇳',
-                        ),
                       ],
                     ),
                   ),

@@ -1,218 +1,182 @@
-# Recent Gatherings - Implementation Checklist
+# SKS Mobile App - Implementation Checklist
 
-## ✅ Completed Tasks
+## ✅ Completed (Backend)
 
-### Backend Implementation
-- [x] Created `sks-backend/routes/gatherings.js` with GET endpoints
-- [x] Added gatherings table to `sks-backend/database.js`
-- [x] Registered route in `sks-backend/server.js`
-- [x] Added proper error handling and response formatting
-- [x] Created SQL seed data script: `sks-backend/migrations/gatherings_seed_data.sql`
+- [x] Redis caching layer (`config/redis.js`)
+- [x] JWT refresh token middleware (`middleware/jwtAuth.js`)
+- [x] Updated authentication routes (`routes/auth.js`)
+- [x] Database connection pooling (200 max connections)
+- [x] Environment configuration (`.env`)
+- [x] Package.json with required dependencies
+- [x] Production-ready documentation
 
-### Mobile App Implementation
-- [x] Added `getGatherings()` method to `api_service.dart`
-- [x] Added state variables: `_gatherings`, `_isLoadingGatherings`
-- [x] Added `_loadGatherings()` method to fetch from API
-- [x] Updated `_buildRecentGatherings()` to use database data
-- [x] Implemented loading spinner during fetch
-- [x] Implemented empty state handling
-- [x] Added network image support with loading indicators
-- [x] Added error handling for failed image loads
-- [x] Maintained video link functionality
+## 🔄 In Progress (Mobile App)
 
-### Documentation
-- [x] Created `GATHERINGS_DATABASE_IMPLEMENTATION.md` - Technical docs
-- [x] Created `IMAGE_UPLOAD_CHECKLIST.md` - Image migration guide
-- [x] Created `GATHERINGS_COMPLETE.md` - Summary document
-- [x] Created `IMPLEMENTATION_CHECKLIST.md` - This file
-- [x] Created SQL seed data script with comments
+### 1. Secure Storage Service
+- [x] Created `secure_storage_service.dart`
+- [ ] Initialize in `main.dart`
+- [ ] Test on iOS and Android
 
-### Code Quality
-- [x] No TypeScript/Dart diagnostics errors
-- [x] Proper null safety handling
-- [x] Consistent code style
-- [x] Proper error handling
-- [x] Loading states implemented
-- [x] Empty states implemented
+### 2. API Service Updates
+- [ ] Add JWT token management
+- [ ] Implement auto-refresh interceptor
+- [ ] Update all API calls to use JWT tokens
+- [ ] Handle token expiry gracefully
 
-## ⏳ Pending Tasks (User Action Required)
+### 3. Auth Service Updates
+- [ ] Store JWT tokens after login
+- [ ] Implement token refresh logic
+- [ ] Update logout to clear secure storage
+- [ ] Handle session restoration on app start
 
-### 1. Upload Images to CDN
-**Priority: HIGH**
-**Location:** `SKS-mobile-V2/assets/images/recentGatherings/`
+### 4. Auth State Management
+- [ ] Update to use secure storage
+- [ ] Add token expiry tracking
+- [ ] Implement auto-refresh trigger
+- [ ] Handle token refresh failures
 
-Images to upload (5 files, ~2.9 MB total):
-- [ ] `Bliss_Center.jpeg` (288 KB)
-- [ ] `GuruPoornima_2025.jpg` (1.4 MB)
-- [ ] `MahaSivaratri_2025.jpg` (846 KB)
-- [ ] `SKS_8th_anniversary.jpg` (202 KB)
-- [ ] `Vastra_Daanam.jpeg` (219 KB)
+## 📋 TODO (Mobile App)
 
-**Options:**
-1. Firebase Storage (Recommended)
-2. AWS S3 + CloudFront
-3. Self-hosted backend server
+### Profile UI Improvements
+- [ ] Make optional fields truly optional in forms
+- [ ] Update profile_edit_screen.dart UI
+- [ ] Add professional styling
+- [ ] Improve form validation messages
+- [ ] Add loading states
+- [ ] Add success/error feedback
 
-**See:** `IMAGE_UPLOAD_CHECKLIST.md` for detailed instructions
+### API Integration
+- [ ] Test all endpoints with JWT tokens
+- [ ] Verify 90-day session persistence
+- [ ] Test token auto-refresh
+- [ ] Handle network errors gracefully
+- [ ] Add retry logic for failed requests
 
-### 2. Update SQL Script with CDN URLs
-**Priority: HIGH**
-**File:** `sks-backend/migrations/gatherings_seed_data.sql`
+### User Experience
+- [ ] Add splash screen with session check
+- [ ] Implement smooth onboarding flow
+- [ ] Add profile completion progress indicator
+- [ ] Optimize image loading
+- [ ] Add skeleton loaders
 
-- [ ] Replace `https://your-cdn.com/` with actual CDN URL
-- [ ] Verify all 5 image URLs are correct
-- [ ] Test URLs in browser to ensure they're accessible
+### Performance
+- [ ] Implement local database (SQLite)
+- [ ] Add offline mode support
+- [ ] Optimize API calls (reduce redundant requests)
+- [ ] Add request caching
+- [ ] Implement pagination for lists
 
-### 3. Run Database Migration
-**Priority: HIGH**
+## 🧪 Testing
 
-```bash
-# Connect to your database
-mysql -u your_user -p sivoham_dev
+### Backend Tests
+- [ ] Login with Google (new user)
+- [ ] Login with Google (existing user)
+- [ ] Login with Phone OTP
+- [ ] Token refresh before expiry
+- [ ] Token refresh after expiry
+- [ ] Logout single device
+- [ ] Logout all devices
+- [ ] Profile update with caching
+- [ ] Concurrent requests (100+ users)
+- [ ] Redis failover test
 
-# Run the seed data script
-source sks-backend/migrations/gatherings_seed_data.sql
+### Mobile Tests
+- [ ] Login and store tokens
+- [ ] Auto-refresh before expiry
+- [ ] App restart (restore session)
+- [ ] 90-day session test
+- [ ] Logout and clear tokens
+- [ ] Network error handling
+- [ ] Offline mode
+- [ ] Profile form validation
+- [ ] Image upload
+- [ ] Push notifications
 
-# Or copy-paste the INSERT statements
-```
+### Load Testing
+- [ ] 1,000 concurrent users
+- [ ] 10,000 concurrent users
+- [ ] 100,000 concurrent users
+- [ ] 1,000,000 concurrent users
+- [ ] Database connection pool stress test
+- [ ] Redis cache hit rate
+- [ ] API response time (p95, p99)
 
-- [ ] Run SQL INSERT statements
-- [ ] Verify data with SELECT query
-- [ ] Check all 5 gatherings are inserted
+## 🚀 Deployment
 
-### 4. Test Backend API
-**Priority: HIGH**
+### Backend
+- [ ] Install Redis on production server
+- [ ] Update production `.env` with strong secrets
+- [ ] Configure database connection pooling
+- [ ] Set up monitoring (APM)
+- [ ] Configure logging (Winston)
+- [ ] Set up alerts
+- [ ] Deploy to production
+- [ ] Smoke test all endpoints
 
-```bash
-# Start backend server
-cd sks-backend
-npm start
+### Mobile
+- [ ] Update API base URL for production
+- [ ] Build release APK/IPA
+- [ ] Test on real devices
+- [ ] Submit to Play Store
+- [ ] Submit to App Store
+- [ ] Gradual rollout (10% → 50% → 100%)
 
-# Test API endpoint
-curl http://localhost:3012/api/gatherings
-```
+## 📊 Monitoring
 
-- [ ] Server starts without errors
-- [ ] API returns gatherings data
-- [ ] Image URLs are correct
-- [ ] Video URLs are correct
-- [ ] Response format is correct (camelCase)
+### Metrics to Track
+- [ ] Login success rate
+- [ ] Token refresh rate
+- [ ] Session duration (average)
+- [ ] API response time
+- [ ] Database query time
+- [ ] Redis hit rate
+- [ ] Error rate
+- [ ] Crash rate
 
-### 5. Test Mobile App
-**Priority: HIGH**
+### Alerts to Configure
+- [ ] High error rate (> 5%)
+- [ ] Slow API response (> 2s)
+- [ ] Database connection pool exhausted
+- [ ] Redis connection failed
+- [ ] High memory usage (> 80%)
+- [ ] High CPU usage (> 80%)
 
-```bash
-# Run mobile app
-cd SKS-mobile-V2
-flutter run
-```
+## 📚 Documentation
 
-- [ ] App starts without errors
-- [ ] Navigate to Home page
-- [ ] Scroll to "Recent Gatherings" section
-- [ ] Verify loading spinner appears briefly
-- [ ] Verify all 5 gatherings appear
-- [ ] Verify images load correctly
-- [ ] Tap gathering to test video link
-- [ ] Verify video opens in YouTube
+- [x] Production implementation guide
+- [x] Redis installation guide
+- [ ] API documentation (Swagger/OpenAPI)
+- [ ] Mobile app architecture diagram
+- [ ] Database schema documentation
+- [ ] Deployment runbook
+- [ ] Troubleshooting guide
+- [ ] User manual
 
-### 6. Test Edge Cases
-**Priority: MEDIUM**
+## 🔒 Security Audit
 
-- [ ] Test with no internet connection (should show error)
-- [ ] Test with invalid image URL (should show placeholder)
-- [ ] Test with empty database (section should hide)
-- [ ] Test with inactive gatherings (should not appear)
-- [ ] Test with very long titles/descriptions (should truncate)
+- [ ] Review JWT secret strength
+- [ ] Verify token expiry times
+- [ ] Check rate limiting effectiveness
+- [ ] Audit database queries (SQL injection)
+- [ ] Review CORS configuration
+- [ ] Check input validation
+- [ ] Verify secure storage implementation
+- [ ] Test authentication bypass attempts
+- [ ] Review API permissions
 
-### 7. Performance Testing
-**Priority: LOW**
+## 🎯 Next Immediate Steps
 
-- [ ] Check image loading speed
-- [ ] Check API response time
-- [ ] Check memory usage with many gatherings
-- [ ] Consider image optimization if needed
+1. **Install Redis** (see `INSTALL_REDIS.md`)
+2. **Install backend dependencies**: `npm install`
+3. **Start backend server**: `npm start`
+4. **Add flutter_secure_storage**: `flutter pub add flutter_secure_storage`
+5. **Update API service** with JWT token management
+6. **Test authentication flow** end-to-end
+7. **Update profile UI** to make optional fields optional
+8. **Load test** with 1000+ concurrent users
 
-## 📋 Quick Start Guide
+---
 
-### For First-Time Setup:
-
-1. **Upload Images** (15 minutes)
-   - Choose CDN provider
-   - Upload 5 images
-   - Get public URLs
-
-2. **Update SQL Script** (5 minutes)
-   - Edit `gatherings_seed_data.sql`
-   - Replace placeholder URLs
-   - Save file
-
-3. **Run Migration** (2 minutes)
-   - Connect to database
-   - Run SQL script
-   - Verify data
-
-4. **Test Backend** (5 minutes)
-   - Start server
-   - Test API endpoint
-   - Verify response
-
-5. **Test Mobile App** (10 minutes)
-   - Run app
-   - Check home page
-   - Test all features
-
-**Total Time: ~40 minutes**
-
-## 🚀 Adding New Gatherings (After Setup)
-
-Once setup is complete, adding new gatherings is simple:
-
-1. Upload new image to CDN
-2. Get image URL
-3. Run SQL INSERT:
-   ```sql
-   INSERT INTO gatherings (title, date, description, image_url, video_url, participants, is_active) 
-   VALUES ('New Event', 'April 2026', 'Description', 'https://cdn.com/image.jpg', 'https://youtube.com/...', '1000+ attendees', 1);
-   ```
-4. Restart mobile app (or implement pull-to-refresh)
-5. New gathering appears automatically!
-
-**Time: ~5 minutes per gathering**
-
-## 📞 Support
-
-If you encounter issues:
-
-1. Check `GATHERINGS_DATABASE_IMPLEMENTATION.md` for technical details
-2. Check `IMAGE_UPLOAD_CHECKLIST.md` for image upload help
-3. Review error logs in backend console
-4. Review error logs in mobile app console
-5. Verify database connection and table structure
-6. Verify API endpoint is accessible
-7. Verify image URLs are publicly accessible
-
-## 🎯 Success Criteria
-
-The implementation is successful when:
-
-- ✅ Backend API returns gatherings data
-- ✅ Mobile app displays gatherings on home page
-- ✅ All images load correctly
-- ✅ Video links work when tapped
-- ✅ Loading states work properly
-- ✅ Empty states work properly
-- ✅ No errors in console logs
-- ✅ New gatherings can be added via SQL
-- ✅ Changes appear in app without code changes
-
-## 📊 Current Status
-
-**Code Implementation:** 100% Complete ✅
-**Image Migration:** 0% Complete ⏳
-**Data Migration:** 0% Complete ⏳
-**Testing:** 0% Complete ⏳
-
-**Overall Progress:** 25% Complete
-
-**Next Action:** Upload images to CDN (see `IMAGE_UPLOAD_CHECKLIST.md`)
+**Priority**: High
+**Target Completion**: 2 weeks
+**Status**: 40% complete

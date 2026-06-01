@@ -843,26 +843,35 @@ class _HomePageState extends State<HomePage>
         orElse: () => {},
       );
       
+      bool success = false;
+      String? errorMessage;
+      
       if (existing.isNotEmpty) {
         // Activate existing reminder
-        await _apiService.toggleReminder(existing['id'] as int);
+        final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
+        success = toggleResponse['success'] == true;
+        errorMessage = toggleResponse['message'];
       } else {
         // Create new reminder with default settings
-        await _apiService.createReminder(
+        final createResponse = await _apiService.createReminder(
           title: title,
           message: 'Time for your ${title.toLowerCase()}',
           reminderTime: defaultTime,
           daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days (Sunday to Saturday)
           isActive: true,
         );
+        success = createResponse['success'] == true;
+        errorMessage = createResponse['message'];
       }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${context.tr('reminder_set')} $defaultTime ${context.tr('daily_at')}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            content: Text(success 
+              ? '${context.tr('reminder_set')} $defaultTime ${context.tr('daily_at')}'
+              : errorMessage ?? 'Failed to set reminder'),
+            backgroundColor: success ? Colors.green : Colors.red,
+            duration: Duration(seconds: success ? 3 : 4),
           ),
         );
       }
@@ -879,13 +888,15 @@ class _HomePageState extends State<HomePage>
       );
       
       if (existing.isNotEmpty) {
-        await _apiService.toggleReminder(existing['id'] as int);
+        final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('reminder_deactivated')),
-              backgroundColor: Colors.orange,
+              content: Text(toggleResponse['success'] == true 
+                ? context.tr('reminder_deactivated')
+                : toggleResponse['message'] ?? 'Failed to deactivate reminder'),
+              backgroundColor: toggleResponse['success'] == true ? Colors.orange : Colors.red,
               duration: const Duration(seconds: 2),
             ),
           );

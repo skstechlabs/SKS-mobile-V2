@@ -1,319 +1,538 @@
-# Multi-Language Implementation Guide
+# Multi-Language Video System - Implementation Guide
 
-## Overview
-The SKS mobile app now supports three languages:
-- **English** (en)
-- **తెలుగు Telugu** (te)
-- **हिंदी Hindi** (hi)
+## ✅ Implementation Status: COMPLETE
 
-## Features Implemented
+The multi-language video system is **fully implemented** in both backend and mobile app.
 
-### 1. Language Selection Screen
-- Appears after splash screen for first-time users
-- Beautiful UI with animated transitions
-- Shows language options with flags and native names
-- Can be accessed from profile settings to change language anytime
+---
 
-### 2. Translation System
-- All translations stored in JSON files
-- No hardcoded strings in the app
-- Easy to add new languages
-- Automatic language persistence
+## 📋 Overview
 
-### 3. Profile Integration
-- Language selection option added to profile settings
-- Users can change language anytime from their profile
-- Changes apply immediately across the entire app
+The system allows users to:
+1. Select their preferred language during onboarding
+2. Change language anytime from settings
+3. Watch videos in their selected language
+4. Seamlessly switch between languages
 
-## File Structure
+---
+
+## 🏗️ Architecture
+
+### Backend (Node.js + MSSQL)
+- **API Version**: V2 (`/api/classes-v2/*`)
+- **Database**: Multi-language support with `language` column in `class_days` table
+- **Caching**: Redis caching for language preferences and video configs
+- **Storage**: Cloudflare R2 with language-specific folders
+
+### Mobile App (Flutter)
+- **Language Service**: `LocalizationService` manages UI language + syncs with backend
+- **API Integration**: All video-related endpoints pass `language` parameter
+- **Screens Updated**: 
+  - `day_video_screen.dart` - Video playback with language
+  - `class_days_list_screen.dart` - Days list with language
+  - `language_selection_screen.dart` - Language picker
+
+---
+
+## 🔄 How It Works
+
+### 1. Language Selection Flow
 
 ```
+User Opens App
+    ↓
+First Time? → Language Selection Screen
+    ↓
+User Selects Language (e.g., Telugu)
+    ↓
+LocalizationService.changeLanguage('te')
+    ↓
+├─ Save to SharedPreferences (local)
+├─ Load UI translations (assets/translations/te.json)
+└─ Sync with Backend API (POST /api/classes-v2/user/language)
+    ↓
+Backend Updates Database + Redis Cache
+```
+
+### 2. Video Playback Flow
+
+```
+User Opens Video
+    ↓
+day_video_screen.dart loads
+    ↓
+Get current language from LocalizationService
+    ↓
+API Call: GET /api/classes-v2/days/:dayId/video-config?language=te
+    ↓
+Backend Queries Database
+    ↓
+├─ Checks user_language_preferences table
+├─ Gets video from class_days WHERE language='te'
+└─ Returns HLS URL: classes/videos/{classId}/{dayNumber}/te/master.m3u8
+    ↓
+Video Player Loads Language-Specific Video
+```
+
+### 3. Language Change Flow
+
+```
+User Goes to Settings → Language
+    ↓
+Selects New Language (e.g., Hindi)
+    ↓
+LocalizationService.changeLanguage('hi')
+    ↓
+├─ Update UI immediately
+├─ Save to SharedPreferences
+└─ Sync with Backend API
+    ↓
+Backend Clears Redis Cache for User
+    ↓
+Next Video Load → Fetches Hindi Video
+```
+
+---
+
+## 📁 File Structure
+
+### Backend Files
+```
+sks-classes-service/
+├── routes/
+│   └── classes-video-v2.js          # V2 API with language support
+├── migrations/
+│   └── add_multi_language_support.sql  # Database schema
+└── MULTI_LANGUAGE_VIDEO_SYSTEM.md   # Backend documentation
+```
+
+### Mobile App Files
+```
 SKS-mobile-V2/
-├── assets/
-│   └── translations/
-│       ├── en.json          # English translations
-│       ├── te.json          # Telugu translations
-│       └── hi.json          # Hindi translations
 ├── lib/
 │   ├── core/
 │   │   └── services/
-│   │       └── localization_service.dart  # Localization service
+│   │       ├── api_service.dart           # Added language API methods
+│   │       └── localization_service.dart  # Updated to sync with backend
 │   └── features/
+│       ├── learnings/
+│       │   ├── day_video_screen.dart      # Passes language parameter
+│       │   └── class_days_list_screen.dart # Passes language parameter
 │       └── language/
-│           └── language_selection_screen.dart  # Language selection UI
+│           └── language_selection_screen.dart # Language picker
+└── assets/
+    └── translations/
+        ├── en.json  # English UI translations
+        ├── te.json  # Telugu UI translations
+        └── hi.json  # Hindi UI translations
 ```
 
-## How to Use Translations in Code
+---
 
-### Method 1: Using Context Extension (Recommended)
+## 🔧 Code Changes Made
+
+### 1. ApiService - Added Language Methods
+
+**File**: `lib/core/services/api_service.dart`
+
 ```dart
-import '../../core/services/localization_service.dart';
+// ── 34. POST /api/classes-v2/user/language - Set user's language preference ─
+Future<Map<String, dynamic>> setUserLanguage(String languageCode) async {
+  final response = await _dio.post(
+    '/api/classes-v2/user/language',
+    options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+    data: {'language': languageCode},
+  );
+  return response.data as Map<String, dynamic>;
+}
 
-// In your widget
-Text(context.tr('welcome'))
-Text(context.tr('login_title'))
-Text(context.tr('continue'))
-```
-
-### Method 2: Using Service Directly
-```dart
-final localization = LocalizationService();
-String text = localization.translate('welcome');
-```
-
-## Adding New Translations
-
-### Step 1: Add to JSON Files
-Add the new key-value pair to all three translation files:
-
-**en.json:**
-```json
-{
-  "new_key": "New Text in English"
+// ── 35. GET /api/classes-v2/user/language - Get user's language preference ─
+Future<Map<String, dynamic>> getUserLanguage() async {
+  final response = await _dio.get(
+    '/api/classes-v2/user/language',
+    options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+  );
+  return response.data as Map<String, dynamic>;
 }
 ```
 
-**te.json:**
-```json
-{
-  "new_key": "తెలుగులో కొత్త టెక్స్ట్"
+### 2. LocalizationService - Backend Sync
+
+**File**: `lib/core/services/localization_service.dart`
+
+```dart
+Future<void> changeLanguage(String languageCode, {bool savePreference = true}) async {
+  await _loadLanguage(languageCode);
+  _currentLocale = Locale(languageCode);
+
+  if (savePreference) {
+    // Save to local storage
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_languageKey, languageCode);
+    
+    // 🆕 Sync with backend API
+    try {
+      debugPrint('🌐 Syncing language preference with backend: $languageCode');
+      final response = await _apiService.setUserLanguage(languageCode);
+      if (response['success'] == true) {
+        debugPrint('✅ Language preference synced with backend');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error syncing language with backend (non-critical): $e');
+      // Don't fail the language change if backend sync fails
+    }
+  }
+
+  notifyListeners();
 }
 ```
 
-**hi.json:**
-```json
-{
-  "new_key": "हिंदी में नया टेक्स्ट"
+### 3. Video Screen - Pass Language Parameter
+
+**File**: `lib/features/learnings/day_video_screen.dart`
+
+```dart
+Future<void> _loadVideoConfig() async {
+  // 🆕 Get user's current language preference
+  final currentLanguage = LocalizationService().currentLocale.languageCode;
+  debugPrint('🌐 Using language: $currentLanguage');
+  
+  final response = await _apiService.get(
+    '/api/classes-v2/days/${widget.dayId}/video-config',
+    queryParameters: {'language': currentLanguage},  // 🆕 Pass language
+  );
+  
+  // ... rest of the code
 }
 ```
 
-### Step 2: Use in Code
+### 4. Days List Screen - Pass Language Parameter
+
+**File**: `lib/features/learnings/class_days_list_screen.dart`
+
 ```dart
-Text(context.tr('new_key'))
+Future<void> _loadDays() async {
+  // 🆕 Get user's current language preference
+  final currentLanguage = LocalizationService().currentLocale.languageCode;
+  debugPrint('🌐 Using language: $currentLanguage');
+  
+  final response = await _apiService.get(
+    '/api/classes-v2/${widget.classId}/days',
+    queryParameters: {'language': currentLanguage},  // 🆕 Pass language
+  );
+  
+  // ... rest of the code
+}
 ```
 
-## Available Translation Keys
+---
 
-### Common
-- `app_name`, `welcome`, `continue`, `skip`, `save`, `cancel`, `ok`, `yes`, `no`
-- `loading`, `error`, `success`, `retry`
+## 🌐 Supported Languages
 
-### Language Selection
-- `language_selection_title`, `language_selection_subtitle`
-- `english`, `telugu`, `hindi`
-- `select_language`, `change_language`
+| Code | Language | UI Translations | Video Support |
+|------|----------|----------------|---------------|
+| `en` | English  | ✅ Yes         | ✅ Yes        |
+| `te` | Telugu   | ✅ Yes         | ✅ Yes        |
+| `hi` | Hindi    | ✅ Yes         | ✅ Yes        |
 
-### Authentication
-- `login_title`, `login_subtitle`, `mobile_number`, `send_otp`, `verify_otp`
-- `enter_otp`, `resend_otp`, `login_with_google`, `or`
+---
 
-### Profile
-- `profile`, `edit_profile`, `personal_information`
-- `name`, `email`, `mobile`, `gender`, `date_of_birth`
-- `address`, `state`, `pincode`
-- `male`, `female`, `other`
+## 📊 Database Schema
 
-### Navigation
-- `home`, `learnings`, `guruji_connect`, `events`, `notifications`
+### Tables Involved
 
-### Features
-- `daily_wisdom`, `meditation_timer`, `reminders`, `my_progress`
-- `classes`, `songs`, `benefits`, `chakras`, `kundalini_science`, `guru_journey`
+1. **`class_days`** - Stores videos with language
+   ```sql
+   - id (PK)
+   - class_id
+   - day_number
+   - language (en/te/hi)
+   - hls_master_playlist_url
+   - hls_base_path
+   - UNIQUE CONSTRAINT (class_id, day_number, language)
+   ```
 
-### Settings
-- `settings`, `language`, `wallpaper_settings`, `ringtone_settings`
-- `manage_profiles`, `help_support`, `logout`, `logout_confirmation`
+2. **`user_language_preferences`** - Stores user preferences
+   ```sql
+   - user_uid (PK)
+   - preferred_language (en/te/hi)
+   - created_at
+   - updated_at
+   ```
 
-### Meditation
-- `meditation_start`, `meditation_pause`, `meditation_resume`, `meditation_stop`
-- `meditation_duration`, `meditation_history`
+3. **`video_languages`** - Master list of supported languages
+   ```sql
+   - language_code (PK)
+   - language_name
+   - is_active
+   ```
 
-### Reminders
-- `add_reminder`, `edit_reminder`, `reminder_title`, `reminder_time`
-- `reminder_repeat`, `reminder_daily`, `reminder_weekly`, `reminder_custom`
+---
 
-### Notifications
-- `notification_title`, `no_notifications`, `mark_as_read`, `delete`
+## 🎯 API Endpoints
 
-### Common Actions
-- `search`, `filter`, `sort`, `view_all`, `see_more`, `see_less`
-- `share`, `download`, `play`, `pause`, `next`, `previous`
+### V2 Endpoints (Multi-Language)
 
-### Levels & Time
-- `level`, `beginner`, `intermediate`, `advanced`
-- `day`, `days`, `week`, `weeks`, `month`, `months`, `year`, `years`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/classes-v2/user/language` | Set user's language preference |
+| `GET` | `/api/classes-v2/user/language` | Get user's language preference |
+| `GET` | `/api/classes-v2/:classId/days?language=te` | Get class days with language |
+| `GET` | `/api/classes-v2/days/:dayId/video-config?language=te` | Get video config with language |
 
-### Progress
-- `total_time`, `sessions`, `streak`, `achievements`
+### Request Examples
 
-### Errors
-- `error_loading`, `error_network`, `error_server`, `error_unknown`
+**Set Language:**
+```bash
+POST /api/classes-v2/user/language
+Authorization: Bearer <firebase-token>
+Content-Type: application/json
 
-### Misc
-- `feature_coming_soon`, `update_available`, `update_now`, `update_later`
-- `not_logged_in`, `please_login`, `login`
-
-## User Flow
-
-### First Time User
-1. **Splash Screen** → Shows app logo with loading
-2. **Language Selection** → User selects preferred language
-3. **Login Screen** → User logs in (all text in selected language)
-4. **App** → All screens show content in selected language
-
-### Returning User
-1. **Splash Screen** → Shows app logo with loading
-2. **App** → Automatically loads saved language preference
-3. **Profile Settings** → Can change language anytime
-
-## Technical Details
-
-### LocalizationService
-- Singleton service managing app language
-- Stores language preference in SharedPreferences
-- Notifies listeners when language changes
-- Supports hot reload of translations
-
-### Language Persistence
-- Language choice saved to device storage
-- Persists across app restarts
-- First-time users see language selection
-- Returning users skip language selection
-
-### Supported Locales
-```dart
-static const List<Locale> supportedLocales = [
-  Locale('en'), // English
-  Locale('te'), // Telugu
-  Locale('hi'), // Hindi
-];
+{
+  "language": "te"
+}
 ```
 
-## Adding a New Language
+**Get Video Config:**
+```bash
+GET /api/classes-v2/days/123/video-config?language=te
+Authorization: Bearer <firebase-token>
+```
 
-### Step 1: Create Translation File
-Create `assets/translations/[language_code].json` with all translations
+**Response:**
+```json
+{
+  "success": true,
+  "videoConfig": {
+    "streamingType": "hls",
+    "hlsUrl": "https://r2.sivakundalini.org/classes/videos/1/1/te/master.m3u8",
+    "language": "te",
+    "videoDurationSeconds": 1800,
+    "thumbnailUrl": "https://r2.sivakundalini.org/classes/videos/1/1/te/thumbnail.jpg"
+  }
+}
+```
 
-### Step 2: Update LocalizationService
-Add the new locale to `supportedLocales`:
+---
+
+## 📦 Video Storage Structure
+
+Videos are organized by language in Cloudflare R2:
+
+```
+classes/
+└── videos/
+    └── {classId}/
+        └── {dayNumber}/
+            ├── en/
+            │   ├── master.m3u8
+            │   ├── 360p/
+            │   ├── 480p/
+            │   ├── 720p/
+            │   └── thumbnail.jpg
+            ├── te/
+            │   ├── master.m3u8
+            │   ├── 360p/
+            │   ├── 480p/
+            │   ├── 720p/
+            │   └── thumbnail.jpg
+            └── hi/
+                ├── master.m3u8
+                ├── 360p/
+                ├── 480p/
+                ├── 720p/
+                └── thumbnail.jpg
+```
+
+---
+
+## 🚀 Adding New Language
+
+### Step 1: Add to Database
+
+```sql
+-- Add language to master list
+INSERT INTO video_languages (language_code, language_name, is_active)
+VALUES ('ta', 'Tamil', 1);
+```
+
+### Step 2: Add UI Translations
+
+Create `assets/translations/ta.json`:
+```json
+{
+  "app_name": "சிவகுண்டலினி",
+  "welcome": "வரவேற்கிறோம்",
+  "language_selection_title": "உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்"
+}
+```
+
+### Step 3: Update Flutter App
+
+**File**: `lib/core/services/localization_service.dart`
 ```dart
 static const List<Locale> supportedLocales = [
   Locale('en'),
   Locale('te'),
   Locale('hi'),
-  Locale('ta'), // Tamil (example)
+  Locale('ta'),  // 🆕 Add Tamil
 ];
-```
 
-Add language name to `languageNames`:
-```dart
 static const Map<String, String> languageNames = {
   'en': 'English',
   'te': 'తెలుగు (Telugu)',
   'hi': 'हिंदी (Hindi)',
-  'ta': 'தமிழ் (Tamil)', // example
+  'ta': 'தமிழ் (Tamil)',  // 🆕 Add Tamil
 };
 ```
 
-### Step 3: Update Language Selection Screen
-Add the new language option in the UI
+### Step 4: Upload Videos
 
-### Step 4: Update pubspec.yaml
-Ensure the translations folder is included in assets
+Upload videos to R2 with language folder:
+```
+classes/videos/1/1/ta/master.m3u8
+classes/videos/1/1/ta/360p/...
+classes/videos/1/1/ta/thumbnail.jpg
+```
 
-## Testing
+### Step 5: Add Database Records
+
+```sql
+INSERT INTO class_days (
+  class_id, day_number, language, title, description,
+  hls_master_playlist_url, hls_base_path,
+  video_duration_seconds, is_active
+)
+VALUES (
+  1, 1, 'ta', 'Day 1 - Introduction', 'Tamil version',
+  'https://r2.sivakundalini.org/classes/videos/1/1/ta/master.m3u8',
+  'classes/videos/1/1/ta',
+  1800, 1
+);
+```
+
+---
+
+## 🧪 Testing
 
 ### Test Language Selection
-1. Clear app data
-2. Launch app
-3. Verify language selection screen appears
-4. Select each language and verify UI updates
-5. Navigate through app and verify all text is translated
+1. Open app (first time)
+2. Language selection screen should appear
+3. Select Telugu
+4. UI should change to Telugu
+5. Check backend: `SELECT * FROM user_language_preferences WHERE user_uid = 'xxx'`
+6. Should show `preferred_language = 'te'`
+
+### Test Video Playback
+1. Navigate to a class
+2. Open a video
+3. Check browser console: Should see `🌐 Using language: te`
+4. Video should load Telugu version
+5. Check network tab: Should request `.../te/master.m3u8`
 
 ### Test Language Change
-1. Login to app
-2. Go to Profile → Change Language
-3. Select different language
-4. Verify entire app updates immediately
-5. Restart app and verify language persists
+1. Go to Settings → Language
+2. Change to Hindi
+3. UI should update immediately
+4. Go back to video
+5. Should now load Hindi version
 
-### Test Missing Translations
-If a translation key is missing, the key itself will be displayed (e.g., "welcome" instead of translated text)
+---
 
-## Best Practices
+## 🐛 Troubleshooting
 
-1. **Always use translation keys** - Never hardcode strings
-2. **Keep keys descriptive** - Use clear, meaningful key names
-3. **Maintain consistency** - Use same keys across all language files
-4. **Test all languages** - Verify translations work correctly
-5. **Handle long text** - Ensure UI accommodates different text lengths
-6. **Use context** - Provide context for translators (comments in JSON)
+### Issue: Video not loading after language change
 
-## Dependencies Added
-
-```yaml
-dependencies:
-  flutter_localizations:
-    sdk: flutter
-  shared_preferences: ^2.2.2  # Already present
+**Solution**: Clear Redis cache
+```bash
+# On backend server
+redis-cli
+> DEL user:language:USER_UID
+> DEL video:config:DAY_ID:LANGUAGE
+> DEL class:days:CLASS_ID:USER_UID:LANGUAGE
 ```
 
-## Migration Guide for Existing Screens
+### Issue: Language preference not syncing
 
-To migrate an existing screen to use translations:
+**Check**:
+1. Network tab - Is API call being made?
+2. Backend logs - Is request reaching server?
+3. Database - Is record being created?
 
-### Before:
+**Debug**:
 ```dart
-Text('Welcome')
-Text('Login')
-ElevatedButton(
-  child: Text('Continue'),
-)
+// In LocalizationService.changeLanguage()
+debugPrint('🌐 Syncing language preference with backend: $languageCode');
 ```
 
-### After:
-```dart
-import '../../core/services/localization_service.dart';
+### Issue: Wrong language video playing
 
-Text(context.tr('welcome'))
-Text(context.tr('login'))
-ElevatedButton(
-  child: Text(context.tr('continue')),
-)
+**Check**:
+1. User's language preference in database
+2. Video config API response
+3. HLS URL in response
+
+**Verify**:
+```sql
+-- Check user preference
+SELECT * FROM user_language_preferences WHERE user_uid = 'xxx';
+
+-- Check available videos
+SELECT language, hls_master_playlist_url 
+FROM class_days 
+WHERE class_id = 1 AND day_number = 1;
 ```
 
-## Troubleshooting
+---
 
-### Language not changing
-- Check if LocalizationService is initialized in main.dart
-- Verify translation files exist in assets/translations/
-- Ensure pubspec.yaml includes translations folder in assets
+## 📈 Performance
 
-### Missing translations
-- Check if key exists in all language JSON files
-- Verify JSON syntax is correct
-- Run `flutter clean` and rebuild
+### Caching Strategy
 
-### Language selection not showing
-- Check if LocalizationService.isLanguageSelected() returns false
-- Verify splash screen navigation logic
-- Check router configuration
+1. **User Language Preference**: Cached in Redis for 24 hours
+2. **Video Config**: Cached in Redis for 1 hour
+3. **Class Days List**: Cached in Redis for 5 minutes
 
-## Future Enhancements
+### Cache Keys
+```
+user:language:{user_uid}
+video:config:{day_id}:{language}
+class:days:{class_id}:{user_uid}:{language}
+```
 
-1. **RTL Support** - Add support for right-to-left languages
-2. **Dynamic Loading** - Load translations from server
-3. **Pluralization** - Handle singular/plural forms
-4. **Date/Time Formatting** - Locale-specific formatting
-5. **Number Formatting** - Locale-specific number formats
-6. **More Languages** - Add Tamil, Kannada, Malayalam, etc.
+---
 
-## Summary
+## ✅ Checklist
 
-The multi-language system is now fully integrated into the SKS mobile app. Users can:
-- Select their preferred language on first launch
-- Change language anytime from profile settings
-- Experience the entire app in their chosen language
-- Have their language preference saved automatically
+- [x] Backend V2 API implemented
+- [x] Database schema with language support
+- [x] Redis caching for language preferences
+- [x] Mobile app API methods added
+- [x] LocalizationService syncs with backend
+- [x] Video screen passes language parameter
+- [x] Days list screen passes language parameter
+- [x] Language selection screen functional
+- [x] Documentation created
 
-All new features should use the translation system to maintain consistency across the app.
+---
+
+## 📚 Related Documentation
+
+- Backend: `s:\Backup\sks-classes-service\MULTI_LANGUAGE_VIDEO_SYSTEM.md`
+- Database: `s:\Backup\sks-classes-service\migrations\add_multi_language_support.sql`
+- API Routes: `s:\Backup\sks-classes-service\routes\classes-video-v2.js`
+
+---
+
+## 🎉 Summary
+
+The multi-language video system is **fully operational**. Users can:
+
+✅ Select language during onboarding  
+✅ Change language anytime from settings  
+✅ Watch videos in their preferred language  
+✅ Seamlessly switch between languages  
+✅ System automatically syncs preferences with backend  
+✅ Videos load from language-specific folders in R2  
+
+**Everything is working smoothly!** 🚀

@@ -411,24 +411,25 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     ),
                   )
                 : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.tr('stay_updated_spiritual'),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppTheme.textSecondary,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.tr('stay_updated_spiritual'),
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
                           ),
+                          const SizedBox(height: 60),
+                          _buildEmptyState(context),
+                          const SizedBox(height: 40),
+                          _buildNotificationPreferences(context),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 60),
-                    _buildEmptyState(context),
-                    const SizedBox(height: 40),
-                    _buildNotificationPreferences(context),
-                  ],
-                ),
-              ),
+                  ),
           ),
         ],
       ),

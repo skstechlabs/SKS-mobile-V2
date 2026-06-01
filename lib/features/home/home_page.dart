@@ -17,6 +17,7 @@ import '../songs/all_songs_page.dart';
 import '../guru_journey/guru_journey_page.dart';
 import '../kundalini_science/kundalini_science_page.dart';
 import '../benefits/benefits_page.dart';
+import '../video/youtube_player.dart';
 
 /// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
@@ -94,6 +95,44 @@ class _HomePageState extends State<HomePage>
     // Reload preset reminders when user returns to app (e.g. from Manage screen)
     if (state == AppLifecycleState.resumed) {
       _loadPresetReminders();
+    }
+  }
+  
+  /// Extract YouTube video ID from various URL formats
+  /// Supports:
+  /// - https://www.youtube.com/watch?v=VIDEO_ID
+  /// - https://youtu.be/VIDEO_ID
+  /// - https://youtube.com/shorts/VIDEO_ID
+  /// - https://www.youtube.com/embed/VIDEO_ID
+  String? _extractYouTubeVideoId(String url) {
+    try {
+      final uri = Uri.parse(url);
+      
+      // Format: youtube.com/watch?v=VIDEO_ID
+      if (uri.host.contains('youtube.com') && uri.path == '/watch') {
+        return uri.queryParameters['v'];
+      }
+      
+      // Format: youtu.be/VIDEO_ID
+      if (uri.host == 'youtu.be') {
+        return uri.pathSegments.isNotEmpty ? uri.pathSegments[0] : null;
+      }
+      
+      // Format: youtube.com/shorts/VIDEO_ID
+      if (uri.host.contains('youtube.com') && uri.pathSegments.isNotEmpty) {
+        if (uri.pathSegments[0] == 'shorts' && uri.pathSegments.length > 1) {
+          return uri.pathSegments[1];
+        }
+        // Format: youtube.com/embed/VIDEO_ID
+        if (uri.pathSegments[0] == 'embed' && uri.pathSegments.length > 1) {
+          return uri.pathSegments[1];
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error extracting YouTube video ID: $e');
+      return null;
     }
   }
   
@@ -2292,12 +2331,28 @@ class _HomePageState extends State<HomePage>
                 onTap: () async {
                   if (videoUrl.isNotEmpty) {
                     try {
-                      // Open YouTube video
-                      final uri = Uri.parse(videoUrl);
-                      await launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
+                      // Extract YouTube video ID from URL
+                      String? videoId = _extractYouTubeVideoId(videoUrl);
+                      
+                      if (videoId != null) {
+                        // Play YouTube video in-app
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => YouTubeVideoPlayer(
+                              videoId: videoId,
+                              title: title,
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Fallback to external browser if video ID extraction fails
+                        final uri = Uri.parse(videoUrl);
+                        await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                      }
                     } catch (e) {
-                      debugPrint('Error launching URL: $e');
+                      debugPrint('Error launching video: $e');
                     }
                   }
                 },

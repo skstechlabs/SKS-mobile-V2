@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/widgets/cached_image.dart';
+import '../video/youtube_player.dart';
 
 class GuruJourneyPage extends StatefulWidget {
   const GuruJourneyPage({super.key});
@@ -12,28 +12,19 @@ class GuruJourneyPage extends StatefulWidget {
 }
 
 class _GuruJourneyPageState extends State<GuruJourneyPage> {
-  Future<void> _openYouTubeVideo() async {
-    final uri = Uri.parse('https://www.youtube.com/watch?v=6mf3Rmykov4');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open YouTube video'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
+  // YouTube video ID for Guru's journey video
+  static const String _videoId = '6mf3Rmykov4';
+  
+  void _playYouTubeVideo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => YouTubeVideoPlayer(
+          videoId: _videoId,
+          title: context.tr('guru_journey_title'),
+        ),
+      ),
+    );
   }
 
   @override
@@ -134,7 +125,7 @@ class _GuruJourneyPageState extends State<GuruJourneyPage> {
 
   Widget _buildVideoThumbnail(BuildContext context) {
     return GestureDetector(
-      onTap: _openYouTubeVideo,
+      onTap: _playYouTubeVideo,
       child: SizedBox(
         height: 220,
         child: Stack(

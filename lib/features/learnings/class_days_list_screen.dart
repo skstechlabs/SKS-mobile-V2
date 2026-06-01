@@ -608,15 +608,15 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
   Widget _buildDayCard(Map<String, dynamic> day) {
     final isUnlocked = day['isUnlocked'] == true;
     final isCompleted = day['isCompleted'] == true;
+    final dayNumber = day['dayNumber'] as int? ?? 1;
     
     // Safe parsing of hoursUntilUnlock - handle both int and string
     int? hoursUntilUnlock;
-    if (day['hoursUntilUnlock'] != null) {
-      if (day['hoursUntilUnlock'] is int) {
-        hoursUntilUnlock = day['hoursUntilUnlock'] as int;
-      } else if (day['hoursUntilUnlock'] is String) {
-        hoursUntilUnlock = int.tryParse(day['hoursUntilUnlock'] as String);
-      }
+    if (day['minutesUntilUnlock'] != null) {
+      final minutes = day['minutesUntilUnlock'] is int 
+          ? day['minutesUntilUnlock'] as int
+          : int.tryParse(day['minutesUntilUnlock'].toString()) ?? 0;
+      hoursUntilUnlock = (minutes / 60).ceil();
     }
     
     // Safe parsing of stats
@@ -658,7 +658,10 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                     '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber',
                   );
                 }
-              : null,
+              : () {
+                  // 🆕 Show detailed lock info when tapping locked day
+                  _showLockedDayDialog(day, hoursUntilUnlock);
+                },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -699,19 +702,19 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                     children: [
                       Text(
                         day['title'],
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.darkBrown,
+                          color: isUnlocked ? AppTheme.darkBrown : AppTheme.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
                       if (day['description'] != null)
                         Text(
                           day['description'],
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary,
+                            color: isUnlocked ? AppTheme.textSecondary : AppTheme.textSecondary.withOpacity(0.6),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -788,33 +791,208 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                             ],
                           ],
                         )
-                      else if (hoursUntilUnlock != null)
-                        _buildStatusBadge(
-                          'Unlocks in ${hoursUntilUnlock}h',
-                          AppTheme.textSecondary,
-                          Icons.lock_clock,
-                        )
                       else
-                        _buildStatusBadge(
-                          'Locked',
-                          AppTheme.textSecondary,
-                          Icons.lock_outline,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (hoursUntilUnlock != null && hoursUntilUnlock > 0)
+                              _buildStatusBadge(
+                                'Unlocks in ${_formatUnlockTime(hoursUntilUnlock * 60)}',
+                                AppTheme.textSecondary,
+                                Icons.lock_clock,
+                              )
+                            else if (dayNumber == 1)
+                              _buildStatusBadge(
+                                'Enroll to unlock',
+                                AppTheme.textSecondary,
+                                Icons.lock_outline,
+                              )
+                            else
+                              _buildStatusBadge(
+                                'Complete previous day',
+                                AppTheme.textSecondary,
+                                Icons.lock_outline,
+                              ),
+                            // 🆕 Add notification hint
+                            if (!isUnlocked && dayNumber > 1) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.notifications_outlined,
+                                    size: 12,
+                                    color: AppTheme.textSecondary.withOpacity(0.7),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'You\'ll be notified when unlocked',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: AppTheme.textSecondary.withOpacity(0.7),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
                     ],
                   ),
                 ),
 
-                // Arrow icon
-                if (isUnlocked)
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: AppTheme.textSecondary,
-                  ),
+                // Arrow icon or info icon
+                Icon(
+                  isUnlocked ? Icons.arrow_forward_ios : Icons.info_outline,
+                  size: 16,
+                  color: AppTheme.textSecondary,
+                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // 🆕 Show detailed info when tapping locked day
+  void _showLockedDayDialog(Map<String, dynamic> day, int? hoursUntilUnlock) {
+    final dayNumber = day['dayNumber'] as int? ?? 1;
+    final title = day['title'] as String? ?? 'Day $dayNumber';
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.lock_clock, color: AppTheme.gold, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Day $dayNumber Locked',
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Lock reason
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.beige.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppTheme.gold.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 18, color: AppTheme.gold),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Why is this locked?',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (dayNumber == 1)
+                    const Text(
+                      'Please enroll in this class to start watching videos.',
+                      style: TextStyle(fontSize: 13),
+                    )
+                  else if (hoursUntilUnlock != null && hoursUntilUnlock > 0)
+                    Text(
+                      'This day will unlock ${_formatUnlockTime(hoursUntilUnlock * 60)} after completing Day ${dayNumber - 1}.',
+                      style: const TextStyle(fontSize: 13),
+                    )
+                  else
+                    Text(
+                      'Complete Day ${dayNumber - 1} to unlock this day.',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Notification info
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_active, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'You\'ll receive a push notification when this day unlocks!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.blue.shade900,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            if (hoursUntilUnlock != null && hoursUntilUnlock > 0) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 18, color: AppTheme.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Unlocks in: ${_formatUnlockTime(hoursUntilUnlock * 60)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkBrown,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
       ),
     );
   }

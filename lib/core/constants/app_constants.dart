@@ -71,10 +71,21 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
     'Kundalini is the key to unlock your infinite potential.'
   ];
   
-  // DEPRECATED: Audio files are now loaded dynamically from the backend API
-  // See AudioRepository for dynamic audio loading
-  // static const List<Map<String, String>> meditationMusic = [...];
-  // static const List<Map<String, String>> bhajans = [...];
+  // TODO: These will be replaced with dynamic loading from AudioRepository
+  // once backend is deployed and database is populated
+  static const List<Map<String, String>> meditationMusic = [
+    {'title': 'Sivoham Chanting (15 min)', 'duration': '15:00', 'url': 'assets/audio/Sivoham_Mantra_15min_guided_Meditation.mp3', 'description': 'Sivoham Chanting with Sivoham mantra'},
+    {'title': 'Sivoham Chanting (10 min)', 'duration': '10:00', 'url': 'assets/audio/Sivoham_Mantra_10min_guided_Meditation.mp3', 'description': 'Short Sivoham Chanting session'},
+  ];
+  
+  static const List<Map<String, String>> bhajans = [
+    {'title': 'Sri Jeeveswarastakam', 'artist': 'Sai Vijay', 'duration': '5:09', 'imageUrl': CdnImages.guruji30, 'url': 'assets/audio/Sri_Jeeveswarastakam_song.mp3', 'description': 'Sacred eight-verse hymn glorifying the divine qualities and spiritual teachings of Parama Pujya Sri Jeeveswara Yogi Gurudev'},
+    {'title': 'Gundello Gudi', 'artist': 'Divine Voices', 'duration': '4:23', 'imageUrl': CdnImages.gurujiSmile, 'url': 'assets/audio/Gundello_gudi_song.mp3', 'description': 'Soulful Telugu devotional song celebrating the divine temple within the heart, awakening inner consciousness'},
+    {'title': 'Nirvana Shatkam', 'artist': 'Sacred Sounds', 'duration': '5:47', 'imageUrl': CdnImages.gurujiMeditation, 'url': 'assets/audio/Nirvana_Shatkam_song.mp3', 'description': 'Timeless Advaita composition by Adi Shankaracharya declaring the pure consciousness beyond all dualities'},
+    {'title': 'Jeeveswara Yogi Taluva', 'artist': 'Temple Bells', 'duration': '6:12', 'imageUrl': CdnImages.gurujiLogo, 'url': 'assets/audio/Jeeveswara_yogi_taluva_song.mp3', 'description': 'Melodious devotional tribute expressing deep reverence and gratitude to the enlightened master Sri Jeeveswara Yogi'},
+    {'title': 'Pralaya Kala Beekara', 'lyrics' : 'Chitran', 'artist': 'Aravvind Raama', 'duration': '3:58', 'imageUrl': CdnImages.kallaBairava, 'url': 'assets/audio/Pralaya_kala_beekara_song.mp3', 'description': 'Powerful invocation to Lord Kala Bhairava, the fierce guardian deity who destroys negativity and grants spiritual liberation'},
+    {'title': 'Ni Namamalo Undhi Moksha Dwaram', 'artist': 'Sacred Chants', 'duration': '3:58', 'imageUrl': CdnImages.guruji26, 'url': 'assets/audio/Ni_Namamalo_Undhi_Moksha_Dwaram_song.mp3', 'description': 'Inspirational Telugu bhajan proclaiming that the gateway to liberation lies within the sacred name of the divine Guru'}
+  ];
   
   static const List<Map<String, String>> experienceVideos = [
     {'title': 'Journey to Inner Peace', 'thumbnail': 'https://img.youtube.com/vi/58X02gfQVFc/maxresdefault.jpg', 'duration': '5:30', 'youtubeId': '58X02gfQVFc'},

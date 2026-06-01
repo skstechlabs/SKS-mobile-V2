@@ -466,9 +466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildActionTile(
                   icon: Icons.help_outline,
                   label: context.tr('help_support'),
-                  onTap: () {
-                    _showError(context.tr('feature_coming_soon'));
-                  },
+                  onTap: () => context.push('/guruji-connect'),
                 ),
                 _buildActionTile(
                   icon: Icons.logout,

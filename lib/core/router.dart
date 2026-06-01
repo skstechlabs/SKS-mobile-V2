@@ -9,6 +9,7 @@ import '../features/auth/all_permissions_screen.dart';
 import '../features/home/home_page.dart';
 import '../features/learnings/learnings_page.dart';
 import '../features/guruji_connect/guruji_connect_page.dart';
+import '../features/kalpataru/kalpataru_page.dart';
 import '../features/events/events_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/notifications/notification_detail_screen.dart';
@@ -134,8 +135,8 @@ final GoRouter appRouter = GoRouter(
           case '/learnings':
             currentIndex = 1;
             break;
-          case '/guruji-connect':
-            currentIndex = 3; // Contact tab is at index 3
+          case '/kalpataru':
+            currentIndex = 3; // Kalpataru tab is at index 3
             break;
           case '/events':
             currentIndex = 4; // Events tab is at index 4
@@ -160,9 +161,9 @@ final GoRouter appRouter = GoRouter(
           ),
         ),
         GoRoute(
-          path: '/guruji-connect',
+          path: '/kalpataru',
           pageBuilder: (context, state) => NoTransitionPage(
-            child: const GurujiConnectPage(),
+            child: const KalpataruPage(),
           ),
         ),
         GoRoute(
@@ -172,6 +173,10 @@ final GoRouter appRouter = GoRouter(
           ),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/guruji-connect',
+      builder: (context, state) => const GurujiConnectPage(),
     ),
     GoRoute(
       path: '/notifications',

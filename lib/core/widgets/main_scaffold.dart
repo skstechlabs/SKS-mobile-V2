@@ -190,9 +190,9 @@ class _MainScaffoldState extends State<MainScaffold> {
                       label: '',
                     ),
                     BottomNavigationBarItem(
-                      icon: const Icon(Icons.connect_without_contact_outlined),
-                      activeIcon: const Icon(Icons.connect_without_contact),
-                      label: context.tr('contact'),
+                      icon: const Icon(Icons.park_outlined),
+                      activeIcon: const Icon(Icons.park),
+                      label: context.tr('kalpataru'),
                     ),
                     BottomNavigationBarItem(
                       icon: const Icon(Icons.event_outlined),
@@ -287,7 +287,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         // Center button (notifications) - handled by floating button
         break;
       case 3:
-        context.go('/guruji-connect');
+        context.go('/kalpataru');
         break;
       case 4:
         context.go('/events');

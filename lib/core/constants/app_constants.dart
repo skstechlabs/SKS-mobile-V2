@@ -9,6 +9,7 @@ class AppConstants {
   static const String homeRoute = '/';
   static const String learningsRoute = '/learnings';
   static const String gurujiConnectRoute = '/guruji-connect';
+  static const String kalpataruRoute = '/kalpataru';
   static const String eventsRoute = '/events';
   static const String notificationsRoute = '/notifications';
   

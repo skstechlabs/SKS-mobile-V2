@@ -658,20 +658,23 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         enableWorker: true,
         lowLatencyMode: false,
         
-        // Buffer settings - optimized for smooth quality switching
-        backBufferLength: 90,
-        maxBufferLength: 60,        // Increased from 30
-        maxMaxBufferLength: 120,    // Increased from 60
-        maxBufferSize: 120 * 1000 * 1000, // Increased buffer size
-        maxBufferHole: 1.0,         // Increased tolerance
-        highBufferWatchdogPeriod: 3,
-        nudgeOffset: 0.1,
-        nudgeMaxRetry: 5,           // Increased retries
-        maxFragLookUpTolerance: 0.5,
+        // ═══════════════════════════════════════════════════════════════
+        // ULTRA-SMOOTH QUALITY SWITCHING CONFIGURATION
+        // ═══════════════════════════════════════════════════════════════
         
-        // Progressive loading for quality switches
+        // Buffer settings - CRITICAL for seamless quality transitions
+        backBufferLength: 90,           // Keep 90s of back buffer
+        maxBufferLength: 60,            // Forward buffer: 60s
+        maxMaxBufferLength: 120,        // Max forward buffer: 120s
+        maxBufferSize: 150 * 1000 * 1000, // 150MB buffer (increased)
+        maxBufferHole: 0.5,             // Reduced for smoother playback
+        highBufferWatchdogPeriod: 2,    // Check buffer health every 2s
+        nudgeOffset: 0.05,              // Smaller nudge for smoother transitions
+        nudgeMaxRetry: 10,              // More retries for stability
+        maxFragLookUpTolerance: 0.25,   // Tighter fragment lookup
+        
+        // Progressive loading - ESSENTIAL for smooth quality switches
         progressive: true,
-        lowLatencyMode: false,
         
         // Live streaming settings
         liveSyncDurationCount: 3,
@@ -682,35 +685,36 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         enableSoftwareAES: true,
         
         // Manifest loading - more retries and longer timeouts
-        manifestLoadingTimeOut: 20000,  // Increased from 10s
-        manifestLoadingMaxRetry: 5,     // Increased from 3
-        manifestLoadingRetryDelay: 2000, // Increased from 1s
+        manifestLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 5,
+        manifestLoadingRetryDelay: 2000,
         
         // Level loading - more retries and longer timeouts
-        levelLoadingTimeOut: 20000,     // Increased from 10s
-        levelLoadingMaxRetry: 6,        // Increased from 4
-        levelLoadingRetryDelay: 2000,   // Increased from 1s
+        levelLoadingTimeOut: 20000,
+        levelLoadingMaxRetry: 6,
+        levelLoadingRetryDelay: 2000,
         
         // Fragment loading - more retries and longer timeouts
-        fragLoadingTimeOut: 30000,      // Increased from 20s
-        fragLoadingMaxRetry: 10,        // Increased from 6
-        fragLoadingRetryDelay: 2000,    // Increased from 1s
+        fragLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 10,
+        fragLoadingRetryDelay: 2000,
         
-        // Quality settings for smooth switching
-        startLevel: -1, // Auto quality
+        // ═══════════════════════════════════════════════════════════════
+        // QUALITY SWITCHING - ZERO FLICKER CONFIGURATION
+        // ═══════════════════════════════════════════════════════════════
+        startLevel: -1,                 // Auto quality
         abrEwmaDefaultEstimate: 500000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         abrMaxWithRealBitrate: false,
         
-        // Smooth level switching
-        capLevelToPlayerSize: false,
-        capLevelOnFPSDrop: false,
-        smoothQualitySwitching: true,
+        // CRITICAL: Smooth level switching without video interruption
+        capLevelToPlayerSize: false,    // Don't limit quality by player size
+        capLevelOnFPSDrop: false,       // Don't drop quality on FPS issues
         
-        // Starvation settings
-        maxStarvationDelay: 6,          // Increased from 4
-        maxLoadingDelay: 6,             // Increased from 4
+        // Starvation settings - prevent buffering during quality switch
+        maxStarvationDelay: 4,
+        maxLoadingDelay: 4,
         minAutoBitrate: 0,
         
         // Enable debug logging
@@ -734,24 +738,26 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             qualityMenu.innerHTML += '<div class="quality-option" data-level="' + index + '">' + label + '</div>';
           });
           
-          // Quality selection with smooth switching
+          // Quality selection with ULTRA-SMOOTH switching
           qualityMenu.querySelectorAll('.quality-option').forEach(function(option) {
             option.addEventListener('click', function() {
               var level = parseInt(this.getAttribute('data-level'));
               var wasPlaying = !video.paused;
               var currentTime = video.currentTime;
+              var currentVolume = video.volume;
+              var wasMuted = video.muted;
               
               console.log('Switching quality to level:', level, 'at time:', currentTime);
               
-              // Smooth quality switch
+              // CRITICAL: Use nextLevel ONLY for seamless switching
+              // Do NOT pause or seek - let HLS.js handle the transition
               if (level === -1) {
-                // Auto quality
-                hls.currentLevel = -1;
+                // Auto quality - smooth transition
+                hls.nextLevel = -1;
                 qualityBtn.textContent = 'Auto';
               } else {
-                // Manual quality - use nextLevel for smoother transition
+                // Manual quality - nextLevel ensures smooth transition without interruption
                 hls.nextLevel = level;
-                hls.currentLevel = level;
                 qualityBtn.textContent = hls.levels[level].height + 'p';
               }
               
@@ -764,32 +770,43 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
               // Close menu
               qualityMenu.classList.remove('show');
               
-              // Resume playback if it was playing
-              if (wasPlaying) {
-                video.play().catch(function(err) {
-                  console.error('Resume play failed:', err);
-                });
-              }
+              // Preserve playback state - video continues playing seamlessly
+              // No need to call play() again - HLS.js handles it
+              console.log('Quality switch initiated - seamless transition in progress');
             });
           });
         }
       });
       
-      // Track level switching for smooth quality changes
+      // ═══════════════════════════════════════════════════════════════
+      // SEAMLESS QUALITY SWITCHING - NO FLICKER, NO PAUSE
+      // ═══════════════════════════════════════════════════════════════
+      
       hls.on(Hls.Events.LEVEL_SWITCHING, function(event, data) {
-        console.log('Switching to level:', data.level);
+        console.log('🔄 Switching to level:', data.level, '- seamless transition');
+        // Don't pause, don't show loading - HLS.js handles it smoothly
       });
       
       hls.on(Hls.Events.LEVEL_SWITCHED, function(event, data) {
-        console.log('Switched to level:', data.level, hls.levels[data.level].height + 'p');
+        console.log('✅ Switched to level:', data.level, hls.levels[data.level].height + 'p');
         
-        // Update quality button to show current level
-        if (hls.currentLevel === -1) {
+        // Update quality button to show current level (UI only, no video interruption)
+        if (hls.currentLevel === -1 || hls.nextLevel === -1) {
           var autoLevel = hls.levels[hls.loadLevel] || hls.levels[0];
           qualityBtn.textContent = 'Auto (' + autoLevel.height + 'p)';
         } else {
           qualityBtn.textContent = hls.levels[data.level].height + 'p';
         }
+      });
+      
+      // Track buffering during quality switch (should be minimal)
+      hls.on(Hls.Events.BUFFER_APPENDING, function(event, data) {
+        // Buffer is being filled - quality switch is in progress
+        // Video continues playing from existing buffer
+      });
+      
+      hls.on(Hls.Events.BUFFER_APPENDED, function(event, data) {
+        // New quality buffer appended - transition complete
       });
       
       // Track auto level changes

@@ -39,6 +39,9 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   bool _hasStarted = false;
   bool _isCompleted = false;
   bool _isScreenRecording = false;
+  
+  // CRITICAL: Cache the video player widget to prevent rebuilds during rotation
+  Widget? _cachedVideoPlayer;
 
   @override
   void initState() {
@@ -726,13 +729,20 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
 
   /// Build video player based on streaming type
   /// Uses a single instance with key to prevent rebuilds
+  /// CRITICAL: Cached to prevent recreation during orientation changes
   Widget _buildVideoPlayer() {
+    // Return cached player if available (prevents rebuilds during rotation)
+    if (_cachedVideoPlayer != null) {
+      return _cachedVideoPlayer!;
+    }
+    
     final streamingType = _videoConfig!['streamingType'] ?? 'cloudflare';
     final videoDuration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
     
+    Widget player;
     if (streamingType == 'hls') {
       // Use HLS Video Player
-      return HLSVideoPlayer(
+      player = HLSVideoPlayer(
         key: const ValueKey('hls_player'), // Preserve player instance
         hlsUrl: _videoConfig!['hlsUrl']?.toString() ?? '',
         thumbnailUrl: _videoConfig!['thumbnailUrl']?.toString(),
@@ -746,7 +756,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       );
     } else {
       // Use Cloudflare Video Player (backward compatibility)
-      return CloudflareVideoPlayer(
+      player = CloudflareVideoPlayer(
         key: const ValueKey('cloudflare_player'), // Preserve player instance
         videoId: _videoConfig!['cloudflareVideoId']?.toString() ?? '',
         accountId: _videoConfig!['cloudflareAccountId']?.toString() ?? '',
@@ -759,6 +769,10 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         },
       );
     }
+    
+    // Cache the player to prevent rebuilds
+    _cachedVideoPlayer = player;
+    return player;
   }
 
   @override
@@ -766,6 +780,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _trackingTimer?.cancel();
     _screenRecordingTimer?.cancel();
+    _cachedVideoPlayer = null; // Clear cache
     _disableSecureMode();
     super.dispose();
   }
@@ -856,19 +871,25 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     final durationSeconds = videoDuration % 60;
     final durationText = '$durationMinutes:${durationSeconds.toString().padLeft(2, '0')}';
 
+    // ═══════════════════════════════════════════════════════════════
+    // CRITICAL: Video player is built ONCE and reused across orientations
+    // This prevents flickering and double frames during rotation
+    // ═══════════════════════════════════════════════════════════════
+    final videoPlayer = _buildVideoPlayer();
+
     // In landscape: video fills the entire screen, no info panel
     if (isLandscape) {
       return SafeArea(
         child: Stack(
           children: [
-            // Video player fills entire screen
+            // Video player fills entire screen - SAME INSTANCE as portrait
             Positioned.fill(
               child: Container(
                 color: Colors.black,
                 child: Center(
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: _buildVideoPlayer(),
+                    child: videoPlayer, // Reuse same player instance
                   ),
                 ),
               ),
@@ -930,9 +951,10 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     return Column(
       children: [
         // Video Player - wrapped in Container to prevent size changes
+        // SAME INSTANCE as landscape mode
         Container(
           color: Colors.black,
-          child: _buildVideoPlayer(),
+          child: videoPlayer, // Reuse same player instance
         ),
         
         // Video Duration Display

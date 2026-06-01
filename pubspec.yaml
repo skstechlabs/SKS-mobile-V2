@@ -53,6 +53,10 @@ dependencies:
   
   # API (future)
   dio: ^5.4.0
+  http: ^1.1.0
+  
+  # Crypto for cache keys
+  crypto: ^3.0.3
   
   # OTP - Firebase Phone Auth (via firebase_auth)
   # sendotp_flutter_sdk removed — using Firebase instead

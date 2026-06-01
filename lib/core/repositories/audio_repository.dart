@@ -1,43 +1,73 @@
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 import '../models/audio_model.dart';
-import '../services/api_service.dart';
+import '../constants/app_env.dart';
 
 class AudioRepository {
-  final ApiService _apiService;
+  late final Dio _dio;
 
-  AudioRepository({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+  AudioRepository() {
+    // Initialize Dio for public API calls (no authentication)
+    String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
+        ? AppEnv.apiBaseUrl 
+        : 'https://app.sivakundalini.org';
+    
+    _dio = Dio(BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    ));
 
-  // Fetch all audio files
+    // Add logging interceptor
+    _dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+      error: true,
+      logPrint: (obj) => debugPrint('[AudioRepository] $obj'),
+    ));
+  }
+
+  // Fetch all audio files (PUBLIC - no auth required)
   Future<List<AudioModel>> fetchAllAudios() async {
     try {
-      final response = await _apiService.get('/api/audios');
+      debugPrint('[AudioRepository] Fetching all audios from /api/audios');
+      final response = await _dio.get('/api/audios');
       
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> audioList = response['data'] as List<dynamic>;
+      debugPrint('[AudioRepository] Response status: ${response.statusCode}');
+      debugPrint('[AudioRepository] Response data: ${response.data}');
+      
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
+        debugPrint('[AudioRepository] Found ${audioList.length} audios');
         return audioList.map((json) => AudioModel.fromJson(json)).toList();
       }
       
+      debugPrint('[AudioRepository] No audios found or invalid response');
       return [];
     } catch (e) {
-      debugPrint('Error fetching audios: $e');
+      debugPrint('[AudioRepository] Error fetching audios: $e');
       return [];
     }
   }
 
-  // Fetch audios by category
+  // Fetch audios by category (PUBLIC - no auth required)
   Future<List<AudioModel>> fetchAudiosByCategory(String category) async {
     try {
-      final response = await _apiService.get('/api/audios/category/$category');
+      debugPrint('[AudioRepository] Fetching audios for category: $category');
+      final response = await _dio.get('/api/audios/category/$category');
       
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> audioList = response['data'] as List<dynamic>;
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
+        debugPrint('[AudioRepository] Found ${audioList.length} audios in category $category');
         return audioList.map((json) => AudioModel.fromJson(json)).toList();
       }
       
       return [];
     } catch (e) {
-      debugPrint('Error fetching audios by category: $e');
+      debugPrint('[AudioRepository] Error fetching audios by category: $e');
       return [];
     }
   }
@@ -57,84 +87,84 @@ class AudioRepository {
     return fetchAudiosByCategory('chant');
   }
 
-  // Fetch single audio by ID
+  // Fetch single audio by ID (PUBLIC - no auth required)
   Future<AudioModel?> fetchAudioById(int id) async {
     try {
-      final response = await _apiService.get('/api/audios/$id');
+      final response = await _dio.get('/api/audios/$id');
       
-      if (response['success'] == true && response['data'] != null) {
-        return AudioModel.fromJson(response['data']);
+      if (response.data['success'] == true && response.data['data'] != null) {
+        return AudioModel.fromJson(response.data['data']);
       }
       
       return null;
     } catch (e) {
-      debugPrint('Error fetching audio by ID: $e');
+      debugPrint('[AudioRepository] Error fetching audio by ID: $e');
       return null;
     }
   }
 
-  // Search audios
+  // Search audios (PUBLIC - no auth required)
   Future<List<AudioModel>> searchAudios(String query) async {
     try {
-      final response = await _apiService.get(
+      final response = await _dio.get(
         '/api/audios/search',
         queryParameters: {'q': query},
       );
       
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> audioList = response['data'] as List<dynamic>;
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
         return audioList.map((json) => AudioModel.fromJson(json)).toList();
       }
       
       return [];
     } catch (e) {
-      debugPrint('Error searching audios: $e');
+      debugPrint('[AudioRepository] Error searching audios: $e');
       return [];
     }
   }
 
-  // Fetch audios by language
+  // Fetch audios by language (PUBLIC - no auth required)
   Future<List<AudioModel>> fetchAudiosByLanguage(String language) async {
     try {
-      final response = await _apiService.get('/api/audios/language/$language');
+      final response = await _dio.get('/api/audios/language/$language');
       
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> audioList = response['data'] as List<dynamic>;
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
         return audioList.map((json) => AudioModel.fromJson(json)).toList();
       }
       
       return [];
     } catch (e) {
-      debugPrint('Error fetching audios by language: $e');
+      debugPrint('[AudioRepository] Error fetching audios by language: $e');
       return [];
     }
   }
 
-  // Increment play count (analytics) - No authentication required
+  // Increment play count (PUBLIC - no auth required)
   Future<void> incrementPlayCount(int audioId) async {
     try {
-      await _apiService.post('/api/audios/$audioId/play', {});
+      await _dio.post('/api/audios/$audioId/play');
     } catch (e) {
-      debugPrint('Error incrementing play count: $e');
+      debugPrint('[AudioRepository] Error incrementing play count: $e');
     }
   }
 
-  // Fetch popular audios
+  // Fetch popular audios (PUBLIC - no auth required)
   Future<List<AudioModel>> fetchPopularAudios({int limit = 10}) async {
     try {
-      final response = await _apiService.get(
+      final response = await _dio.get(
         '/api/audios/popular',
         queryParameters: {'limit': limit.toString()},
       );
       
-      if (response['success'] == true && response['data'] != null) {
-        final List<dynamic> audioList = response['data'] as List<dynamic>;
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
         return audioList.map((json) => AudioModel.fromJson(json)).toList();
       }
       
       return [];
     } catch (e) {
-      debugPrint('Error fetching popular audios: $e');
+      debugPrint('[AudioRepository] Error fetching popular audios: $e');
       return [];
     }
   }

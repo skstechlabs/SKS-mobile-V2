@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/audio_player_service.dart';
+import '../services/enhanced_audio_player_service.dart';
+import '../models/audio_model.dart';
 import '../theme/app_theme.dart';
 
 class MiniAudioPlayer extends StatefulWidget {
@@ -10,7 +11,7 @@ class MiniAudioPlayer extends StatefulWidget {
 }
 
 class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
-  final AudioPlayerService _audioService = AudioPlayerService();
+  final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
 
   @override
   void initState() {
@@ -45,6 +46,12 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     if (currentSong == null) {
       return const SizedBox.shrink();
     }
+
+    // Handle both AudioModel and Map types
+    final String title = currentSong is AudioModel ? currentSong.title : (currentSong['title'] ?? 'Unknown Title');
+    final String artist = currentSong is AudioModel 
+        ? (currentSong.artist ?? currentSong.description ?? 'Unknown Artist')
+        : (currentSong['artist'] ?? currentSong['description'] ?? 'Unknown Artist');
 
     return SafeArea(
       top: false,
@@ -122,7 +129,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            currentSong['title'] ?? 'Unknown Title',
+                            title,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -132,7 +139,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            currentSong['artist'] ?? currentSong['description'] ?? 'Unknown Artist',
+                            artist,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 12,

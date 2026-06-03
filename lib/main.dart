@@ -13,6 +13,8 @@ import 'core/services/api_service.dart';
 import 'core/services/onesignal_service.dart';
 import 'core/services/notification_storage_service.dart';
 import 'core/services/localization_service.dart';
+import 'core/services/enhanced_audio_player_service.dart';
+import 'core/providers/audio_provider.dart';
 import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
 import 'features/auth/auth_state.dart';
@@ -98,6 +100,24 @@ void main() async {
       developer.log('✅ AudioService initialized');
     } catch (e) {
       developer.log('❌ AudioService init failed: $e');
+    }
+
+    // Enhanced Audio Player Service
+    try {
+      await EnhancedAudioPlayerService().initialize();
+      developer.log('✅ Enhanced Audio Player initialized');
+    } catch (e) {
+      developer.log('❌ Enhanced Audio Player init failed: $e');
+    }
+
+    // Audio Provider - Fetch audio data from API
+    try {
+      await AudioProvider().initialize();
+      developer.log('✅ AudioProvider initialized with dynamic audio loading');
+    } catch (e) {
+      developer.log('❌ AudioProvider init failed: $e');
+      // Continue app initialization even if audio fetch fails
+      // Will retry on demand when user opens audio pages
     }
 
     FlutterError.onError = (FlutterErrorDetails details) {

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../core/services/audio_player_service.dart';
+import '../../core/services/enhanced_audio_player_service.dart';
+import '../../core/models/audio_model.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/sks_loader.dart';
 
@@ -16,7 +17,7 @@ ImageProvider _getImageProvider(String imageUrl) {
 
 class PlaylistScreen extends StatefulWidget {
   final String title;
-  final List<Map<String, String>> songs;
+  final List<dynamic> songs; // Can be List<Map> or List<AudioModel>
 
   const PlaylistScreen({
     Key? key,
@@ -29,7 +30,7 @@ class PlaylistScreen extends StatefulWidget {
 }
 
 class _PlaylistScreenState extends State<PlaylistScreen> {
-  final AudioPlayerService _audioService = AudioPlayerService();
+  final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
 
   @override
   void initState() {
@@ -90,7 +91,21 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 itemCount: widget.songs.length,
                 itemBuilder: (context, index) {
                   final song = widget.songs[index];
-                  final isCurrentSong = _audioService.currentSong == song;
+                  
+                  // Handle both AudioModel and Map types
+                  final String title = song is AudioModel ? song.title : (song['title'] ?? '');
+                  final String? artist = song is AudioModel ? song.artist : song['artist'];
+                  final String? description = song is AudioModel ? song.description : song['description'];
+                  final String? imageUrl = song is AudioModel ? song.thumbnailUrl : song['imageUrl'];
+                  final String? duration = song is AudioModel 
+                      ? '${song.durationSeconds ~/ 60}:${(song.durationSeconds % 60).toString().padLeft(2, '0')}' 
+                      : song['duration'];
+                  
+                  final currentSong = _audioService.currentSong;
+                  final bool isCurrentSong = currentSong != null &&
+                      (currentSong is AudioModel && song is AudioModel
+                          ? currentSong.id == song.id
+                          : currentSong == song);
                   
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -102,22 +117,22 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                         height: 50,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          image: song['imageUrl'] != null
+                          image: imageUrl != null
                               ? DecorationImage(
-                                  image: _getImageProvider(song['imageUrl']!),
+                                  image: _getImageProvider(imageUrl),
                                   fit: BoxFit.cover,
                                 )
                               : null,
-                          gradient: song['imageUrl'] == null
+                          gradient: imageUrl == null
                               ? AppTheme.saffronGradient
                               : null,
                         ),
-                        child: song['imageUrl'] == null
+                        child: imageUrl == null
                             ? const Icon(Icons.music_note, color: Colors.white)
                             : null,
                       ),
                       title: Text(
-                        song['title'] ?? '',
+                        title,
                         style: TextStyle(
                           fontWeight: isCurrentSong ? FontWeight.bold : FontWeight.normal,
                           color: isCurrentSong ? AppTheme.saffron : null,
@@ -126,16 +141,16 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (song['artist'] != null)
-                            Text(song['artist']!),
-                          if (song['description'] != null)
+                          if (artist != null)
+                            Text(artist),
+                          if (description != null)
                             Text(
-                              song['description']!,
+                              description,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
-                          if (song['duration'] != null)
+                          if (duration != null)
                             Text(
-                              song['duration']!,
+                              duration,
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: AppTheme.saffron,
                               ),

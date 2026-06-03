@@ -7,7 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/services/audio_player_service.dart';
+import '../../core/services/enhanced_audio_player_service.dart';
+import '../../core/providers/audio_provider.dart';
+import '../../core/models/audio_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/widgets/cached_image.dart';
@@ -39,7 +41,8 @@ class _HomePageState extends State<HomePage>
   int _currentQuoteIndex = 0;
   late AnimationController _glowController;
   late Timer _autoScrollTimer;
-  final AudioPlayerService _audioService = AudioPlayerService();
+  final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
+  final AudioProvider _audioProvider = AudioProvider();
   final ApiService _apiService = ApiService();
   
   List<Map<String, dynamic>> _upcomingEvents = [];
@@ -88,6 +91,7 @@ class _HomePageState extends State<HomePage>
     _loadPresetReminders();
     _loadGatherings();
     _loadQuotes();
+    _loadAudios();
   }
 
   @override
@@ -279,6 +283,14 @@ class _HomePageState extends State<HomePage>
           _isLoadingGatherings = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadAudios() async {
+    try {
+      await _audioProvider.fetchAllAudios();
+    } catch (e) {
+      debugPrint('Error loading audios: $e');
     }
   }
 
@@ -1582,6 +1594,9 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildMeditationMusic() {
+    final meditations = _audioProvider.meditations;
+    final firstMeditation = meditations.isNotEmpty ? meditations[0] : null;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1599,24 +1614,25 @@ class _HomePageState extends State<HomePage>
         // Full width image
         GestureDetector(
           onTap: () async {
-            if (AppConstants.meditationMusic.isNotEmpty) {
+            if (firstMeditation != null) {
               // Check if this meditation is currently playing
-              final isCurrentlyPlaying =
-                  _audioService.playlist == AppConstants.meditationMusic &&
-                      _audioService.currentIndex == 0 &&
-                      _audioService.isPlaying;
+              final currentSong = _audioService.currentSong;
+              final isCurrentlyPlaying = currentSong != null &&
+                  (currentSong is AudioModel 
+                      ? currentSong.id == firstMeditation.id 
+                      : currentSong['title'] == firstMeditation.title) &&
+                  _audioService.isPlaying;
 
               if (isCurrentlyPlaying) {
                 // If playing, pause it
                 await _audioService.pause();
               } else {
                 // If not playing or different song, play it
-                await _audioService.playSong(AppConstants.meditationMusic, 0);
+                await _audioService.playSong(meditations, 0);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(
-                          'Playing "${AppConstants.meditationMusic[0]['title']}"'),
+                      content: Text('Playing "${firstMeditation.title}"'),
                       duration: Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
                       margin: EdgeInsets.only(
@@ -1634,12 +1650,14 @@ class _HomePageState extends State<HomePage>
             height: 240,
             width: double.infinity,
             decoration: BoxDecoration(
-              border:
-                  (_audioService.playlist == AppConstants.meditationMusic &&
-                          _audioService.currentIndex == 0 &&
-                          _audioService.isPlaying)
-                      ? Border.all(color: AppTheme.primary, width: 3)
-                      : null,
+              border: firstMeditation != null &&
+                      _audioService.currentSong != null &&
+                      (_audioService.currentSong is AudioModel 
+                          ? (_audioService.currentSong as AudioModel).id == firstMeditation.id 
+                          : _audioService.currentSong?['title'] == firstMeditation.title) &&
+                      _audioService.isPlaying
+                  ? Border.all(color: AppTheme.primary, width: 3)
+                  : null,
               image: DecorationImage(
                 image: _getImageProvider(AppConstants.gurujiTeachingImageUrl),
                 fit: BoxFit.contain,
@@ -1670,10 +1688,12 @@ class _HomePageState extends State<HomePage>
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        (_audioService.playlist ==
-                                    AppConstants.meditationMusic &&
-                                _audioService.currentIndex == 0 &&
-                                _audioService.isPlaying)
+                        firstMeditation != null &&
+                                _audioService.currentSong != null &&
+                                (_audioService.currentSong is AudioModel 
+                                    ? (_audioService.currentSong as AudioModel).id == firstMeditation.id 
+                                    : _audioService.currentSong?['title'] == firstMeditation.title) &&
+                                _audioService.isPlaying
                             ? Icons.pause
                             : Icons.play_arrow,
                         color: Colors.white,
@@ -1693,14 +1713,15 @@ class _HomePageState extends State<HomePage>
                                   fontSize: 20,
                                 ),
                       ),
-                      Text(
-                        '15:00',
-                        style:
-                            Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                      ),
+                      if (firstMeditation != null)
+                        Text(
+                          '${firstMeditation.durationSeconds ~/ 60}:${(firstMeditation.durationSeconds % 60).toString().padLeft(2, '0')}',
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                        ),
                     ],
                   ),
                 ],
@@ -1713,6 +1734,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildBhajans() {
+    final bhajans = _audioProvider.bhajans;
+    
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1732,10 +1755,18 @@ class _HomePageState extends State<HomePage>
             ],
           ),
           SizedBox(height: 16),
-          ...AppConstants.bhajans
-              .take(3)
-              .map((bhajan) => _buildBhajanCard(bhajan))
-              .toList(),
+          if (bhajans.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text('Loading bhajans...'),
+              ),
+            )
+          else
+            ...bhajans
+                .take(3)
+                .map((bhajan) => _buildBhajanCard(bhajan))
+                .toList(),
           SizedBox(height: 12),
           OutlinedButton(
             onPressed: () {
@@ -1774,9 +1805,12 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildBhajanCard(Map<String, dynamic> bhajan) {
-    final isCurrentSong =
-        _audioService.currentSong?['title'] == bhajan['title'];
+  Widget _buildBhajanCard(AudioModel bhajan) {
+    final currentSong = _audioService.currentSong;
+    final isCurrentSong = currentSong != null &&
+        (currentSong is AudioModel 
+            ? currentSong.id == bhajan.id 
+            : currentSong['title'] == bhajan.title);
     final isPlaying = isCurrentSong && _audioService.isPlaying;
     
     // Get translated song title
@@ -1794,13 +1828,13 @@ class _HomePageState extends State<HomePage>
 
     return GestureDetector(
       onTap: () async {
-        final index = AppConstants.bhajans
-            .indexWhere((b) => b['title'] == bhajan['title']);
+        final bhajans = _audioProvider.bhajans;
+        final index = bhajans.indexWhere((b) => b.id == bhajan.id);
         if (index != -1) {
           if (isCurrentSong && _audioService.isPlaying) {
             await _audioService.pause();
           } else {
-            await _audioService.playSong(AppConstants.bhajans, index);
+            await _audioService.playSong(bhajans, index);
           }
         }
       },
@@ -1827,7 +1861,7 @@ class _HomePageState extends State<HomePage>
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     image: DecorationImage(
-                      image: _getImageProvider(bhajan['imageUrl']!),
+                      image: _getImageProvider(bhajan.thumbnailUrl ?? 'assets/images/placeholder.png'),
                       fit: BoxFit.cover,
                     ),
                   ),

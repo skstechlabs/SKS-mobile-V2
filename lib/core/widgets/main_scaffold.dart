@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
-import '../services/audio_player_service.dart';
+import '../services/enhanced_audio_player_service.dart';
 import '../services/notification_storage_service.dart';
 import '../services/localization_service.dart';
 import '../services/onesignal_service.dart';
@@ -24,7 +24,7 @@ class MainScaffold extends StatefulWidget {
 }
 
 class _MainScaffoldState extends State<MainScaffold> {
-  final AudioPlayerService _audioService = AudioPlayerService();
+  final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
   final NotificationStorageService _notificationService = NotificationStorageService();
   final OneSignalService _oneSignal = OneSignalService();
   int _unreadCount = 0;

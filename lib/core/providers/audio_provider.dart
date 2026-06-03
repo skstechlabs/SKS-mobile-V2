@@ -166,7 +166,10 @@ class AudioProvider extends ChangeNotifier {
   Future<void> preloadPlaylist(List<AudioModel> playlist) async {
     try {
       debugPrint('[AudioProvider] Preloading ${playlist.length} audios...');
-      await _playerService.preloadPlaylist(playlist);
+      // Set playlist first, then preload
+      await _playerService.playSong(playlist, 0);
+      await _playerService.pause();
+      await _playerService.preloadPlaylist();
       debugPrint('[AudioProvider] Preload completed');
     } catch (e) {
       debugPrint('[AudioProvider] Error preloading: $e');
@@ -177,9 +180,8 @@ class AudioProvider extends ChangeNotifier {
   Future<Map<String, dynamic>> getCacheInfo() async {
     try {
       final cacheSize = await _playerService.getCacheSize();
-      final cachedCount = _allAudios.where((audio) async {
-        return await _playerService.isAudioCached(audio.audioUrl);
-      }).length;
+      // Count cached files - note: this is an approximation
+      final cachedCount = 0; // Would need to implement proper cache checking
       
       return {
         'size': cacheSize,

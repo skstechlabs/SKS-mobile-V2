@@ -199,8 +199,14 @@ class _AllSongsPageState extends State<AllSongsPage> {
 
   Widget _buildSongCard(AudioModel song, int index) {
     final currentSong = _audioService.currentSong;
-    final isCurrentSong = currentSong != null && 
-        (currentSong is AudioModel ? currentSong.id == song.id : currentSong['title'] == song.title);
+    final bool isCurrentSong;
+    if (currentSong == null) {
+      isCurrentSong = false;
+    } else if (currentSong is AudioModel) {
+      isCurrentSong = currentSong.id == song.id;
+    } else {
+      isCurrentSong = (currentSong as Map)['title'] == song.title;
+    }
     final isPlaying = isCurrentSong && _audioService.isPlaying;
     
     // Get translated song title

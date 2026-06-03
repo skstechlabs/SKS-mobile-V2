@@ -1617,11 +1617,14 @@ class _HomePageState extends State<HomePage>
             if (firstMeditation != null) {
               // Check if this meditation is currently playing
               final currentSong = _audioService.currentSong;
-              final isCurrentlyPlaying = currentSong != null &&
-                  (currentSong is AudioModel 
-                      ? currentSong.id == firstMeditation.id 
-                      : currentSong['title'] == firstMeditation.title) &&
-                  _audioService.isPlaying;
+              final bool isCurrentlyPlaying;
+              if (currentSong == null) {
+                isCurrentlyPlaying = false;
+              } else if (currentSong is AudioModel) {
+                isCurrentlyPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
+              } else {
+                isCurrentlyPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+              }
 
               if (isCurrentlyPlaying) {
                 // If playing, pause it
@@ -1650,14 +1653,17 @@ class _HomePageState extends State<HomePage>
             height: 240,
             width: double.infinity,
             decoration: BoxDecoration(
-              border: firstMeditation != null &&
-                      _audioService.currentSong != null &&
-                      (_audioService.currentSong is AudioModel 
-                          ? (_audioService.currentSong as AudioModel).id == firstMeditation.id 
-                          : _audioService.currentSong?['title'] == firstMeditation.title) &&
-                      _audioService.isPlaying
-                  ? Border.all(color: AppTheme.primary, width: 3)
-                  : null,
+              border: () {
+                if (firstMeditation == null || _audioService.currentSong == null) return null;
+                final currentSong = _audioService.currentSong;
+                final bool isPlaying;
+                if (currentSong is AudioModel) {
+                  isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
+                } else {
+                  isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+                }
+                return isPlaying ? Border.all(color: AppTheme.primary, width: 3) : null;
+              }(),
               image: DecorationImage(
                 image: _getImageProvider(AppConstants.gurujiTeachingImageUrl),
                 fit: BoxFit.contain,
@@ -1688,14 +1694,17 @@ class _HomePageState extends State<HomePage>
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        firstMeditation != null &&
-                                _audioService.currentSong != null &&
-                                (_audioService.currentSong is AudioModel 
-                                    ? (_audioService.currentSong as AudioModel).id == firstMeditation.id 
-                                    : _audioService.currentSong?['title'] == firstMeditation.title) &&
-                                _audioService.isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                        () {
+                          if (firstMeditation == null || _audioService.currentSong == null) return Icons.play_arrow;
+                          final currentSong = _audioService.currentSong;
+                          final bool isPlaying;
+                          if (currentSong is AudioModel) {
+                            isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
+                          } else {
+                            isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+                          }
+                          return isPlaying ? Icons.pause : Icons.play_arrow;
+                        }(),
                         color: Colors.white,
                         size: 32,
                       ),
@@ -1807,10 +1816,14 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildBhajanCard(AudioModel bhajan) {
     final currentSong = _audioService.currentSong;
-    final isCurrentSong = currentSong != null &&
-        (currentSong is AudioModel 
-            ? currentSong.id == bhajan.id 
-            : currentSong['title'] == bhajan.title);
+    final bool isCurrentSong;
+    if (currentSong == null) {
+      isCurrentSong = false;
+    } else if (currentSong is AudioModel) {
+      isCurrentSong = currentSong.id == bhajan.id;
+    } else {
+      isCurrentSong = (currentSong as Map)['title'] == bhajan.title;
+    }
     final isPlaying = isCurrentSong && _audioService.isPlaying;
     
     // Get translated song title
@@ -1888,7 +1901,7 @@ class _HomePageState extends State<HomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    getSongTitle(bhajan['title']!),
+                    getSongTitle(bhajan.title),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
@@ -1899,7 +1912,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   SizedBox(height: 4),
                   Text(
-                    bhajan['artist'] ?? 'Divine Chants',
+                    bhajan.artist ?? bhajan.description ?? 'Divine Chants',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppTheme.textSecondary,
                           fontSize: 13,
@@ -1914,7 +1927,7 @@ class _HomePageState extends State<HomePage>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  bhajan['duration'] ?? '5:30',
+                  '${bhajan.durationSeconds ~/ 60}:${(bhajan.durationSeconds % 60).toString().padLeft(2, '0')}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                         fontSize: 13,

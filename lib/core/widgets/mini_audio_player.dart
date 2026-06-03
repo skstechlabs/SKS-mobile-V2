@@ -48,10 +48,17 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     }
 
     // Handle both AudioModel and Map types
-    final String title = currentSong is AudioModel ? currentSong.title : (currentSong['title'] ?? 'Unknown Title');
-    final String artist = currentSong is AudioModel 
-        ? (currentSong.artist ?? currentSong.description ?? 'Unknown Artist')
-        : (currentSong['artist'] ?? currentSong['description'] ?? 'Unknown Artist');
+    final String title;
+    final String artist;
+    
+    if (currentSong is AudioModel) {
+      title = currentSong.title;
+      artist = currentSong.artist ?? currentSong.description ?? 'Unknown Artist';
+    } else {
+      final songMap = currentSong as Map;
+      title = songMap['title'] ?? 'Unknown Title';
+      artist = songMap['artist'] ?? songMap['description'] ?? 'Unknown Artist';
+    }
 
     return SafeArea(
       top: false,

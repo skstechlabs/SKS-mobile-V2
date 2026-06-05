@@ -107,10 +107,37 @@ class ReminderNotificationService {
     if (!_initialized) await initialize();
 
     try {
-      // Parse time
+      // Validate and parse time
+      if (reminderTime.isEmpty || !reminderTime.contains(':')) {
+        debugPrint('❌ Invalid reminderTime format: "$reminderTime" (expected HH:MM)');
+        throw FormatException('Invalid time format: "$reminderTime". Expected HH:MM format.');
+      }
+
+      // Parse time - handle both "HH:MM" and "HH:MM:SS" formats
       final timeParts = reminderTime.split(':');
-      final hour = int.parse(timeParts[0]);
-      final minute = int.parse(timeParts[1]);
+      if (timeParts.length < 2) {
+        debugPrint('❌ Invalid reminderTime format: "$reminderTime" (not enough parts)');
+        throw FormatException('Invalid time format: "$reminderTime". Expected HH:MM format.');
+      }
+
+      // Try to parse hour and minute
+      int hour;
+      int minute;
+      try {
+        hour = int.parse(timeParts[0].trim());
+        minute = int.parse(timeParts[1].trim());
+      } catch (e) {
+        debugPrint('❌ Error parsing time parts from "$reminderTime": $e');
+        throw FormatException('Unable to parse time "$reminderTime". Hour: "${timeParts[0]}", Minute: "${timeParts[1]}"');
+      }
+
+      // Validate time ranges
+      if (hour < 0 || hour > 23) {
+        throw FormatException('Invalid hour: $hour (must be 0-23)');
+      }
+      if (minute < 0 || minute > 59) {
+        throw FormatException('Invalid minute: $minute (must be 0-59)');
+      }
 
       // Cancel existing notification for this ID
       await cancelReminder(id);

@@ -613,7 +613,7 @@ class _EnhancedProfileSetupScreenState extends State<EnhancedProfileSetupScreen>
                         // 11. Full Address (Optional)
                         _buildField(
                           controller: _fullAddressController,
-                          label: '${context.tr('full_address')} (${context.tr('optional')})',
+                          label: '${context.tr('full_address')}',
                           icon: Icons.home_outlined,
                           maxLines: 3,
                         ),

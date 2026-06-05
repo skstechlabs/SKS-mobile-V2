@@ -212,10 +212,25 @@ class _HomePageState extends State<HomePage>
         final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
         
         setState(() {
-          // Check which preset reminders are active
+          // Reset to false first
+          _presetReminders['morning_meditation'] = false;
+          _presetReminders['evening_meditation'] = false;
+          
+          // Check which preset reminders are active - language-agnostic checking
           for (var reminder in reminders) {
             final title = (reminder['title'] as String).toLowerCase();
-            if (title.contains('morning') && title.contains('meditation')) {
+            final time = (reminder['reminderTime'] as String? ?? '');
+            
+            // Check for morning meditation (6:00 AM) - language agnostic
+            if (time == '06:00' || time.startsWith('06:00')) {
+              _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
+            } 
+            // Check for evening meditation (18:00 / 6:00 PM) - language agnostic
+            else if (time == '18:00' || time.startsWith('18:00')) {
+              _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
+            }
+            // Fallback: check title keywords (works for any language that uses English keywords)
+            else if (title.contains('morning') && title.contains('meditation')) {
               _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
             } else if (title.contains('evening') && title.contains('meditation')) {
               _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
@@ -826,8 +841,8 @@ class _HomePageState extends State<HomePage>
         // Create/activate reminder
         await _createOrActivateReminder(title, defaultTime);
       } else {
-        // Deactivate reminder
-        await _deactivateReminder(title);
+        // Deactivate reminder - pass time instead of title
+        await _deactivateReminder(defaultTime);
       }
     } catch (e) {
       // Revert on error
@@ -846,12 +861,17 @@ class _HomePageState extends State<HomePage>
   }
   
   Future<void> _createOrActivateReminder(String title, String defaultTime) async {
-    // Check if reminder already exists
+    // Check if reminder already exists - use TIME instead of title for matching
     final response = await _apiService.getReminders();
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+      
+      // Find existing reminder by TIME (language-agnostic)
       final existing = reminders.firstWhere(
-        (r) => (r['title'] as String).toLowerCase() == title.toLowerCase(),
+        (r) {
+          final time = (r['reminderTime'] as String? ?? '');
+          return time == defaultTime || time.startsWith(defaultTime);
+        },
         orElse: () => {},
       );
       
@@ -859,15 +879,27 @@ class _HomePageState extends State<HomePage>
       String? errorMessage;
       
       if (existing.isNotEmpty) {
-        // Activate existing reminder
-        final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
-        success = toggleResponse['success'] == true;
-        errorMessage = toggleResponse['message'];
+        // Check if it needs to be activated
+        final isCurrentlyActive = existing['isActive'] as bool;
+        if (!isCurrentlyActive) {
+          // Activate existing reminder
+          final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
+          success = toggleResponse['success'] == true;
+          errorMessage = toggleResponse['message'];
+        } else {
+          // Already active
+          success = true;
+        }
       } else {
-        // Create new reminder with default settings
+        // Create new reminder with English title (will be used for ALL languages)
+        // Use standardized English titles so they work across languages
+        final standardTitle = defaultTime == '06:00' 
+            ? 'Morning Meditation' 
+            : 'Evening Meditation';
+            
         final createResponse = await _apiService.createReminder(
-          title: title,
-          message: 'Time for your ${title.toLowerCase()}',
+          title: standardTitle,
+          message: 'Time for your meditation practice',
           reminderTime: defaultTime,
           daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days (Sunday to Saturday)
           isActive: true,
@@ -880,7 +912,7 @@ class _HomePageState extends State<HomePage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(success 
-              ? '${context.tr('reminder_set')} $defaultTime ${context.tr('daily_at')}'
+              ? '${context.tr('reminder_set')} $defaultTime'
               : errorMessage ?? 'Failed to set reminder'),
             backgroundColor: success ? Colors.green : Colors.red,
             duration: Duration(seconds: success ? 3 : 4),
@@ -890,12 +922,17 @@ class _HomePageState extends State<HomePage>
     }
   }
   
-  Future<void> _deactivateReminder(String title) async {
+  Future<void> _deactivateReminder(String defaultTime) async {
     final response = await _apiService.getReminders();
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+      
+      // Find existing reminder by TIME (language-agnostic)
       final existing = reminders.firstWhere(
-        (r) => (r['title'] as String).toLowerCase() == title.toLowerCase(),
+        (r) {
+          final time = (r['reminderTime'] as String? ?? '');
+          return time == defaultTime || time.startsWith(defaultTime);
+        },
         orElse: () => {},
       );
       

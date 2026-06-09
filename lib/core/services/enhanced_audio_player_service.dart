@@ -119,52 +119,58 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
       // Check if audio is cached
       String? audioPath = await _cacheService.getCachedFilePath(url);
 
-      if (audioPath == null) {
-        // Download and cache audio with progress
-        developer.log('Downloading audio: ${song.title}');
-        audioPath = await _cacheService.downloadWithProgress(
-          url,
-          onProgress: (progress) {
-            _downloadProgress = progress;
-            notifyListeners();
-          },
-        );
-      } else {
+      if (audioPath != null) {
+        // Use cached file - instant loading
         developer.log('Using cached audio: ${song.title}');
         _downloadProgress = 1.0;
-      }
-
-      if (audioPath != null) {
+        
         final handler = _audioHandler;
         if (handler != null) {
-          // Use local cached file
           await handler.player.setFilePath(audioPath);
-
-          // Update media item for background playback
           handler.setMediaItem(
             song.title,
             song.artist ?? song.description ?? 'Unknown Artist',
           );
         } else {
-          // Fallback method
           await _audioPlayer.setFilePath(audioPath);
         }
       } else {
-        // Fallback to streaming if download fails
-        developer.log('Download failed, streaming: ${song.title}');
+        // Not cached - stream directly from URL for instant playback
+        developer.log('Streaming audio: ${song.title}');
+        
         final handler = _audioHandler;
         if (handler != null) {
+          // Stream from URL
           await handler.setUrl(url);
           handler.setMediaItem(
             song.title,
             song.artist ?? song.description ?? 'Unknown Artist',
           );
         } else {
-          await _audioPlayer.setUrl(url);
+          // Use LockCachingAudioSource for streaming with caching
+          await _audioPlayer.setAudioSource(
+            LockCachingAudioSource(Uri.parse(url)),
+            preload: true,
+          );
         }
+        
+        // Cache in background while streaming
+        _cacheService.downloadAndCache(url).then((cachedPath) {
+          if (cachedPath != null) {
+            developer.log('Audio cached in background: ${song.title}');
+          }
+        }).catchError((e) {
+          developer.log('Background caching failed: $e');
+        });
       }
     } catch (e) {
       developer.log('Error loading audio: $e');
+      // On error, try fallback to direct URL streaming
+      try {
+        await _audioPlayer.setUrl(url);
+      } catch (fallbackError) {
+        developer.log('Fallback streaming also failed: $fallbackError');
+      }
     } finally {
       _isLoadingAudio = false;
       notifyListeners();
@@ -184,6 +190,9 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
       } else {
         await _audioPlayer.play();
       }
+      
+      // Preload next song in background for seamless transitions
+      preloadNextSong();
     } catch (e) {
       developer.log('Error playing audio: $e');
     } finally {
@@ -279,16 +288,34 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
     final isCached = await _cacheService.isCached(nextSong.audioUrl);
     if (!isCached) {
       developer.log('Preloading next song: ${nextSong.title}');
+      // Don't await - cache in background
       _cacheService.downloadAndCache(nextSong.audioUrl);
     }
   }
 
-  // Preload entire playlist in background
-  Future<void> preloadPlaylist() async {
+  // Preload entire playlist in background (limited to avoid excessive downloads)
+  Future<void> preloadPlaylist({int maxCount = 5}) async {
     if (_playlist.isEmpty) return;
 
-    final urls = _playlist.map((song) => song.audioUrl).toList();
-    await _cacheService.preloadAudios(urls);
+    // Only preload first few songs to avoid excessive bandwidth usage
+    final songsToPreload = _playlist.take(maxCount).toList();
+    
+    for (var song in songsToPreload) {
+      final isCached = await _cacheService.isCached(song.audioUrl);
+      if (!isCached) {
+        // Download in background without blocking
+        _cacheService.downloadAndCache(song.audioUrl).then((path) {
+          if (path != null) {
+            developer.log('Preloaded: ${song.title}');
+          }
+        }).catchError((e) {
+          developer.log('Preload failed for ${song.title}: $e');
+        });
+        
+        // Small delay between downloads to avoid overwhelming the network
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
   }
 
   // Clear cache for specific song

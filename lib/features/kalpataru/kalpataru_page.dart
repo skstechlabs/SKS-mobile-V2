@@ -1,34 +1,41 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/services/localization_service.dart';
 
 class KalpataruPage extends StatefulWidget {
-  const KalpataruPage({Key? key}) : super(key: key);
+  const KalpataruPage({super.key});
 
   @override
   State<KalpataruPage> createState() => _KalpataruPageState();
 }
 
-class _KalpataruPageState extends State<KalpataruPage> {
+class _KalpataruPageState extends State<KalpataruPage> with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/meditation.jpg'),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.black.withOpacity(0.5),
-            BlendMode.darken,
-          ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.white, Color(0xFFFFF8E7), Color(0xFFFFF4D6)],
         ),
       ),
       child: SingleChildScrollView(
@@ -36,16 +43,14 @@ class _KalpataruPageState extends State<KalpataruPage> {
         child: Column(
           children: [
             _buildHeroSection(),
-            _buildStatsSection(),
-            _buildWhatIsSection(),
-            _buildSecretSection(),
+            _buildDivineIntroduction(),
+            _buildPrincipleSection(),
             _buildHowItWorksSection(),
-            _buildKarmaSection(),
-            _buildEnergySection(),
-            _buildManifestationSection(),
-            _buildBenefitsSection(),
-            _buildReadySection(),
-            const SizedBox(height: 40),
+            _buildTransformationSection(),
+            _buildBenefitsGrid(),
+            _buildTestimonialsSection(),
+            _buildCallToAction(),
+            const SizedBox(height: 60),
           ],
         ),
       ),
@@ -54,186 +59,143 @@ class _KalpataruPageState extends State<KalpataruPage> {
 
   Widget _buildHeroSection() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFFFFF8E7), const Color(0xFFFFE5B4).withValues(alpha: 0.6)],
+        ),
+      ),
+      child: Column(
+        children: [
+          AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppTheme.saffron.withValues(alpha: 0.1 + (_animationController.value * 0.2)),
+                      AppTheme.saffron.withValues(alpha: 0.05),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                child: child,
+              );
+            },
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(colors: [Color(0xFFFF9933), Color(0xFFFF6600)]),
+                boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 5)],
+              ),
+              child: const Center(child: Icon(Icons.spa_outlined, color: Colors.white, size: 40)),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text('ॐ', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w300, color: AppTheme.saffron.withValues(alpha: 0.8))),
+          const SizedBox(height: 16),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(colors: [Color(0xFFCC6600), Color(0xFFFF9933), Color(0xFFFFCC00)]).createShader(bounds),
+            child: const Text('Kalpataru', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: 2, height: 1.2), textAlign: TextAlign.center),
+          ),
+          const SizedBox(height: 8),
+          Text('The Wish-Fulfilling Tree', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: Colors.grey[700], fontStyle: FontStyle.italic, letterSpacing: 1), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          Container(width: 80, height: 3, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, AppTheme.saffron, Colors.transparent]))),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 4))]),
+            child: Column(
+              children: [
+                Text('A Divine Technique', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[600], letterSpacing: 2)),
+                const SizedBox(height: 8),
+                Text('Revealed by Sri Jeeveswara', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.saffron, letterSpacing: 0.5), textAlign: TextAlign.center),
+                const SizedBox(height: 4),
+                Text('Moksha Guru', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700], fontStyle: FontStyle.italic)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivineIntroduction() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
+        children: [
+          Text('What if you could manifest your deepest desires naturally?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.grey[800], height: 1.4), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 30, offset: const Offset(0, 10))]),
+            child: Column(
+              children: [
+                Icon(Icons.auto_awesome, size: 40, color: AppTheme.saffron),
+                const SizedBox(height: 16),
+                Text('Kalpataru is a sacred manifestation and healing technique revealed by Moksha Guru Sri Jeeveswara. Like the mythical wish-fulfilling tree, this divine practice helps you manifest health, relationships, abundance, and spiritual growth.', style: TextStyle(fontSize: 16, height: 1.8, color: Colors.grey[700], fontWeight: FontWeight.w400), textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrincipleSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppTheme.saffron.withValues(alpha: 0.08), const Color(0xFFFFE5B4).withValues(alpha: 0.05)]),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.2), width: 1.5),
+      ),
       child: Column(
         children: [
           Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.saffron.withOpacity(0.3),
-                  blurRadius: 30,
-                  spreadRadius: 10,
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: Image.asset(
-                'assets/images/Guruji_Meditation.PNG',
-                fit: BoxFit.cover,
-              ),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(color: AppTheme.saffron.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text('THE PRINCIPLE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.saffron, letterSpacing: 2)),
           ),
           const SizedBox(height: 24),
-          ShaderMask(
-            shaderCallback: (bounds) => LinearGradient(
-              colors: [
-                Color(0xFFd4a843),
-                Color(0xFFf5e6a3),
-                Color(0xFFd4a843),
-              ],
-            ).createShader(bounds),
-            child: Text(
-              'Sri Jeeveswara\'s Kalpataru',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
+          _buildPrincipleItem('🌟', 'Energy & Consciousness', 'Everything is Shakti (Energy) and Shiva (Consciousness)'),
+          const SizedBox(height: 16),
+          _buildPrincipleItem('🔄', 'Karmic Healing', 'Heals at the causal level - Sthula, Sukshma, and Karana bodies'),
+          const SizedBox(height: 16),
+          _buildPrincipleItem('✨', 'Direct Experience', 'Not belief or imagination - experience transformation directly'),
         ],
       ),
     );
   }
 
-  Widget _buildStatsSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            'The Impact of Kalpataru',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFfbbf24),
-              letterSpacing: 2,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('✨', '4', 'hrs', 'One Miracle')),
-              Expanded(child: _buildStatCard('🙏', '10K+', '', 'Sadhaks')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('🌍', '40+', '', 'Countries')),
-              Expanded(child: _buildStatCard('🧘', '5000+', '', 'Practitioners')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String emoji, String value, String suffix, String label) {
-    return Container(
-      margin: const EdgeInsets.all(6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        children: [
-          Text(emoji, style: TextStyle(fontSize: 28)),
-          const SizedBox(height: 8),
-          Text(
-            '$value$suffix',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFFfbbf24).withOpacity(0.9),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWhatIsSection() {
-    return _buildSection(
-      title: 'What is Kalpataru?',
+  Widget _buildPrincipleItem(String icon, String title, String description) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildGlassCard(
+        Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2))]),
+          child: Center(child: Text(icon, style: const TextStyle(fontSize: 24))),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildItalicText('What if the life you are living is only a fraction of what is truly possible?'),
-              const SizedBox(height: 12),
-              _buildItalicText('What if healing happens when you shift within?'),
-              const SizedBox(height: 12),
-              _buildItalicText('What if manifestation unfolds through inner harmony?'),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildHighlightCard(
-          title: 'Kalpataru is the Answer!',
-          content: 'A divine revelation — a sacred practice designed by Moksha Guru to transform human lives.',
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: ['Health', 'Relationships', 'Finances', 'Success', 'Inner Peace', 'Any Desire']
-              .map((item) => _buildChip(item))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSecretSection() {
-    return _buildSection(
-      icon: '🔐',
-      title: 'A Sacred Secret Revealed',
-      children: [
-        _buildGlassCard(
-          child: Column(
-            children: [
-              Text(
-                'For ages, the deeper laws of healing and manifestation remained hidden. Kalpataru is one such rare technique, revealed by Gurudev — not for a few, but for all who are ready to transform.',
-                style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.95), height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildItalicText('Not belief', fontSize: 14),
-                  Text(' • ', style: TextStyle(color: Color(0xFFfbbf24).withOpacity(0.4))),
-                  _buildItalicText('Not imagination', fontSize: 14),
-                  Text(' • ', style: TextStyle(color: Color(0xFFfbbf24).withOpacity(0.4))),
-                  Text('Direct experience', style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: Color(0xFFfbbf24), fontWeight: FontWeight.w600)),
-                ],
-              ),
+              Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.grey[800])),
+              const SizedBox(height: 4),
+              Text(description, style: TextStyle(fontSize: 14, height: 1.6, color: Colors.grey[600])),
             ],
           ),
         ),
@@ -242,438 +204,237 @@ class _KalpataruPageState extends State<KalpataruPage> {
   }
 
   Widget _buildHowItWorksSection() {
-    return _buildSection(
-      icon: '🌿',
-      title: 'How Kalpataru Works',
-      subtitle: 'Heals the Root of the Pain',
-      children: [
-        _buildGlassCard(
-          child: _buildItalicText('"The problem is not where it appears. The root lies deeper."', fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Pain dissolves through three layers:',
-          style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9)),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
-        _buildLayerCard('Sthula', 'Physical Body'),
-        _buildLayerCard('Sukshma', 'Subtle Body — mind, energy, emotions'),
-        _buildLayerCard('Karana', 'Causal Body — karmic blueprint'),
-        const SizedBox(height: 12),
-        _buildItalicText('Not partial healing — total transformation.', color: Color(0xFFfbbf24)),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
+        children: [
+          Text('How Kalpataru Works', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.grey[800]), textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          Text('Heals the Root Cause', style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: AppTheme.saffron, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 40),
+          _buildProcessStep('1', 'Identify the Challenge', 'Recognize what you want to heal or manifest'),
+          const SizedBox(height: 12),
+          _buildProcessStep('2', 'Practice Kalpataru', 'Connect with the divine energy through the sacred technique'),
+          const SizedBox(height: 12),
+          _buildProcessStep('3', 'Karmic Transformation', 'Healing occurs at the causal body - the root of all karma'),
+          const SizedBox(height: 12),
+          _buildProcessStep('4', 'Natural Manifestation', 'Your desire manifests effortlessly as consciousness shifts'),
+        ],
+      ),
     );
   }
 
-  Widget _buildKarmaSection() {
-    return _buildSection(
-      icon: '🔥',
-      title: 'The Karma Connection',
-      children: [
-        _buildGlassCard(
-          child: Column(
-            children: [
-              Text(
-                'Every challenge in life arises from karma.',
-                style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9), height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Kalpataru heals the karmic imprint. The cycle dissolves.',
-                style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9), height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'The problem does NOT return.',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFfbbf24),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+  Widget _buildProcessStep(String number, String title, String description) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 4))]),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.saffron, const Color(0xFFFFAA00)]), shape: BoxShape.circle),
+            child: Center(child: Text(number, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEnergySection() {
-    return _buildSection(
-      title: 'Energy & Consciousness',
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildGlassCard(
-                child: Column(
-                  children: [
-                    Text(
-                      'Everything is Energy',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFfbbf24)),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    _buildItalicText('(Shakthi)', fontSize: 14),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildGlassCard(
-                child: Column(
-                  children: [
-                    Text(
-                      'Everything is Consciousness',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFfbbf24)),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    _buildItalicText('(Siva)', fontSize: 14),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildGlassCard(
-          child: Column(
-            children: [
-              Text(
-                'Kalpataru aligns both. When you practice:',
-                style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w500),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              ...[
-                'Your consciousness shifts',
-                'Your inner state transforms',
-                'The external problem dissolves naturally'
-              ].map((text) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Text('✦ ', style: TextStyle(color: Color(0xFFfbbf24))),
-                    Expanded(
-                      child: Text(
-                        text,
-                        style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.95)),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildManifestationSection() {
-    return _buildSection(
-      title: 'The Secret of Manifestation',
-      children: [
-        ...[
-          'You become deeply connected to your desire',
-          'Your energy aligns with it',
-          'The manifestation unfolds — effortlessly'
-        ].asMap().entries.map((entry) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildGlassCard(
-            child: Row(
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Color(0xFFd4a843).withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${entry.key + 1}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFe8d48b),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    entry.value,
-                    style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.95)),
-                  ),
-                ),
+                Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.grey[800])),
+                const SizedBox(height: 4),
+                Text(description, style: TextStyle(fontSize: 13, height: 1.5, color: Colors.grey[600])),
               ],
             ),
           ),
-        )),
-        const SizedBox(height: 16),
-        _buildHighlightCard(
-          title: 'Manifestation Multiplied',
-          content: 'Kalpataru awakens your manifestation power itself. You become a creator of your reality.',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBenefitsSection() {
-    return _buildSection(
-      title: 'What Kalpataru Brings',
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            {'icon': '❤️‍🩹', 'text': 'Deep healing'},
-            {'icon': '🙏', 'text': 'Harmonious relationships'},
-            {'icon': '🕊️', 'text': 'Emotional freedom'},
-            {'icon': '🧘', 'text': 'Clarity and focus'},
-            {'icon': '🌱', 'text': 'Spiritual growth'},
-            {'icon': '✨', 'text': 'Effortless manifestation'},
-          ].map((item) => _buildBenefitChip(item['icon']!, item['text']!)).toList(),
-        ),
-        const SizedBox(height: 16),
-        _buildHighlightCard(
-          content: '5000+ practitioners on this sacred path — Kalpataru is now their daily reality.',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReadySection() {
-    return _buildSection(
-      title: 'Are You Ready?',
-      children: [
-        ...[
-          'heal at the root',
-          'go beyond karma',
-          'manifest consciously',
-          'transform completely'
-        ].map((text) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildGlassCard(
-            child: RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: Colors.white.withOpacity(0.95)),
-                children: [
-                  TextSpan(text: 'Are you ready to '),
-                  TextSpan(
-                    text: text,
-                    style: TextStyle(color: Color(0xFFfbbf24), fontWeight: FontWeight.w600),
-                  ),
-                  TextSpan(text: '?'),
-                ],
-              ),
-            ),
-          ),
-        )),
-        const SizedBox(height: 16),
-        _buildHighlightCard(
-          content: 'Then this sacred path is for you. 🙏',
-          highlight: true,
-        ),
-      ],
-    );
-  }
-
-  // Helper widgets
-  Widget _buildSection({
-    String? icon,
-    required String title,
-    String? subtitle,
-    required List<Widget> children,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Column(
-        children: [
-          if (icon != null)
-            Text(icon, style: TextStyle(fontSize: 32)),
-          if (icon != null) const SizedBox(height: 8),
-          ShaderMask(
-            shaderCallback: (bounds) => LinearGradient(
-              colors: [Color(0xFFd4a843), Color(0xFFf5e6a3), Color(0xFFd4a843)],
-            ).createShader(bounds),
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-                color: Color(0xFFfbbf24).withOpacity(0.8),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-          const SizedBox(height: 16),
-          ...children,
         ],
       ),
     );
   }
 
-  Widget _buildGlassCard({required Widget child}) {
+  Widget _buildTransformationSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      margin: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppTheme.saffron, const Color(0xFFFF9933)]), borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.3), blurRadius: 30, offset: const Offset(0, 10))]),
+      child: Column(
+        children: [
+          const Icon(Icons.self_improvement, size: 48, color: Colors.white),
+          const SizedBox(height: 20),
+          const Text('Three-Level Transformation', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          _buildTransformationLevel('Sthula Sharira', 'Physical Body', 'Healing of physical ailments and manifestation in the material world'),
+          const SizedBox(height: 16),
+          _buildTransformationLevel('Sukshma Sharira', 'Subtle Body', 'Transformation of mind, emotions, and energy patterns'),
+          const SizedBox(height: 16),
+          _buildTransformationLevel('Karana Sharira', 'Causal Body', 'Dissolution of karmic imprints at the deepest level'),
+        ],
       ),
-      child: child,
     );
   }
 
-  Widget _buildHighlightCard({String? title, required String content, bool highlight = false}) {
+  Widget _buildTransformationLevel(String sanskrit, String english, String description) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: highlight
-            ? LinearGradient(colors: [Color(0xFFf59e0b), Color(0xFFfbbf24)])
-            : null,
-        color: highlight ? null : Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFd4a843).withOpacity(0.3)),
-        boxShadow: highlight
-            ? [
-                BoxShadow(
-                  color: Color(0xFFfbbf24).withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ]
-            : null,
-      ),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1)),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (title != null) ...[
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: highlight ? Colors.black : Color(0xFFfbbf24),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-          ],
-          Text(
-            content,
-            style: TextStyle(
-              fontSize: 15,
-              color: highlight ? Colors.black : Colors.white.withOpacity(0.95),
-              height: 1.5,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLayerCard(String title, String subtitle) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFFd4a843).withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFfbbf24),
-            ),
+          Row(
+            children: [
+              Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+              const SizedBox(width: 12),
+              Text(sanskrit, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+            ],
           ),
           const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.8)),
-            textAlign: TextAlign.center,
-          ),
+          Padding(padding: const EdgeInsets.only(left: 20), child: Text(english, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.9)))),
+          const SizedBox(height: 8),
+          Padding(padding: const EdgeInsets.only(left: 20), child: Text(description, style: TextStyle(fontSize: 13, height: 1.5, color: Colors.white.withValues(alpha: 0.85)))),
         ],
       ),
     );
   }
 
-  Widget _buildChip(String text) {
+  Widget _buildBenefitsGrid() {
+    final benefits = [
+      {'icon': Icons.favorite, 'title': 'Deep Healing', 'desc': 'Heal physical and emotional pain at the root'},
+      {'icon': Icons.psychology, 'title': 'Mental Clarity', 'desc': 'Clear mind and focused consciousness'},
+      {'icon': Icons.family_restroom, 'title': 'Harmonious Relations', 'desc': 'Transform relationships naturally'},
+      {'icon': Icons.spa, 'title': 'Inner Peace', 'desc': 'Experience profound spiritual calm'},
+      {'icon': Icons.trending_up, 'title': 'Abundance', 'desc': 'Manifest wealth and prosperity'},
+      {'icon': Icons.auto_awesome, 'title': 'Spiritual Growth', 'desc': 'Accelerate your path to enlightenment'},
+    ];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.9)),
-      ),
-    );
-  }
-
-  Widget _buildBenefitChip(String icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
         children: [
-          Text(icon, style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.95)),
+          Text('What Kalpataru Brings', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.grey[800]), textAlign: TextAlign.center),
+          const SizedBox(height: 32),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.87, // Adjusted for better fit
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: benefits.length,
+                itemBuilder: (context, index) {
+                  final benefit = benefits[index];
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 4))],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [AppTheme.saffron.withValues(alpha: 0.2), const Color(0xFFFFE5B4).withValues(alpha: 0.3)]),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(benefit['icon'] as IconData, size: 28, color: AppTheme.saffron),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          benefit['title'] as String,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.grey[800]),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Flexible(
+                          child: Text(
+                            benefit['desc'] as String,
+                            style: TextStyle(fontSize: 11, height: 1.3, color: Colors.grey[600]),
+                            textAlign: TextAlign.center,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildItalicText(String text, {double fontSize = 16, FontWeight? fontWeight, Color? color}) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontStyle: FontStyle.italic,
-        fontWeight: fontWeight,
-        color: color ?? Colors.white.withOpacity(0.9),
-        height: 1.5,
+  Widget _buildTestimonialsSection() {
+    return Container(
+      margin: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: const Color(0xFFFFF8E7), borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.2), width: 1.5)),
+      child: Column(
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildStatCard('5000+', 'Practitioners'), const SizedBox(width: 20), _buildStatCard('10K+', 'Sadhaks')]),
+          const SizedBox(height: 16),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildStatCard('40+', 'Countries'), const SizedBox(width: 20), _buildStatCard('4 hrs', 'One Miracle')]),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            child: Text('"The problem does NOT return"', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.saffron, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+          ),
+        ],
       ),
-      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildStatCard(String value, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 2))]),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppTheme.saffron)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey[600]), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCallToAction() {
+    return Container(
+      margin: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [const Color(0xFFFFF8E7), const Color(0xFFFFE5B4).withValues(alpha: 0.6)]), borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        children: [
+          Text('Are You Ready to Transform?', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: Colors.grey[800]), textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          Text('Kalpataru is waiting for you', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey[600], fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.15), blurRadius: 30, offset: const Offset(0, 8))]),
+            child: Column(
+              children: [
+                Icon(Icons.emoji_objects_outlined, size: 48, color: AppTheme.saffron),
+                const SizedBox(height: 16),
+                Text('Begin your journey of healing and manifestation through this sacred practice revealed by Moksha Guru', style: TextStyle(fontSize: 15, height: 1.7, color: Colors.grey[700]), textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

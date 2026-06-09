@@ -105,14 +105,14 @@ flutter:
   uses-material-design: true
   
   assets:
-    - assets/images/
-    - assets/images/daily_wisdom_images/
-    - assets/images/chakras/
-    - assets/images/recentGatherings/
+    # Essential UI images only (logo for splash screen)
+    # All other images loaded from Cloudflare R2 dynamically
+    - assets/images/Guruji_logo.JPG
     - assets/translations/
     - assets/icons/
-    - assets/audio/
-    - assets/translations/
+    # Note: assets/audio/ and assets/images/* excluded to reduce app size
+    # Audio files streamed from R2: https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev/
+    # Images loaded from R2 and cached locally by cached_network_image package
 
 flutter_launcher_icons:
   android: true

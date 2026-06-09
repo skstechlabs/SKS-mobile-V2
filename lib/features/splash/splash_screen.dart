@@ -127,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen>
             developer.log('🔄 Attempting lightweight Google sign-in...');
             firebaseUser = await AuthService()
                 .attemptSilentSignIn()
-                .timeout(const Duration(seconds: 10), onTimeout: () => null);
+                .timeout(const Duration(seconds: 2), onTimeout: () => null);
             if (firebaseUser != null) {
               developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
             }

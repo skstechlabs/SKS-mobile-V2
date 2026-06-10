@@ -87,3 +87,21 @@ app/sks-release-key.jks
 
 # Development documentation (not for production)
 docs/
+
+# ============================================
+# CLOUDFLARE R2 ASSETS (excluded from build)
+# ============================================
+# Audio files and images are loaded dynamically from Cloudflare R2
+# This reduces APK size significantly (~50-100 MB savings)
+# Files are cached locally after first download
+
+# Audio files (streamed from R2)
+assets/audio/
+assets/audio/**
+
+# Dynamic images (loaded from R2, except essential UI images)
+assets/images/daily_wisdom_images/
+assets/images/chakras/
+assets/images/recentGatherings/
+# Keep: assets/images/Guruji_logo.JPG (used in splash)
+# Keep: assets/images/placeholder.png (used as fallback)

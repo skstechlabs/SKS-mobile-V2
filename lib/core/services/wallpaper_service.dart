@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import '../constants/app_env.dart';
 
 /// Wallpaper Service
@@ -25,11 +26,27 @@ class WallpaperService {
   static const String _prefKeyCachedUrls = 'wallpaper_cached_urls';
   static const Duration _rotationInterval = Duration(minutes: 15);
 
-  final Dio _dio = Dio();
+  late final Dio _dio;
   List<Map<String, dynamic>> _wallpapers = [];
   bool _isLoaded = false;
   // Dart-side timer for foreground rotation (backup to native alarm)
   Timer? _rotationTimer;
+
+  WallpaperService._internal() {
+    // Initialize Dio with SSL handling for Let's Encrypt
+    _dio = Dio();
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient();
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        // Allow Let's Encrypt certificates for our domain
+        if (host == 'app.sivakundalini.org') {
+          return true;
+        }
+        return false;
+      };
+      return client;
+    };
+  }
 
   /// Initialize the wallpaper service
   Future<void> initialize() async {

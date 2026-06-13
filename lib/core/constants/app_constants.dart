@@ -79,7 +79,7 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
   ];
   
   static const List<Map<String, String>> bhajans = [
-    {'title': 'Sri Jeeveswarastakam', 'artist': 'Sai Vijay', 'duration': '5:09', 'imageUrl': CdnImages.guruji30, 'url': 'assets/audio/Sri_Jeeveswarastakam_song.mp3', 'description': 'Sacred eight-verse hymn glorifying the divine qualities and spiritual teachings of Parama Pujya Sri Jeeveswara Yogi Gurudev'},
+    {'title': 'Sri Jeeveswarastakam', 'artist': 'Sai Vijay', 'duration': '5:09', 'imageUrl': CdnImages.guruji30, 'url': 'assets/audio/Sri_Jeeveswarastakam_song.mp3', 'description': 'Sacred eight-verse hymn glorifying the divine qualities and spiritual teachings of Moksha Guru Sri Jeeveswara Yogi Gurudev'},
     {'title': 'Gundello Gudi', 'artist': 'Divine Voices', 'duration': '4:23', 'imageUrl': CdnImages.gurujiSmile, 'url': 'assets/audio/Gundello_gudi_song.mp3', 'description': 'Soulful Telugu devotional song celebrating the divine temple within the heart, awakening inner consciousness'},
     {'title': 'Nirvana Shatkam', 'artist': 'Sacred Sounds', 'duration': '5:47', 'imageUrl': CdnImages.gurujiMeditation, 'url': 'assets/audio/Nirvana_Shatkam_song.mp3', 'description': 'Timeless Advaita composition by Adi Shankaracharya declaring the pure consciousness beyond all dualities'},
     {'title': 'Jeeveswara Yogi Taluva', 'artist': 'Temple Bells', 'duration': '6:12', 'imageUrl': CdnImages.gurujiLogo, 'url': 'assets/audio/Jeeveswara_yogi_taluva_song.mp3', 'description': 'Melodious devotional tribute expressing deep reverence and gratitude to the enlightened master Sri Jeeveswara Yogi'},
@@ -105,7 +105,7 @@ Through deep meditation and spiritual practices, our Guru guides disciples on th
   
   // Contact Information
   static const String organizationName = 'Siva Kundalini Sadhana';
-  static const String organizationDescription = '''Siva Kundalini Sadhana (SKS) is a non-profit organization founded by Parama Pujya Sri Jeeveswara Yogi, with a divine purpose of transforming every human life into a healthy and blissful journey towards self-realisation, through simple, safe and powerful Siva Kundalini Sadhana.''';
+  static const String organizationDescription = '''Siva Kundalini Sadhana (SKS) is a non-profit organization founded by Moksha Guru Sri Jeeveswara Yogi, with a divine purpose of transforming every human life into a healthy and blissful journey towards self-realisation, through simple, safe and powerful Siva Kundalini Sadhana.''';
   
   static const String contactEmail = 'sivakundalini@gmail.com';
   static const String contactPhone = '+91 78010 46111';

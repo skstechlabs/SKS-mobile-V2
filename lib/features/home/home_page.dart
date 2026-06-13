@@ -447,7 +447,7 @@ class _HomePageState extends State<HomePage>
               
               const SizedBox(height: 12),
               
-              // Parama Pujya - spiritual styling
+              // Moksha Guru - spiritual styling
               Text(
                 context.tr('parama_pujya'),
                 style: TextStyle(

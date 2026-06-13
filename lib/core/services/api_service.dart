@@ -36,6 +36,9 @@ class ApiService {
       },
     ));
 
+    // SSL certificate validation is enabled (secure)
+    // Requires valid SSL certificate on server
+
     // Add interceptor for logging
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,

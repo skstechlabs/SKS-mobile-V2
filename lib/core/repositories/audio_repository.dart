@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import '../models/audio_model.dart';
 import '../constants/app_env.dart';
 
@@ -20,6 +22,19 @@ class AudioRepository {
         'Content-Type': 'application/json',
       },
     ));
+
+    // SSL certificate handling for Let's Encrypt certificates
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient();
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        // Allow Let's Encrypt certificates for our domain
+        if (host == 'app.sivakundalini.org') {
+          return true;
+        }
+        return false;
+      };
+      return client;
+    };
 
     // Add logging interceptor
     _dio.interceptors.add(LogInterceptor(

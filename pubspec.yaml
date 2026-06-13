@@ -105,13 +105,15 @@ flutter:
   uses-material-design: true
   
   assets:
-    # Essential UI images only (logo for splash screen)
+    # Essential UI images only (logo for splash screen and meditation)
     # All other images loaded from Cloudflare R2 dynamically
     - assets/images/Guruji_logo.JPG
+    - assets/images/Guruji_Meditation.PNG
     - assets/translations/
     - assets/icons/
-    # Note: assets/audio/ and assets/images/* excluded to reduce app size
-    # Audio files streamed from R2: https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev/
+    # Note: Meditation sounds downloaded from R2 CDN and cached locally
+    # Supports multiple languages: /sks-audio-files/audio/meditation/{lang}/Meditation_*.mp3
+    # Bhajans/music streamed from R2: https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev/
     # Images loaded from R2 and cached locally by cached_network_image package
 
 flutter_launcher_icons:

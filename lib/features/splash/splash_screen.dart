@@ -289,7 +289,7 @@ class _SplashScreenState extends State<SplashScreen>
                       const SizedBox(height: 40),
 
                       Text(
-                        'Parama Pujya',
+                        'Moksha Guru',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,

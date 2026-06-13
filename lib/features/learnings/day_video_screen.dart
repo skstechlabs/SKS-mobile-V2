@@ -244,35 +244,29 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // OPTIMIZATION: Smart Tracking Strategy
+    // OPTIMIZED MILESTONE-BASED TRACKING
     // ═══════════════════════════════════════════════════════════════
-    // ✅ ALWAYS track: milestones, start, complete, pause
-    // ⏱️ PERIODIC track: progress every 30 seconds (not 5!)
-    // ❌ SKIP: frequent progress updates
+    // Only make backend calls at critical milestones:
+    // - 25% completion
+    // - 50% completion  
+    // - 75% completion
+    // - 90%+ completion (considered complete)
+    // - Manual start/complete events
+    //
+    // This reduces from 1 call every 30s to only 4-5 calls total!
     // ═══════════════════════════════════════════════════════════════
     
     final isMilestone = eventType.startsWith('milestone_');
-    final isCriticalEvent = eventType == 'start' || eventType == 'complete' || 
-                            eventType == 'pause' || isMilestone;
+    final isStartOrComplete = eventType == 'start' || eventType == 'complete';
     
-    // For regular progress updates, only track every 30 seconds
-    if (eventType == 'progress') {
-      final timeSinceLastTrack = positionSeconds - _lastTrackedPosition;
-      
-      // Skip if less than 30 seconds passed AND position changed less than 30 seconds
-      if (timeSinceLastTrack.abs() < 30) {
-        debugPrint('⏭️ Skipping progress update (${timeSinceLastTrack}s since last track)');
-        return;
-      }
-    }
-
-    // Update last tracked position for non-milestone events
-    if (!isMilestone) {
-      _lastTrackedPosition = positionSeconds;
+    // Only make backend calls for milestones or start/complete events
+    if (!isMilestone && !isStartOrComplete) {
+      debugPrint('⏭️ Skipping non-milestone tracking: $eventType at ${positionSeconds}s');
+      return;
     }
 
     try {
-      debugPrint('📡 Tracking: $eventType at ${positionSeconds}s / ${durationSeconds}s (${(positionSeconds / durationSeconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📡 Tracking MILESTONE: $eventType at ${positionSeconds}s / ${durationSeconds}s (${(positionSeconds / durationSeconds * 100).toStringAsFixed(1)}%)');
       
       final response = await _apiService.post(
         '/api/classes/days/${widget.dayId}/track',
@@ -294,7 +288,7 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         if (milestonesReached != null && milestonesReached.isNotEmpty) {
           debugPrint('🎯 Backend confirmed milestones: ${milestonesReached.join('%, ')}%');
           
-          // Show toast for milestone
+          // Show toast for 50% milestone
           if (mounted && milestonesReached.contains(50)) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -365,8 +359,8 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     } catch (e) {
       debugPrint('❌ Error tracking progress: $e');
       
-      // Show error toast
-      if (mounted) {
+      // Show error toast only for important events
+      if (mounted && (isStartOrComplete || eventType.contains('milestone'))) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${context.tr('error')}: ${context.tr('failed_to_save_progress')}'),

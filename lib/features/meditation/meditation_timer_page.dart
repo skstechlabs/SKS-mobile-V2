@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:easy_localization/easy_localization.dart' as easy;
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../auth/auth_state.dart';
@@ -29,6 +33,14 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   // Auth state — uses cached AuthState, works offline
   bool get _isLoggedIn => AuthState().isAuthenticated;
   
+  // CDN Configuration
+  static const String _cdnBaseUrl = 'https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev';
+  static const String _audioBasePath = 'audio/meditation';
+  
+  // Cached audio file paths
+  String? _cachedStartSoundPath;
+  String? _cachedEndSoundPath;
+  
   // Animation
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
@@ -44,6 +56,9 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     _breathingAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
+    
+    // Download and cache meditation sounds on init
+    _downloadAndCacheSounds();
   }
 
   @override
@@ -54,27 +69,96 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     super.dispose();
   }
 
-  Future<void> _playStartSound() async {
+  /// Download meditation sounds from CDN and cache locally
+  Future<void> _downloadAndCacheSounds() async {
     try {
-      debugPrint('Attempting to play meditation sound...');
-      debugPrint('Loading asset: assets/audio/Meditation_start.mp3');
+      // Get current language code (en, te, etc.)
+      final languageCode = context.locale.languageCode;
       
-      // Use AudioSource.asset instead of setAsset
-      await _audioPlayer.setAudioSource(
-        AudioSource.asset('assets/audio/Meditation_start.mp3'),
+      debugPrint('Downloading meditation sounds for language: $languageCode');
+      
+      // Download start sound
+      _cachedStartSoundPath = await _downloadAndCacheAudio(
+        'Meditation_start.mp3',
+        languageCode,
       );
       
-      debugPrint('Meditation sound loaded successfully');
+      // Download end sound
+      _cachedEndSoundPath = await _downloadAndCacheAudio(
+        'Meditation_end.mp3',
+        languageCode,
+      );
       
-      // Set volume to maximum
+      debugPrint('✅ Meditation sounds cached successfully');
+      debugPrint('   Start: $_cachedStartSoundPath');
+      debugPrint('   End: $_cachedEndSoundPath');
+    } catch (e) {
+      debugPrint('⚠️ Error downloading meditation sounds: $e');
+      debugPrint('   Will use fallback assets if available');
+    }
+  }
+
+  /// Download and cache a single audio file
+  Future<String?> _downloadAndCacheAudio(String filename, String languageCode) async {
+    try {
+      // Get cache directory
+      final directory = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${directory.path}/meditation_sounds');
+      
+      // Create cache directory if it doesn't exist
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+      
+      // Check if file already exists in cache
+      final cachedFile = File('${cacheDir.path}/${languageCode}_$filename');
+      if (await cachedFile.exists()) {
+        debugPrint('✅ Using cached file: ${cachedFile.path}');
+        return cachedFile.path;
+      }
+      
+      // Download from CDN
+      final url = '$_cdnBaseUrl/$_audioBasePath/$languageCode/$filename';
+      debugPrint('Downloading from: $url');
+      
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        // Save to cache
+        await cachedFile.writeAsBytes(response.bodyBytes);
+        debugPrint('✅ Downloaded and cached: ${cachedFile.path} (${response.bodyBytes.length} bytes)');
+        return cachedFile.path;
+      } else {
+        debugPrint('❌ Download failed: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error downloading audio: $e');
+      return null;
+    }
+  }
+
+  Future<void> _playStartSound() async {
+    try {
+      debugPrint('Attempting to play meditation start sound...');
+      
+      // Try to use cached file first
+      if (_cachedStartSoundPath != null && await File(_cachedStartSoundPath!).exists()) {
+        debugPrint('Playing cached start sound: $_cachedStartSoundPath');
+        await _audioPlayer.setFilePath(_cachedStartSoundPath!);
+      } else {
+        // Fallback to asset (if exists in build)
+        debugPrint('Cache not available, trying asset fallback');
+        await _audioPlayer.setAsset('assets/audio/Meditation_start.mp3');
+      }
+      
+      // Set volume and play
       await _audioPlayer.setVolume(1.0);
-      
-      // Play the audio
       await _audioPlayer.play();
       
-      debugPrint('Meditation sound playing successfully');
+      debugPrint('✅ Start sound playing');
     } catch (e, stackTrace) {
-      debugPrint('Error playing meditation sound: $e');
+      debugPrint('❌ Error playing start sound: $e');
       debugPrint('Stack trace: $stackTrace');
     }
   }
@@ -82,29 +166,29 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   Future<void> _playEndSound() async {
     try {
       debugPrint('Attempting to play meditation end sound...');
-      debugPrint('Loading asset: assets/audio/Meditation_end.mp3');
       
-      // Use Meditation_end.mp3 for end sound
-      await _audioPlayer.setAudioSource(
-        AudioSource.asset('assets/audio/Meditation_end.mp3'),
-      );
+      // Try to use cached file first
+      if (_cachedEndSoundPath != null && await File(_cachedEndSoundPath!).exists()) {
+        debugPrint('Playing cached end sound: $_cachedEndSoundPath');
+        await _audioPlayer.setFilePath(_cachedEndSoundPath!);
+      } else {
+        // Fallback to asset (if exists in build)
+        debugPrint('Cache not available, trying asset fallback');
+        await _audioPlayer.setAsset('assets/audio/Meditation_end.mp3');
+      }
       
-      debugPrint('Meditation end sound loaded successfully');
-      
-      // Set volume to maximum
+      // Set volume and play
       await _audioPlayer.setVolume(1.0);
-      
-      // Play the audio and wait for it to complete
       await _audioPlayer.play();
       
-      // Wait for the audio to finish playing
+      // Wait for completion
       await _audioPlayer.playerStateStream.firstWhere(
         (state) => state.processingState == ProcessingState.completed,
       );
       
-      debugPrint('Meditation end sound completed');
+      debugPrint('✅ End sound completed');
     } catch (e, stackTrace) {
-      debugPrint('Error playing meditation end sound: $e');
+      debugPrint('❌ Error playing end sound: $e');
       debugPrint('Stack trace: $stackTrace');
     }
   }

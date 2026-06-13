@@ -89,11 +89,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           onPageFinished: (_) {
             if (mounted) {
               setState(() => _isInitialLoading = false); // Hide loader permanently
-              // Seek to last position if available
-              if (widget.lastPositionSeconds > 0) {
-                _controller?.runJavaScript(
-                    'if(video && video.duration > 0) { video.currentTime = ${widget.lastPositionSeconds}; }');
-              }
+              // Seek to last position will be handled by loadedmetadata event in HTML
+              // This ensures the video is ready before seeking
             }
           },
           onWebResourceError: (WebResourceError error) {
@@ -889,8 +886,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     video.addEventListener('loadedmetadata', function() {
       updateProgress();
       // Seek to last position if provided
-      if (${widget.lastPositionSeconds} > 0 && video.duration > 0) {
-        video.currentTime = ${widget.lastPositionSeconds};
+      var lastPos = ${widget.lastPositionSeconds};
+      if (lastPos > 0 && !isNaN(lastPos) && isFinite(lastPos) && video.duration > 0 && !isNaN(video.duration) && isFinite(video.duration)) {
+        // Ensure we don't seek beyond video duration
+        video.currentTime = Math.min(lastPos, video.duration - 1);
+        console.log('Resumed from position:', video.currentTime);
       }
     });
 

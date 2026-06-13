@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/services/api_service.dart';
@@ -61,121 +62,145 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       developer.log('🚀 Splash: initializing...');
 
-      // Wait for first frame
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-
-      // Wait for localization
-      while (!LocalizationService().isInitialized) {
-        await Future.delayed(const Duration(milliseconds: 50));
-        if (!mounted) return;
-      }
-
-      // Preload images in background — don't block navigation
-      _preloadImages();
-
-      // ── Step 1: First-time language selection ──────────────────────────────
-      final isLanguageSelected = await LocalizationService.isLanguageSelected();
-      if (!isLanguageSelected) {
-        developer.log('📱 First launch — language selection');
-        _navigate('/language-selection');
-        return;
-      }
-
-      // ── Step 2: Check our own cached user (set after successful backend login)
-      final authState = AuthState();
-      if (!authState.isInitialized) await authState.initialize();
-
-      if (authState.user != null) {
-        developer.log('✅ Cached user found → home');
-        _navigate(authState.user!.isProfileComplete ? '/' : '/profile-setup');
-        return;
-      }
-
-      // ── Step 3: No cached user — check Firebase Auth ───────────────────────
-      // Try silent/lightweight Google sign-in first (restores previous session
-      // without showing any UI). Falls back to Firebase currentUser check.
-      User? firebaseUser;
-      try {
-        // First check Firebase's own cached session
-        firebaseUser = AuthService().currentUser;
-      } catch (e) {
-        developer.log('⚠️ Firebase not ready: $e');
-      }
-
-      // Web: check redirect result first
-      if (kIsWeb && firebaseUser == null) {
-        try {
-          final redirectResult = await AuthService()
-              .getRedirectResult()
-              .timeout(const Duration(seconds: 5), onTimeout: () => null);
-          if (redirectResult != null && redirectResult['success'] == true) {
-            developer.log('🌐 Web redirect result — completing login');
-            _navigate('/login');
-            return;
-          }
-        } catch (e) {
-          developer.log('⚠️ Redirect check failed: $e');
-        }
-      }
-
-      if (firebaseUser == null) {
-        // No Firebase session — try lightweight Google sign-in
-        // This restores a previous Google session silently on Android
-        if (!kIsWeb) {
-          try {
-            developer.log('🔄 Attempting lightweight Google sign-in...');
-            firebaseUser = await AuthService()
-                .attemptSilentSignIn()
-                .timeout(const Duration(seconds: 2), onTimeout: () => null);
-            if (firebaseUser != null) {
-              developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
-            }
-          } catch (e) {
-            developer.log('⚠️ Lightweight sign-in failed: $e');
-          }
-        }
-      }
-
-      if (firebaseUser == null) {
-        developer.log('👤 No session → login screen');
-        _navigate('/login');
-        return;
-      }
-
-      // Firebase has a session — check if it's a Google account
-      final isGoogle = firebaseUser.providerData
-          .any((p) => p.providerId == 'google.com');
-
-      if (!isGoogle) {
-        developer.log('📱 Non-Google Firebase session, no cache → login');
-        _navigate('/login');
-        return;
-      }
-
-      // Google user — silently complete backend login
-      developer.log('🔑 Google session found — completing backend login silently');
-      await _completeSilentGoogleLogin(firebaseUser);
+      // Add overall timeout to prevent infinite loading
+      await Future.any([
+        _performInitialization(),
+        Future.delayed(const Duration(seconds: 10), () {
+          developer.log('⏰ Splash initialization timeout - going to login');
+          throw TimeoutException('Splash initialization timed out');
+        }),
+      ]);
     } catch (e, st) {
       developer.log('❌ Splash error: $e\n$st');
       _navigate('/login');
     }
   }
 
+  Future<void> _performInitialization() async {
+    // Wait for first frame
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    // Wait for localization with timeout
+    final localizationTimeout = DateTime.now().add(const Duration(seconds: 3));
+    while (!LocalizationService().isInitialized) {
+      if (DateTime.now().isAfter(localizationTimeout)) {
+        developer.log('⏰ Localization timeout - continuing anyway');
+        break;
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+    }
+
+    // Preload images in background — don't block navigation
+    _preloadImages();
+
+    // ── Step 1: First-time language selection ──────────────────────────────
+    final isLanguageSelected = await LocalizationService.isLanguageSelected();
+    if (!isLanguageSelected) {
+      developer.log('📱 First launch — language selection');
+      _navigate('/language-selection');
+      return;
+    }
+
+    // ── Step 2: Check our own cached user (set after successful backend login)
+    final authState = AuthState();
+    if (!authState.isInitialized) await authState.initialize();
+
+    if (authState.user != null) {
+      developer.log('✅ Cached user found → home');
+      _navigate(authState.user!.isProfileComplete ? '/' : '/profile-setup');
+      return;
+    }
+
+    // ── Step 3: No cached user — check Firebase Auth ───────────────────────
+    // Try silent/lightweight Google sign-in first (restores previous session
+    // without showing any UI). Falls back to Firebase currentUser check.
+    User? firebaseUser;
+    try {
+      // First check Firebase's own cached session
+      firebaseUser = AuthService().currentUser;
+    } catch (e) {
+      developer.log('⚠️ Firebase not ready: $e');
+    }
+
+    // Web: check redirect result first
+    if (kIsWeb && firebaseUser == null) {
+      try {
+        final redirectResult = await AuthService()
+            .getRedirectResult()
+            .timeout(const Duration(seconds: 3), onTimeout: () => null);
+        if (redirectResult != null && redirectResult['success'] == true) {
+          developer.log('🌐 Web redirect result — completing login');
+          _navigate('/login');
+          return;
+        }
+      } catch (e) {
+        developer.log('⚠️ Redirect check failed: $e');
+      }
+    }
+
+    if (firebaseUser == null) {
+      // No Firebase session — try lightweight Google sign-in
+      // This restores a previous Google session silently on Android
+      if (!kIsWeb) {
+        try {
+          developer.log('🔄 Attempting lightweight Google sign-in...');
+          firebaseUser = await AuthService()
+              .attemptSilentSignIn()
+              .timeout(const Duration(seconds: 3), onTimeout: () {
+                developer.log('⏰ Silent sign-in timeout');
+                return null;
+              });
+          if (firebaseUser != null) {
+            developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
+          }
+        } catch (e) {
+          developer.log('⚠️ Lightweight sign-in failed: $e');
+        }
+      }
+    }
+
+    if (firebaseUser == null) {
+      developer.log('👤 No session → login screen');
+      _navigate('/login');
+      return;
+    }
+
+    // Firebase has a session — check if it's a Google account
+    final isGoogle = firebaseUser.providerData
+        .any((p) => p.providerId == 'google.com');
+
+    if (!isGoogle) {
+      developer.log('📱 Non-Google Firebase session, no cache → login');
+      _navigate('/login');
+      return;
+    }
+
+    // Google user — silently complete backend login with timeout
+    developer.log('🔑 Google session found — completing backend login silently');
+    await _completeSilentGoogleLogin(firebaseUser);
+  }
+
   /// Silently completes the backend login for a Firebase Google user.
   /// Called from splash — no UI shown, user goes straight to home or profile setup.
   Future<void> _completeSilentGoogleLogin(User firebaseUser) async {
     try {
-      // Get a fresh token — force refresh on first attempt
+      // Get a fresh token with overall timeout
       String? idToken;
-      for (int i = 0; i < 3; i++) {
-        try {
-          idToken = await firebaseUser.getIdToken(i == 0);
-          if (idToken != null && idToken.isNotEmpty) break;
-        } catch (e) {
-          developer.log('⚠️ Token attempt $i failed: $e');
+      try {
+        for (int i = 0; i < 2; i++) {
+          try {
+            idToken = await firebaseUser.getIdToken(i == 0)
+                .timeout(const Duration(seconds: 3));
+            if (idToken != null && idToken.isNotEmpty) break;
+          } catch (e) {
+            developer.log('⚠️ Token attempt $i failed: $e');
+          }
+          await Future.delayed(const Duration(milliseconds: 300));
         }
-        await Future.delayed(const Duration(milliseconds: 500));
+      } catch (e) {
+        developer.log('⏰ Token fetch timeout: $e');
       }
 
       if (idToken == null || idToken.isEmpty) {
@@ -197,7 +222,10 @@ class _SplashScreenState extends State<SplashScreen>
         name: firebaseUser.displayName,
         photo: firebaseUser.photoURL,
         idToken: idToken,
-      );
+      ).timeout(const Duration(seconds: 5), onTimeout: () {
+        developer.log('⏰ Backend login timeout');
+        return {'success': false, 'message': 'Login timeout'};
+      });
 
       if (result['success'] == true) {
         final user = UserModel.fromJson(result['user'] as Map<String, dynamic>);

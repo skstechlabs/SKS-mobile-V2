@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:easy_localization/easy_localization.dart' as easy;
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import '../auth/auth_state.dart';
 
 class MeditationTimerPage extends StatefulWidget {
@@ -72,8 +72,8 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   /// Download meditation sounds from CDN and cache locally
   Future<void> _downloadAndCacheSounds() async {
     try {
-      // Get current language code (en, te, etc.)
-      final languageCode = context.locale.languageCode;
+      // Get current language code from LocalizationService
+      final languageCode = LocalizationService().currentLocale.languageCode;
       
       debugPrint('Downloading meditation sounds for language: $languageCode');
       

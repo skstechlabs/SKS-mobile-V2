@@ -8,23 +8,12 @@ class KalpataruPage extends StatefulWidget {
   State<KalpataruPage> createState() => _KalpataruPageState();
 }
 
-class _KalpataruPageState extends State<KalpataruPage> with SingleTickerProviderStateMixin {
+class _KalpataruPageState extends State<KalpataruPage> {
   final ScrollController _scrollController = ScrollController();
-  late AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
-  }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
@@ -58,70 +47,62 @@ class _KalpataruPageState extends State<KalpataruPage> with SingleTickerProvider
   }
 
   Widget _buildHeroSection() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFFFFF8E7), const Color(0xFFFFE5B4).withValues(alpha: 0.6)],
+      height: screenHeight * 0.65, // Increased height to accommodate Guruji's full image
+      width: screenWidth,
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/kalpataru-bg.png'),
+          fit: BoxFit.cover,
         ),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              return Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.saffron.withValues(alpha: 0.1 + (_animationController.value * 0.2)),
-                      AppTheme.saffron.withValues(alpha: 0.05),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-                child: child,
-              );
-            },
+          // Subtle gradient overlay for smooth transition
+          Positioned.fill(
             child: Container(
-              width: 80,
-              height: 80,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(colors: [Color(0xFFFF9933), Color(0xFFFF6600)]),
-                boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 5)],
+                gradient: LinearGradient(
+                  begin: Alignment.center,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.white.withValues(alpha: 0.3),
+                  ],
+                  stops: const [0.0, 0.75, 1.0],
+                ),
               ),
-              child: const Center(child: Icon(Icons.spa_outlined, color: Colors.white, size: 40)),
             ),
           ),
-          const SizedBox(height: 32),
-          Text('ॐ', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w300, color: AppTheme.saffron.withValues(alpha: 0.8))),
-          const SizedBox(height: 16),
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(colors: [Color(0xFFCC6600), Color(0xFFFF9933), Color(0xFFFFCC00)]).createShader(bounds),
-            child: const Text('Kalpataru', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: 2, height: 1.2), textAlign: TextAlign.center),
-          ),
-          const SizedBox(height: 8),
-          Text('The Wish-Fulfilling Tree', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, color: Colors.grey[700], fontStyle: FontStyle.italic, letterSpacing: 1), textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          Container(width: 80, height: 3, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, AppTheme.saffron, Colors.transparent]))),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 4))]),
-            child: Column(
-              children: [
-                Text('A Divine Technique', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[600], letterSpacing: 2)),
-                const SizedBox(height: 8),
-                Text('Revealed by Sri Jeeveswara', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.saffron, letterSpacing: 0.5), textAlign: TextAlign.center),
-                const SizedBox(height: 4),
-                Text('Moksha Guru', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700], fontStyle: FontStyle.italic)),
-              ],
+          // Guruji's meditation image centered in front of the tree
+          Center(
+            child: Container(
+              height: screenHeight * 0.50, // 50% of screen height for Guruji's image
+              constraints: BoxConstraints(
+                maxWidth: screenWidth * 0.75, // Maximum 75% of screen width
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.saffron.withValues(alpha: 0.3),
+                    blurRadius: 40,
+                    spreadRadius: 10,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/images/Guruji_Meditation.PNG',
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
           ),
         ],

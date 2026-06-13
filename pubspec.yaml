@@ -109,6 +109,7 @@ flutter:
     # All other images loaded from Cloudflare R2 dynamically
     - assets/images/Guruji_logo.JPG
     - assets/images/Guruji_Meditation.PNG
+    - assets/images/kalpataru-bg.png
     - assets/translations/
     - assets/icons/
     # Note: Meditation sounds downloaded from R2 CDN and cached locally

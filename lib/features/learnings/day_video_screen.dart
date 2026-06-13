@@ -176,47 +176,64 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         
         // Detect streaming type
         final streamingType = videoConfig['streamingType'] ?? 'cloudflare';
+        debugPrint('🎬 Streaming type: $streamingType');
         
         // Validate required fields based on streaming type
         if (streamingType == 'hls') {
+          debugPrint('🔍 Validating HLS config...');
           if (videoConfig == null || videoConfig['hlsUrl'] == null) {
+            debugPrint('❌ HLS validation failed - videoConfig: $videoConfig');
             setState(() {
-              _error = 'HLS video configuration is incomplete';
+              _error = 'HLS video configuration is incomplete. Missing hlsUrl.';
               _isLoading = false;
             });
             return;
           }
+          debugPrint('✅ HLS URL found: ${videoConfig['hlsUrl']}');
+          debugPrint('📊 Video duration: ${videoConfig['videoDurationSeconds']}s');
+          debugPrint('🔐 Allow skip: ${videoConfig['allowSkip']}');
+          debugPrint('⏮️ Last position: ${videoConfig['lastPositionSeconds']}s');
         } else {
           // Cloudflare Stream validation
+          debugPrint('🔍 Validating Cloudflare Stream config...');
           if (videoConfig == null || 
               videoConfig['cloudflareVideoId'] == null || 
               videoConfig['cloudflareAccountId'] == null) {
+            debugPrint('❌ Cloudflare validation failed - videoConfig: $videoConfig');
             setState(() {
-              _error = 'Video configuration is incomplete';
+              _error = 'Video configuration is incomplete. Missing Cloudflare credentials.';
               _isLoading = false;
             });
             return;
           }
+          debugPrint('✅ Cloudflare Video ID: ${videoConfig['cloudflareVideoId']}');
+          debugPrint('✅ Cloudflare Account ID: ${videoConfig['cloudflareAccountId']}');
         }
         
         setState(() {
           _videoConfig = videoConfig;
           _isLoading = false;
         });
-        debugPrint('✅ Video config loaded successfully (Type: $streamingType, Language: ${videoConfig['language']})');
+        debugPrint('✅ Video config loaded successfully');
+        debugPrint('   Type: $streamingType');
+        debugPrint('   Language: ${videoConfig['language']}');
+        debugPrint('   Duration: ${videoConfig['videoDurationSeconds']}s');
+        debugPrint('   Allow Skip: ${videoConfig['allowSkip']}');
+        debugPrint('   Last Position: ${videoConfig['lastPositionSeconds']}s');
       } else {
         final errorMsg = response['message'] ?? 'Failed to load video';
         debugPrint('❌ Failed to load video: $errorMsg');
+        debugPrint('❌ Full response: $response');
         setState(() {
-          _error = errorMsg;
+          _error = 'Failed to load video: $errorMsg';
           _isLoading = false;
         });
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ Error loading video: $e');
-      debugPrint('Stack trace: $stackTrace');
+      debugPrint('❌ Error loading video config: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
       setState(() {
-        _error = 'Error loading video. Please try again.';
+        _error = 'Error loading video. Please check your connection and try again.';
         _isLoading = false;
       });
     }
@@ -845,14 +862,56 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
               const Icon(Icons.error_outline, color: Colors.red, size: 64),
               const SizedBox(height: 16),
               Text(
+                'Video Player Error',
+                style: const TextStyle(
+                  color: Colors.white, 
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
                 _error!,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Day ID: ${widget.dayId}',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.pop(),
-                child: Text(context.tr('go_back')),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _error = null;
+                      });
+                      _loadVideoConfig();
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.saffron,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => context.pop(),
+                    icon: const Icon(Icons.arrow_back),
+                    label: Text(context.tr('go_back')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

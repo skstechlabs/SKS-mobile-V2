@@ -32,25 +32,24 @@ class WallpaperService {
   // Dart-side timer for foreground rotation (backup to native alarm)
   Timer? _rotationTimer;
 
-  WallpaperService._internal() {
-    // Initialize Dio with SSL handling for Let's Encrypt
-    _dio = Dio();
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // Allow Let's Encrypt certificates for our domain
-        if (host == 'app.sivakundalini.org') {
-          return true;
-        }
-        return false;
-      };
-      return client;
-    };
-  }
-
   /// Initialize the wallpaper service
   Future<void> initialize() async {
     try {
+      // Initialize Dio with SSL certificate handling
+      _dio = Dio();
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          // Accept certificates for our domains
+          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
+            debugPrint('✅ SSL: Accepting certificate for $host');
+            return true;
+          }
+          return false;
+        };
+        return client;
+      };
+
       await _loadWallpapersFromAPI();
       debugPrint('✅ WallpaperService initialized with ${_wallpapers.length} wallpapers from CDN');
       

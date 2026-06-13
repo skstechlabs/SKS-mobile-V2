@@ -94,11 +94,16 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             }
           },
           onWebResourceError: (WebResourceError error) {
+            debugPrint('❌ WebView Resource Error: ${error.description}');
+            debugPrint('   Error Type: ${error.errorType}');
+            debugPrint('   Error Code: ${error.errorCode}');
+            debugPrint('   Is For Main Frame: ${error.isForMainFrame}');
+            
             if (error.isForMainFrame == true) {
               if (mounted) {
                 setState(() {
                   _hasError = true;
-                  _errorMessage = 'Failed to load video. Tap retry.';
+                  _errorMessage = 'Failed to load video: ${error.description}. Tap retry.';
                   _isInitialLoading = false;
                 });
               }
@@ -110,13 +115,16 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           onMessageReceived: (JavaScriptMessage msg) {
             _handleEvent(msg.message);
           },
-        )
-        ..loadHtmlString(_buildHtml());
+        );
+        
+      // Load the HTML content
+      _controller!.loadHtmlString(_buildHtml());
     } catch (e) {
+      debugPrint('❌ Error initializing WebView: $e');
       if (mounted) {
         setState(() {
           _hasError = true;
-          _errorMessage = 'Failed to initialize player';
+          _errorMessage = 'Failed to initialize player: $e';
           _isInitialLoading = false;
         });
       }
@@ -149,6 +157,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   /// - Works on all browsers (including those without native HLS support)
   /// - Native fullscreen API for seamless fullscreen transitions
   String _buildHtml() {
+    final hlsUrl = widget.hlsUrl;
+    
     final skipJs = widget.allowSkip
         ? ''
         : r'''

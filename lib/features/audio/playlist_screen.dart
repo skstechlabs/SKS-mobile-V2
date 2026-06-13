@@ -17,13 +17,13 @@ ImageProvider _getImageProvider(String imageUrl) {
 
 class PlaylistScreen extends StatefulWidget {
   final String title;
-  final List<dynamic> songs; // Can be List<Map> or List<AudioModel>
+  final List<AudioModel> songs;
 
   const PlaylistScreen({
-    Key? key,
+    super.key,
     required this.title,
     required this.songs,
-  }) : super(key: key);
+  });
 
   @override
   State<PlaylistScreen> createState() => _PlaylistScreenState();
@@ -92,20 +92,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 itemBuilder: (context, index) {
                   final song = widget.songs[index];
                   
-                  // Handle both AudioModel and Map types
-                  final String title = song is AudioModel ? song.title : (song['title'] ?? '');
-                  final String? artist = song is AudioModel ? song.artist : song['artist'];
-                  final String? description = song is AudioModel ? song.description : song['description'];
-                  final String? imageUrl = song is AudioModel ? song.thumbnailUrl : song['imageUrl'];
-                  final String? duration = song is AudioModel 
-                      ? '${song.durationSeconds ~/ 60}:${(song.durationSeconds % 60).toString().padLeft(2, '0')}' 
-                      : song['duration'];
-                  
                   final currentSong = _audioService.currentSong;
-                  final bool isCurrentSong = currentSong != null &&
-                      (currentSong is AudioModel && song is AudioModel
-                          ? currentSong.id == song.id
-                          : currentSong == song);
+                  final bool isCurrentSong = currentSong != null && currentSong.id == song.id;
                   
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -117,22 +105,22 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                         height: 50,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          image: imageUrl != null
+                          image: song.thumbnailUrl != null
                               ? DecorationImage(
-                                  image: _getImageProvider(imageUrl),
+                                  image: _getImageProvider(song.thumbnailUrl!),
                                   fit: BoxFit.cover,
                                 )
                               : null,
-                          gradient: imageUrl == null
+                          gradient: song.thumbnailUrl == null
                               ? AppTheme.saffronGradient
                               : null,
                         ),
-                        child: imageUrl == null
+                        child: song.thumbnailUrl == null
                             ? const Icon(Icons.music_note, color: Colors.white)
                             : null,
                       ),
                       title: Text(
-                        title,
+                        song.title,
                         style: TextStyle(
                           fontWeight: isCurrentSong ? FontWeight.bold : FontWeight.normal,
                           color: isCurrentSong ? AppTheme.saffron : null,
@@ -141,20 +129,19 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (artist != null)
-                            Text(artist),
-                          if (description != null)
+                          if (song.artist != null)
+                            Text(song.artist!),
+                          if (song.description != null)
                             Text(
-                              description,
+                              song.description!,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
-                          if (duration != null)
-                            Text(
-                              duration,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.saffron,
-                              ),
+                          Text(
+                            '${song.durationSeconds ~/ 60}:${(song.durationSeconds % 60).toString().padLeft(2, '0')}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.saffron,
                             ),
+                          ),
                         ],
                       ),
                       trailing: Row(

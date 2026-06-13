@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -139,9 +140,17 @@ class LocalizationService extends ChangeNotifier {
 
   /// Get translated string by key
   String translate(String key) {
+    // If not initialized yet, return key without spamming warnings
+    if (!_isInitialized) {
+      return key;
+    }
+    
     final translation = _localizedStrings[key];
     if (translation == null) {
-      debugPrint('⚠️  Missing translation for key: $key');
+      // Only log in debug mode to avoid spam
+      if (kDebugMode) {
+        debugPrint('⚠️  Missing translation for key: $key');
+      }
       return key; // Return key if translation not found
     }
     return translation;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
@@ -36,8 +37,26 @@ class ApiService {
       },
     ));
 
-    // SSL certificate validation is enabled (secure)
-    // Requires valid SSL certificate on server
+    // ══════════════════════════════════════════════════════════════════
+    // SSL CERTIFICATE HANDLING
+    // ══════════════════════════════════════════════════════════════════
+    // For development/emulator: bypass SSL verification
+    // For production: use proper SSL certificates
+    // ══════════════════════════════════════════════════════════════════
+    if (kDebugMode) {
+      // In debug mode, allow self-signed certificates for development
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
+          return true; // Accept all certificates in debug mode
+        };
+        return client;
+      };
+      debugPrint('🔓 SSL verification bypassed for development');
+    } else {
+      debugPrint('🔒 SSL verification enabled for production');
+    }
 
     // Add interceptor for logging
     _dio.interceptors.add(LogInterceptor(

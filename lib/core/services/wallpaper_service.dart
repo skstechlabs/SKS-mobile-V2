@@ -26,18 +26,18 @@ class WallpaperService {
   static const String _prefKeyCachedUrls = 'wallpaper_cached_urls';
   static const Duration _rotationInterval = Duration(minutes: 15);
 
-  late final Dio _dio;
+  Dio? _dio;
   List<Map<String, dynamic>> _wallpapers = [];
   bool _isLoaded = false;
+  bool _isInitializing = false;
   // Dart-side timer for foreground rotation (backup to native alarm)
   Timer? _rotationTimer;
 
-  /// Initialize the wallpaper service
-  Future<void> initialize() async {
-    try {
-      // Initialize Dio with SSL certificate handling
+  /// Get or create Dio instance
+  Dio get _dioInstance {
+    if (_dio == null) {
       _dio = Dio();
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
           // Accept certificates for our domains
@@ -49,6 +49,21 @@ class WallpaperService {
         };
         return client;
       };
+    }
+    return _dio!;
+  }
+
+  /// Initialize the wallpaper service
+  Future<void> initialize() async {
+    if (_isInitializing || _isLoaded) {
+      debugPrint('ℹ️ WallpaperService already initialized or initializing');
+      return;
+    }
+
+    _isInitializing = true;
+    try {
+      // Initialize Dio (using getter ensures it's created)
+      final _ = _dioInstance;
 
       await _loadWallpapersFromAPI();
       debugPrint('✅ WallpaperService initialized with ${_wallpapers.length} wallpapers from CDN');
@@ -62,6 +77,8 @@ class WallpaperService {
       debugPrint('❌ WallpaperService initialization failed: $e');
       // Try to load from cache
       await _loadWallpapersFromCache();
+    } finally {
+      _isInitializing = false;
     }
   }
 
@@ -72,7 +89,7 @@ class WallpaperService {
           ? AppEnv.apiBaseUrl 
           : 'https://app.sivakundalini.org';
       
-      final response = await _dio.get('$baseUrl/api/wallpapers');
+      final response = await _dioInstance.get('$baseUrl/api/wallpapers');
       
       if (response.data['success'] == true) {
         _wallpapers = List<Map<String, dynamic>>.from(response.data['wallpapers']);
@@ -125,7 +142,15 @@ class WallpaperService {
   /// Ensure wallpapers are loaded
   Future<void> _ensureLoaded() async {
     if (!_isLoaded || _wallpapers.isEmpty) {
-      await _loadWallpapersFromAPI();
+      // Initialize if not done yet
+      if (!_isInitializing) {
+        await initialize();
+      }
+      
+      // If still not loaded, try again
+      if (!_isLoaded || _wallpapers.isEmpty) {
+        await _loadWallpapersFromAPI();
+      }
     }
   }
 
@@ -266,7 +291,7 @@ class WallpaperService {
       }
       
       // Download image
-      final response = await _dio.get(
+      final response = await _dioInstance.get(
         imageUrl,
         options: Options(responseType: ResponseType.bytes),
       );

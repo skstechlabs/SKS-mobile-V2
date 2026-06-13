@@ -11,15 +11,17 @@ import 'widgets/hls_video_player.dart';
 import 'widgets/secure_screen_wrapper.dart';
 
 class DayVideoScreen extends StatefulWidget {
-  final int dayId;
-  final String dayTitle;
+  final int dayId; // Keep for backward compatibility
+  final int classId;
   final int dayNumber;
+  final String dayTitle;
 
   const DayVideoScreen({
     super.key,
     required this.dayId,
-    required this.dayTitle,
+    required this.classId,
     required this.dayNumber,
+    required this.dayTitle,
   });
 
   @override
@@ -158,14 +160,14 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
 
   Future<void> _loadVideoConfig() async {
     try {
-      debugPrint('🎥 Loading video config for day ${widget.dayId}');
+      debugPrint('🎥 Loading video config for class ${widget.classId}, day ${widget.dayNumber}');
       
       // Get user's current language preference
       final currentLanguage = LocalizationService().currentLocale.languageCode;
       debugPrint('🌐 Using language: $currentLanguage');
       
       final response = await _apiService.get(
-        '/api/classes-v2/days/${widget.dayId}/video-config',
+        '/api/classes-v2/classes/${widget.classId}/days/${widget.dayNumber}/video-config',
         queryParameters: {'language': currentLanguage},
       );
 
@@ -222,12 +224,33 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         debugPrint('   Last Position: ${videoConfig['lastPositionSeconds']}s');
       } else {
         final errorMsg = response['message'] ?? 'Failed to load video';
-        debugPrint('❌ Failed to load video: $errorMsg');
+        final errorCode = response['error_code'];
+        
+        debugPrint('❌ Failed to load video: $errorMsg (Code: $errorCode)');
         debugPrint('❌ Full response: $response');
-        setState(() {
-          _error = 'Failed to load video: $errorMsg';
-          _isLoading = false;
-        });
+        
+        // Handle specific error cases with user-friendly messages
+        if (errorCode == 'VIDEO_NOT_CONFIGURED') {
+          setState(() {
+            _error = 'Video content is not available yet. Please try again later or contact support.';
+            _isLoading = false;
+          });
+        } else if (errorCode == 'DAY_NOT_FOUND') {
+          setState(() {
+            _error = 'This day is not available in your selected language.';
+            _isLoading = false;
+          });
+        } else if (errorCode == 'DAY_LOCKED') {
+          setState(() {
+            _error = 'This day is locked. Complete the previous day first.';
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _error = 'Failed to load video: $errorMsg';
+            _isLoading = false;
+          });
+        }
       }
     } catch (e, stackTrace) {
       debugPrint('❌ Error loading video config: $e');

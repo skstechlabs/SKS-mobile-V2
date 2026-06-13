@@ -649,13 +649,14 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
         child: InkWell(
           onTap: isUnlocked
               ? () {
-                  // Safely get day ID and day number
+                  // Safely get day ID, class ID, and day number
                   final dayId = day['id']?.toString() ?? '0';
                   final dayNumber = day['dayNumber']?.toString() ?? '1';
                   final title = day['title']?.toString() ?? 'Video';
+                  final classIdStr = widget.classId.toString();
                   
                   context.push(
-                    '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber',
+                    '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber&classId=$classIdStr',
                   );
                 }
               : () {

@@ -268,10 +268,13 @@ final GoRouter appRouter = GoRouter(
         final dayTitle = state.uri.queryParameters['title'] ?? 'Video';
         final dayNumberStr = state.uri.queryParameters['dayNumber'] ?? '1';
         final dayNumber = int.tryParse(dayNumberStr) ?? 1;
+        final classIdStr = state.uri.queryParameters['classId'] ?? '1';
+        final classId = int.tryParse(classIdStr) ?? 1;
         return DayVideoScreen(
           dayId: dayId,
-          dayTitle: dayTitle,
+          classId: classId,
           dayNumber: dayNumber,
+          dayTitle: dayTitle,
         );
       },
     ),

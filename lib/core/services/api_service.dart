@@ -764,7 +764,17 @@ class ApiService {
   }
 
   Map<String, dynamic> _handleError(DioException e) {
+    debugPrint('*** DioException ***:');
+    debugPrint('uri: ${e.requestOptions.uri}');
+    debugPrint('DioException [${e.type}]: ${e.message}');
+    if (e.error != null) {
+      debugPrint('Error: ${e.error}');
+    }
+    
     if (e.response != null) {
+      debugPrint('Response status: ${e.response!.statusCode}');
+      debugPrint('Response data: ${e.response!.data}');
+      
       final data = e.response!.data;
       if (data is Map<String, dynamic>) {
         return {
@@ -777,26 +787,56 @@ class ApiService {
 
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
+        debugPrint('❌ Connection timeout');
         return {
           'success': false,
-          'message': 'Connection timeout. Please try again.',
-          'error_code': 'TIMEOUT'
+          'message': 'Connection timeout. Please check your internet and try again.',
+          'error_code': 'CONNECTION_TIMEOUT'
+        };
+      case DioExceptionType.sendTimeout:
+        debugPrint('❌ Send timeout');
+        return {
+          'success': false,
+          'message': 'Request timeout. Please try again.',
+          'error_code': 'SEND_TIMEOUT'
+        };
+      case DioExceptionType.receiveTimeout:
+        debugPrint('❌ Receive timeout');
+        return {
+          'success': false,
+          'message': 'Server response timeout. Please try again.',
+          'error_code': 'RECEIVE_TIMEOUT'
         };
       case DioExceptionType.connectionError:
+        debugPrint('❌ Connection error');
         return {
           'success': false,
-          'message': 'Network error. Check your connection.',
+          'message': 'Network error. Please check your internet connection.',
           'error_code': 'NETWORK_ERROR'
         };
-      case DioExceptionType.badResponse:
+      case DioExceptionType.badCertificate:
+        debugPrint('❌ Bad certificate');
         return {
           'success': false,
-          'message': 'Server error. Please try again later.',
+          'message': 'SSL certificate error. Please try again.',
+          'error_code': 'SSL_ERROR'
+        };
+      case DioExceptionType.badResponse:
+        debugPrint('❌ Bad response: ${e.response?.statusCode}');
+        return {
+          'success': false,
+          'message': 'Server error (${e.response?.statusCode}). Please try again later.',
           'error_code': 'SERVER_ERROR'
         };
+      case DioExceptionType.cancel:
+        debugPrint('❌ Request cancelled');
+        return {
+          'success': false,
+          'message': 'Request cancelled.',
+          'error_code': 'CANCELLED'
+        };
       default:
+        debugPrint('❌ Unknown error: ${e.message}');
         return {
           'success': false,
           'message': 'Something went wrong. Please try again.',

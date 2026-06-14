@@ -653,10 +653,29 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     }
     
     function playVideo() {
+      console.log('playVideo() called');
       hidePlayOverlay();
-      video.play().catch(function(err) {
-        console.error('Play failed:', err);
-      });
+      
+      // Use a small delay to ensure the DOM is ready and no conflicting events
+      setTimeout(function() {
+        video.play().then(function() {
+          console.log('✅ Video playback started successfully');
+        }).catch(function(err) {
+          console.error('❌ Play failed:', err);
+          console.error('Error name:', err.name);
+          console.error('Error message:', err.message);
+          
+          // If play was interrupted, try again
+          if (err.name === 'AbortError') {
+            console.log('🔄 Play interrupted, retrying in 100ms...');
+            setTimeout(function() {
+              video.play().catch(function(retryErr) {
+                console.error('❌ Retry also failed:', retryErr);
+              });
+            }, 100);
+          }
+        });
+      }, 50);
     }
 
     // Initialize HLS
@@ -730,10 +749,18 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
       hls.loadSource('${widget.hlsUrl}');
       hls.attachMedia(video);
+      
+      console.log('HLS initialized with URL:', '${widget.hlsUrl}');
 
       hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-        console.log('Manifest parsed, levels:', hls.levels.length);
+        console.log('✅ Manifest parsed successfully');
+        console.log('Available quality levels:', hls.levels.length);
+        console.log('Video duration:', video.duration);
+        
         send({ type: 'ready', duration: Math.floor(video.duration || 0) });
+        
+        // Don't autoplay - wait for user to click play overlay
+        console.log('Video ready - waiting for user interaction');
         
         // Build quality menu
         if (hls.levels.length > 1) {
@@ -905,16 +932,28 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     video.addEventListener('play', function() {
+      console.log('Video play event fired');
       hidePlayOverlay();
-      if (isCompleted) { video.pause(); return; }
+      
+      // Don't allow playing if video is completed
+      if (isCompleted) {
+        console.log('Video is completed, preventing play');
+        video.pause();
+        return;
+      }
+      
+      // Mark as started on first play
       if (!hasStarted) {
         hasStarted = true;
+        console.log('Video started for first time');
         send({
           type: 'start',
           position: Math.floor(video.currentTime || 0),
           duration: Math.floor(video.duration || 0)
         });
       }
+      
+      // Update play/pause button icons
       playIcon.style.display = 'none';
       pauseIcon.style.display = 'block';
       
@@ -964,12 +1003,19 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     // Controls
-    playOverlay.addEventListener('click', playVideo);
+    playOverlay.addEventListener('click', function(e) {
+      e.stopPropagation();  // Prevent bubbling to container
+      e.preventDefault();
+      playVideo();
+    });
     
     playBtn.addEventListener('click', function(e) {
       e.stopPropagation();
+      e.preventDefault();
       if (video.paused) {
-        video.play();
+        video.play().catch(function(err) {
+          console.error('Play button error:', err);
+        });
       } else {
         video.pause();
       }
@@ -1057,7 +1103,10 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     container.addEventListener('click', function(e) {
-      if (e.target === container || e.target === video) {
+      // Only toggle controls if clicking on container or video, not controls themselves
+      if (e.target === container || e.target === video || e.target.closest('.play-overlay')) {
+        e.stopPropagation();
+        // Don't interfere with video playback - just toggle controls visibility
         if (controlsElement.classList.contains('show')) {
           hideControls();
         } else {
@@ -1067,7 +1116,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     });
 
     container.addEventListener('touchstart', function(e) {
-      if (e.target === container || e.target === video) {
+      // Only toggle controls if touching container or video
+      if (e.target === container || e.target === video || e.target.closest('.play-overlay')) {
+        e.stopPropagation();
         if (controlsElement.classList.contains('show')) {
           hideControls();
         } else {

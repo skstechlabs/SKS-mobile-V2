@@ -1,23 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Default configuration for all domains - use system certificates -->
+    <!-- Production configuration -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
+            <!-- Trust system certificates (includes Let's Encrypt, etc.) -->
             <certificates src="system" />
         </trust-anchors>
     </base-config>
     
-    <!-- Special configuration for app.sivakundalini.org and pub-*.r2.dev domains -->
-    <!-- This trusts user-installed certificates in addition to system certificates -->
-    <!-- Allows the app to work with self-signed or incomplete certificate chains -->
+    <!-- Allow cleartext for localhost during development -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+    
+    <!-- Trust app.sivakundalini.org and its certificate -->
     <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">app.sivakundalini.org</domain>
         <domain includeSubdomains="true">sivakundalini.org</domain>
-        <domain includeSubdomains="true">r2.dev</domain>
         <trust-anchors>
-            <!-- Trust system certificates -->
+            <!-- Trust system CA certificates (includes Let's Encrypt) -->
             <certificates src="system" />
-            <!-- Also trust user-installed certificates (for testing/development) -->
+            <!-- Also trust user-installed certificates for development/testing -->
             <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+    
+    <!-- Trust Cloudflare R2 (in case direct access is needed) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">r2.dev</domain>
+        <domain includeSubdomains="true">cloudflare.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
         </trust-anchors>
     </domain-config>
 </network-security-config>

@@ -77,43 +77,66 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _performInitialization() async {
-    // Wait for first frame
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-
-    // Wait for localization with timeout
-    final localizationTimeout = DateTime.now().add(const Duration(seconds: 3));
-    while (!LocalizationService().isInitialized) {
-      if (DateTime.now().isAfter(localizationTimeout)) {
-        developer.log('⏰ Localization timeout - continuing anyway');
-        break;
+    try {
+      developer.log('📍 Step 1: Waiting for first frame...');
+      // Wait for first frame
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) {
+        developer.log('⚠️ Widget unmounted after first frame');
+        return;
       }
-      await Future.delayed(const Duration(milliseconds: 50));
-      if (!mounted) return;
-    }
+      developer.log('✅ First frame rendered');
 
-    // Preload images in background — don't block navigation
-    _preloadImages();
+      // Wait for localization with timeout
+      developer.log('📍 Step 2: Checking localization...');
+      final localizationTimeout = DateTime.now().add(const Duration(seconds: 3));
+      while (!LocalizationService().isInitialized) {
+        if (DateTime.now().isAfter(localizationTimeout)) {
+          developer.log('⏰ Localization timeout - continuing anyway');
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+        if (!mounted) {
+          developer.log('⚠️ Widget unmounted during localization check');
+          return;
+        }
+      }
+      developer.log('✅ Localization ready');
 
-    // ── Step 1: First-time language selection ──────────────────────────────
-    final isLanguageSelected = await LocalizationService.isLanguageSelected();
-    if (!isLanguageSelected) {
-      developer.log('📱 First launch — language selection');
-      _navigate('/language-selection');
-      return;
-    }
+      // Preload images in background — don't block navigation
+      developer.log('📍 Step 3: Starting image preload (background)...');
+      _preloadImages();
 
-    // ── Step 2: Check our own cached user (set after successful backend login)
-    final authState = AuthState();
-    if (!authState.isInitialized) await authState.initialize();
+      // ── Step 1: First-time language selection ──────────────────────────────
+      developer.log('📍 Step 4: Checking language selection...');
+      final isLanguageSelected = await LocalizationService.isLanguageSelected();
+      developer.log('🌐 Language selected: $isLanguageSelected');
+      
+      if (!isLanguageSelected) {
+        developer.log('📱 First launch — navigating to language selection');
+        _navigate('/language-selection');
+        return;
+      }
 
-    if (authState.user != null) {
-      developer.log('✅ Cached user found → home');
-      _navigate(authState.user!.isProfileComplete ? '/' : '/profile-setup');
-      return;
-    }
+      // ── Step 2: Check our own cached user (set after successful backend login)
+      developer.log('📍 Step 5: Checking cached user...');
+      final authState = AuthState();
+      if (!authState.isInitialized) {
+        developer.log('🔄 Initializing AuthState...');
+        await authState.initialize();
+      }
 
-    // ── Step 3: No cached user — check Firebase Auth ───────────────────────
+      if (authState.user != null) {
+        developer.log('✅ Cached user found: ${authState.user!.uid}');
+        developer.log('📱 Profile complete: ${authState.user!.isProfileComplete}');
+        final destination = authState.user!.isProfileComplete ? '/' : '/profile-setup';
+        developer.log('🎯 Navigating to: $destination');
+        _navigate(destination);
+        return;
+      }
+      developer.log('❌ No cached user found');
+
+      // ── Step 3: No cached user — check Firebase Auth ───────────────────────
     // Try silent/lightweight Google sign-in first (restores previous session
     // without showing any UI). Falls back to Firebase currentUser check.
     User? firebaseUser;
@@ -180,6 +203,11 @@ class _SplashScreenState extends State<SplashScreen>
     // Google user — silently complete backend login with timeout
     developer.log('🔑 Google session found — completing backend login silently');
     await _completeSilentGoogleLogin(firebaseUser);
+    } catch (e, st) {
+      developer.log('❌ Error in _performInitialization: $e\n$st');
+      // On any error, go to login screen
+      _navigate('/login');
+    }
   }
 
   /// Silently completes the backend login for a Firebase Google user.
@@ -245,9 +273,22 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _navigate(String path) {
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(path);
+    developer.log('🚀 _navigate called with path: $path, mounted: $mounted');
+    if (!mounted) {
+      developer.log('⚠️ Cannot navigate - widget not mounted');
+      return;
+    }
+    
+    try {
+      developer.log('🎯 Setting _isLoading = false');
+      setState(() => _isLoading = false);
+      
+      developer.log('🎯 Calling context.go($path)');
+      context.go(path);
+      developer.log('✅ Navigation initiated to: $path');
+    } catch (e, st) {
+      developer.log('❌ Navigation error: $e\n$st');
+    }
   }
 
   Future<void> _preloadImages() async {

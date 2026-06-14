@@ -137,72 +137,79 @@ class _SplashScreenState extends State<SplashScreen>
       developer.log('❌ No cached user found');
 
       // ── Step 3: No cached user — check Firebase Auth ───────────────────────
-    // Try silent/lightweight Google sign-in first (restores previous session
-    // without showing any UI). Falls back to Firebase currentUser check.
-    User? firebaseUser;
-    try {
-      // First check Firebase's own cached session
-      firebaseUser = AuthService().currentUser;
-    } catch (e) {
-      developer.log('⚠️ Firebase not ready: $e');
-    }
-
-    // Web: check redirect result first
-    if (kIsWeb && firebaseUser == null) {
+      // Try silent/lightweight Google sign-in first (restores previous session
+      // without showing any UI). Falls back to Firebase currentUser check.
+      developer.log('📍 Step 6: Checking Firebase auth...');
+      User? firebaseUser;
       try {
-        final redirectResult = await AuthService()
-            .getRedirectResult()
-            .timeout(const Duration(seconds: 3), onTimeout: () => null);
-        if (redirectResult != null && redirectResult['success'] == true) {
-          developer.log('🌐 Web redirect result — completing login');
-          _navigate('/login');
-          return;
-        }
+        // First check Firebase's own cached session
+        firebaseUser = AuthService().currentUser;
+        developer.log('Firebase currentUser: ${firebaseUser?.email ?? "null"}');
       } catch (e) {
-        developer.log('⚠️ Redirect check failed: $e');
+        developer.log('⚠️ Firebase not ready: $e');
       }
-    }
 
-    if (firebaseUser == null) {
-      // No Firebase session — try lightweight Google sign-in
-      // This restores a previous Google session silently on Android
-      if (!kIsWeb) {
+      // Web: check redirect result first
+      if (kIsWeb && firebaseUser == null) {
         try {
-          developer.log('🔄 Attempting lightweight Google sign-in...');
-          firebaseUser = await AuthService()
-              .attemptSilentSignIn()
-              .timeout(const Duration(seconds: 3), onTimeout: () {
-                developer.log('⏰ Silent sign-in timeout');
-                return null;
-              });
-          if (firebaseUser != null) {
-            developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
+          developer.log('📍 Step 7: Checking web redirect result...');
+          final redirectResult = await AuthService()
+              .getRedirectResult()
+              .timeout(const Duration(seconds: 3), onTimeout: () => null);
+          if (redirectResult != null && redirectResult['success'] == true) {
+            developer.log('🌐 Web redirect result — completing login');
+            _navigate('/login');
+            return;
           }
         } catch (e) {
-          developer.log('⚠️ Lightweight sign-in failed: $e');
+          developer.log('⚠️ Redirect check failed: $e');
         }
       }
-    }
 
-    if (firebaseUser == null) {
-      developer.log('👤 No session → login screen');
-      _navigate('/login');
-      return;
-    }
+      if (firebaseUser == null) {
+        // No Firebase session — try lightweight Google sign-in
+        // This restores a previous Google session silently on Android
+        if (!kIsWeb) {
+          try {
+            developer.log('📍 Step 8: Attempting lightweight Google sign-in...');
+            firebaseUser = await AuthService()
+                .attemptSilentSignIn()
+                .timeout(const Duration(seconds: 3), onTimeout: () {
+                  developer.log('⏰ Silent sign-in timeout');
+                  return null;
+                });
+            if (firebaseUser != null) {
+              developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
+            } else {
+              developer.log('❌ Lightweight sign-in returned null');
+            }
+          } catch (e) {
+            developer.log('⚠️ Lightweight sign-in failed: $e');
+          }
+        }
+      }
 
-    // Firebase has a session — check if it's a Google account
-    final isGoogle = firebaseUser.providerData
-        .any((p) => p.providerId == 'google.com');
+      if (firebaseUser == null) {
+        developer.log('👤 No Firebase session found → login screen');
+        _navigate('/login');
+        return;
+      }
 
-    if (!isGoogle) {
-      developer.log('📱 Non-Google Firebase session, no cache → login');
-      _navigate('/login');
-      return;
-    }
+      // Firebase has a session — check if it's a Google account
+      developer.log('📍 Step 9: Validating Firebase provider...');
+      final isGoogle = firebaseUser.providerData
+          .any((p) => p.providerId == 'google.com');
+      developer.log('Is Google provider: $isGoogle');
 
-    // Google user — silently complete backend login with timeout
-    developer.log('🔑 Google session found — completing backend login silently');
-    await _completeSilentGoogleLogin(firebaseUser);
+      if (!isGoogle) {
+        developer.log('📱 Non-Google Firebase session, no cache → login');
+        _navigate('/login');
+        return;
+      }
+
+      // Google user — silently complete backend login with timeout
+      developer.log('📍 Step 10: Completing backend login silently...');
+      await _completeSilentGoogleLogin(firebaseUser);
     } catch (e, st) {
       developer.log('❌ Error in _performInitialization: $e\n$st');
       // On any error, go to login screen

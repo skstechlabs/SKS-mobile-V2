@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/utils/network_diagnostic.dart';
 import 'auth_service.dart';
 import 'auth_state.dart';
 import 'msg91_otp_service.dart';
@@ -35,6 +37,8 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   // Prevents double-tap / concurrent sign-in attempts
   bool _loginInProgress = false;
+  // Tracks if Google Sign-In is available (checked once on init)
+  bool? _isGoogleAvailable;
 
   @override
   void initState() {
@@ -60,6 +64,18 @@ class _LoginScreenState extends State<LoginScreen>
 
     _slideController.forward();
     _fadeController.forward();
+
+    // Check Google Sign-In availability once on init
+    _checkGoogleAvailability();
+  }
+
+  Future<void> _checkGoogleAvailability() async {
+    final available = await NetworkDiagnostic.isGoogleSignInAvailable();
+    if (mounted) {
+      setState(() {
+        _isGoogleAvailable = available;
+      });
+    }
   }
 
   @override
@@ -112,6 +128,16 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
 
     try {
+      // Pre-check: Verify network connectivity for Google Sign-In
+      // Only check if we haven't checked recently (uses cache)
+      final networkOk = await NetworkDiagnostic.isGoogleSignInAvailable();
+      if (!networkOk) {
+        _resetLoading();
+        _showSnackBar(
+            'Cannot reach Google servers. Try mobile data or use OTP login.');
+        return;
+      }
+
       // Step 1: Google / Firebase sign-in on device
       final result = await _authService.signInWithGoogle();
       _loginInProgress = false;
@@ -342,7 +368,69 @@ class _LoginScreenState extends State<LoginScreen>
                             // Google button
                             _buildGoogleButton(),
 
+                            // Show network warning if Google is unavailable
+                            if (_isGoogleAvailable == false) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Colors.orange.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.info_outline,
+                                        size: 18, color: Colors.orange.shade700),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Google Sign-In unavailable. Use OTP or try mobile data.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange.shade900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 24),
+
+                            // DEBUG: Network diagnostic button (only in debug mode)
+                            if (kDebugMode) ...[
+                              const SizedBox(height: 8),
+                              TextButton.icon(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () async {
+                                        _showSnackBar(
+                                            'Running network diagnostics...');
+                                        // Clear cache before running fresh diagnostic
+                                        NetworkDiagnostic.clearCache();
+                                        await NetworkDiagnostic
+                                            .runFullDiagnostic();
+                                        // Re-check Google availability
+                                        await _checkGoogleAvailability();
+                                        if (mounted) {
+                                          _showSnackBar(
+                                              'Check console for diagnostic report');
+                                        }
+                                      },
+                                icon: const Icon(Icons.network_check,
+                                    size: 18, color: AppTheme.textSecondary),
+                                label: const Text(
+                                  'Test Network (Debug)',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppTheme.textSecondary),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -406,14 +494,19 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildGoogleButton() {
+    final isDisabled = _isLoading || _isGoogleAvailable == false;
+    
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: OutlinedButton(
-        onPressed: _isLoading ? null : _signInWithGoogle,
+        onPressed: isDisabled ? null : _signInWithGoogle,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.textPrimary,
-          side: const BorderSide(color: AppTheme.softGray),
+          disabledForegroundColor: AppTheme.textSecondary,
+          side: BorderSide(
+            color: isDisabled ? AppTheme.softGray.withValues(alpha: 0.5) : AppTheme.softGray,
+          ),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
@@ -425,20 +518,33 @@ class _LoginScreenState extends State<LoginScreen>
               height: 24,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppTheme.softGray),
+                border: Border.all(
+                  color: isDisabled 
+                      ? AppTheme.softGray.withValues(alpha: 0.5) 
+                      : AppTheme.softGray,
+                ),
               ),
-              child: const Center(
+              child: Center(
                 child: Text('G',
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red)),
+                        color: isDisabled 
+                            ? Colors.red.withValues(alpha: 0.5)
+                            : Colors.red)),
               ),
             ),
             const SizedBox(width: 12),
-            const Text('Continue with Google',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+              _isGoogleAvailable == false 
+                  ? 'Google Sign-In Unavailable'
+                  : 'Continue with Google',
+              style: TextStyle(
+                fontSize: 16, 
+                fontWeight: FontWeight.w600,
+                color: isDisabled ? AppTheme.textSecondary : AppTheme.textPrimary,
+              ),
+            ),
           ],
         ),
       ),

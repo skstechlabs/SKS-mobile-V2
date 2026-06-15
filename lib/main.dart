@@ -246,28 +246,6 @@ class _SpiritualAppState extends State<SpiritualApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading screen until localization is initialized
-    if (!_localizationService.isInitialized) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/images/app_logo.png', width: 120, height: 120),
-                const SizedBox(height: 24),
-                const CircularProgressIndicator(color: AppTheme.saffron),
-                const SizedBox(height: 16),
-                const Text('Loading...', style: TextStyle(color: AppTheme.textSecondary)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    
     return MaterialApp.router(
       title: 'SKS',
       debugShowCheckedModeBanner: false,

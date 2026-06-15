@@ -6,6 +6,8 @@ import 'package:timezone/timezone.dart' as tz;
 /// Reminder Notification Service
 /// 
 /// Handles local notifications for daily reminders (meditation, practice, etc.)
+/// Web: Stubs all notification methods (browser notifications not supported yet)
+/// Mobile: Full notification scheduling with timezone support
 class ReminderNotificationService {
   static final ReminderNotificationService _instance = ReminderNotificationService._internal();
   factory ReminderNotificationService() => _instance;
@@ -15,6 +17,13 @@ class ReminderNotificationService {
   bool _initialized = false;
 
   Future<void> initialize() async {
+    // Skip initialization on web
+    if (kIsWeb) {
+      debugPrint('ℹ️ ReminderNotificationService: Notifications not supported on web');
+      _initialized = true;
+      return;
+    }
+
     if (_initialized) return;
 
     try {
@@ -63,6 +72,12 @@ class ReminderNotificationService {
   }
 
   Future<bool> requestPermissions() async {
+    // Web: No permissions needed
+    if (kIsWeb) {
+      debugPrint('ℹ️ ReminderNotificationService: Permissions not needed on web');
+      return true;
+    }
+
     if (!_initialized) await initialize();
 
     try {
@@ -104,6 +119,12 @@ class ReminderNotificationService {
     required String reminderTime, // Format: "HH:MM" (24-hour)
     required List<int> daysOfWeek, // 0=Sunday, 6=Saturday
   }) async {
+    // Web: Skip scheduling
+    if (kIsWeb) {
+      debugPrint('ℹ️ ReminderNotificationService: Scheduling skipped on web');
+      return;
+    }
+
     if (!_initialized) await initialize();
 
     try {
@@ -215,6 +236,12 @@ class ReminderNotificationService {
   }
 
   Future<void> cancelReminder(int id) async {
+    // Web: Skip cancellation
+    if (kIsWeb) {
+      debugPrint('ℹ️ ReminderNotificationService: Cancellation skipped on web');
+      return;
+    }
+
     try {
       // Cancel all day variations of this reminder
       for (int i = 0; i < 7; i++) {
@@ -228,6 +255,12 @@ class ReminderNotificationService {
   }
 
   Future<void> cancelAllReminders() async {
+    // Web: Skip cancellation
+    if (kIsWeb) {
+      debugPrint('ℹ️ ReminderNotificationService: Cancel all skipped on web');
+      return;
+    }
+
     try {
       await _notifications.cancelAll();
       debugPrint('✅ Cancelled all reminders');
@@ -237,6 +270,11 @@ class ReminderNotificationService {
   }
 
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    // Web: Return empty list
+    if (kIsWeb) {
+      return [];
+    }
+
     try {
       return await _notifications.pendingNotificationRequests();
     } catch (e) {

@@ -24,17 +24,20 @@ class AudioRepository {
     ));
 
     // SSL certificate handling for Let's Encrypt certificates
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-        // Allow Let's Encrypt certificates for our domain
-        if (host == 'app.sivakundalini.org') {
-          return true;
-        }
-        return false;
+    // Only for mobile/desktop platforms (not web)
+    if (!kIsWeb) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          // Allow Let's Encrypt certificates for our domain
+          if (host == 'app.sivakundalini.org') {
+            return true;
+          }
+          return false;
+        };
+        return client;
       };
-      return client;
-    };
+    }
 
     // Add logging interceptor
     _dio.interceptors.add(LogInterceptor(

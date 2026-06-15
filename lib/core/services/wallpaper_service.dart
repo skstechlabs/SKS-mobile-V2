@@ -37,18 +37,21 @@ class WallpaperService {
   Dio get _dioInstance {
     if (_dio == null) {
       _dio = Dio();
-      (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          // Accept certificates for our domains
-          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
-            debugPrint('✅ SSL: Accepting certificate for $host');
-            return true;
-          }
-          return false;
+      // Only configure HTTP client for mobile/desktop (not web)
+      if (!kIsWeb) {
+        (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+          final client = HttpClient();
+          client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+            // Accept certificates for our domains
+            if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
+              debugPrint('✅ SSL: Accepting certificate for $host');
+              return true;
+            }
+            return false;
+          };
+          return client;
         };
-        return client;
-      };
+      }
     }
     return _dio!;
   }

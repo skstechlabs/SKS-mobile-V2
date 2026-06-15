@@ -42,31 +42,36 @@ class ApiService {
     // SSL CERTIFICATE HANDLING & DNS CONFIGURATION
     // ══════════════════════════════════════════════════════════════════
     // Configure HTTP client with proper DNS and SSL settings
+    // Only for mobile/desktop platforms (not web)
     // ══════════════════════════════════════════════════════════════════
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      
-      // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
-      // This ensures DNS resolution works even if device DNS is misconfigured
-      // The HttpClient will use system DNS first, then fall back if needed
-      client.connectionTimeout = const Duration(seconds: 30);
-      client.idleTimeout = const Duration(seconds: 90);
-      
-      // SSL Configuration
-      if (kDebugMode) {
-        // In debug mode, allow self-signed certificates for development
-        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
-          return true; // Accept all certificates in debug mode
-        };
-        debugPrint('🔓 SSL verification bypassed for development');
-      } else {
-        // In release mode, use proper SSL validation
-        debugPrint('🔒 SSL verification enabled for production');
-      }
-      
-      return client;
-    };
+    if (!kIsWeb) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        
+        // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
+        // This ensures DNS resolution works even if device DNS is misconfigured
+        // The HttpClient will use system DNS first, then fall back if needed
+        client.connectionTimeout = const Duration(seconds: 30);
+        client.idleTimeout = const Duration(seconds: 90);
+        
+        // SSL Configuration
+        if (kDebugMode) {
+          // In debug mode, allow self-signed certificates for development
+          client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+            debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
+            return true; // Accept all certificates in debug mode
+          };
+          debugPrint('🔓 SSL verification bypassed for development');
+        } else {
+          // In release mode, use proper SSL validation
+          debugPrint('🔒 SSL verification enabled for production');
+        }
+        
+        return client;
+      };
+    } else {
+      debugPrint('🌐 Running on Web - using browser HTTP client');
+    }
 
     // Add interceptor for logging
     _dio.interceptors.add(LogInterceptor(

@@ -177,26 +177,29 @@ class _HomePageState extends State<HomePage>
           _presetReminders['morning_meditation'] = false;
           _presetReminders['evening_meditation'] = false;
           
-          // Check which preset reminders are active - language-agnostic checking
+          // Check which preset reminders exist and are active
+          // Check for BOTH English and Telugu titles (case-insensitive)
           for (var reminder in reminders) {
             final title = (reminder['title'] as String).toLowerCase();
-            final time = (reminder['reminderTime'] as String? ?? '');
+            final isActive = reminder['isActive'] as bool;
             
-            // Check for morning meditation (6:00 AM) - language agnostic
-            if (time == '06:00' || time.startsWith('06:00')) {
-              _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
+            // Check for Morning Meditation (English or Telugu)
+            if (title == 'morning meditation' || title == 'ఉదయం ధ్యానం') {
+              // Only show as ON if active, ignore inactive ones
+              if (isActive) {
+                _presetReminders['morning_meditation'] = true;
+              }
             } 
-            // Check for evening meditation (18:00 / 6:00 PM) - language agnostic
-            else if (time == '18:00' || time.startsWith('18:00')) {
-              _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
-            }
-            // Fallback: check title keywords (works for any language that uses English keywords)
-            else if (title.contains('morning') && title.contains('meditation')) {
-              _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
-            } else if (title.contains('evening') && title.contains('meditation')) {
-              _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
+            // Check for Evening Meditation (English or Telugu)
+            else if (title == 'evening meditation' || title == 'సాయంత్రం ధ్యానం') {
+              // Only show as ON if active, ignore inactive ones
+              if (isActive) {
+                _presetReminders['evening_meditation'] = true;
+              }
             }
           }
+          
+          debugPrint('📍 Preset reminders state: morning=${_presetReminders['morning_meditation']}, evening=${_presetReminders['evening_meditation']}');
         });
       }
     } catch (e) {
@@ -326,11 +329,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildDailyQuotes() {
-    // Use database quotes - no fallback to AppConstants
-    if (_quotes.isEmpty) {
-      return SizedBox.shrink();
-    }
-
+    // Always show Guruji header, quote card only when quotes are available
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -493,111 +492,114 @@ class _HomePageState extends State<HomePage>
 
         SizedBox(height: 16),
 
-        // Beautiful quote card with lighter, calming background - Full width
-        Container(
-          height: 180, // Fixed height for consistency
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFFBF5),
-                Color(0xFFFFF9F0),
-                Color(0xFFFFF6EB),
+        // Quote card - only show if we have quotes
+        if (_quotes.isNotEmpty) ...[
+          // Beautiful quote card with lighter, calming background - Full width
+          Container(
+            height: 180, // Fixed height for consistency
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFFFBF5),
+                  Color(0xFFFFF9F0),
+                  Color(0xFFFFF6EB),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.saffron.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
               ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.saffron.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: AppTheme.saffron.withValues(alpha: 0.15),
-                  width: 1.5,
-                ),
-                bottom: BorderSide(
-                  color: AppTheme.saffron.withValues(alpha: 0.15),
-                  width: 1.5,
-                ),
-              ),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Opening quote icon
-                Icon(
-                  Icons.format_quote,
-                  size: 32,
-                  color: AppTheme.saffron.withValues(alpha: 0.5),
-                ),
-                
-                SizedBox(height: 12),
-                
-                // Quote text with beautiful typography and scrollable if needed
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Text(
-                      _quotes[_currentQuoteIndex % _quotes.length]['quote_text'] as String,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.6,
-                        color: Color(0xFF6D4C41),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.3,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: AppTheme.saffron.withValues(alpha: 0.15),
+                    width: 1.5,
+                  ),
+                  bottom: BorderSide(
+                    color: AppTheme.saffron.withValues(alpha: 0.15),
+                    width: 1.5,
                   ),
                 ),
-                
-                SizedBox(height: 12),
-                
-                // Decorative divider with dots
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: AppTheme.saffron.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Opening quote icon
+                  Icon(
+                    Icons.format_quote,
+                    size: 32,
+                    color: AppTheme.saffron.withValues(alpha: 0.5),
+                  ),
+                  
+                  SizedBox(height: 12),
+                  
+                  // Quote text with beautiful typography and scrollable if needed
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        _quotes[_currentQuoteIndex % _quotes.length]['quote_text'] as String,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.6,
+                          color: Color(0xFF6D4C41),
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                    SizedBox(width: 6),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: AppTheme.saffron.withValues(alpha: 0.7),
-                        shape: BoxShape.circle,
+                  ),
+                  
+                  SizedBox(height: 12),
+                  
+                  // Decorative divider with dots
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppTheme.saffron.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    SizedBox(width: 6),
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: AppTheme.saffron.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
+                      SizedBox(width: 6),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AppTheme.saffron.withValues(alpha: 0.7),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      SizedBox(width: 6),
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppTheme.saffron.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
 
-        SizedBox(height: 16),
+          SizedBox(height: 16),
+        ],
       ],
     );
   }
@@ -666,7 +668,7 @@ class _HomePageState extends State<HomePage>
             icon: Icons.wb_sunny,
             color: Colors.orange,
             isActive: _presetReminders['morning_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('morning_meditation', context.tr('morning_meditation'), '06:00'),
+            onToggle: () => _togglePresetReminder('morning_meditation', 'Morning Meditation', '06:00'),
           ),
           const SizedBox(height: 12),
           _buildReminderCard(
@@ -676,7 +678,7 @@ class _HomePageState extends State<HomePage>
             icon: Icons.nightlight_round,
             color: Colors.deepPurple,
             isActive: _presetReminders['evening_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('evening_meditation', context.tr('evening_meditation'), '18:00'),
+            onToggle: () => _togglePresetReminder('evening_meditation', 'Evening Meditation', '18:00'),
           ),
         ],
       ),
@@ -794,6 +796,8 @@ class _HomePageState extends State<HomePage>
   void _togglePresetReminder(String key, String title, String defaultTime) async {
     final currentState = _presetReminders[key] ?? false;
     
+    debugPrint('🔄 Toggle $title: $currentState → ${!currentState}');
+    
     // Optimistically update UI
     setState(() {
       _presetReminders[key] = !currentState;
@@ -802,40 +806,71 @@ class _HomePageState extends State<HomePage>
     try {
       if (!currentState) {
         // Create/activate reminder
+        debugPrint('➕ Creating reminder: $title');
         await _createOrActivateReminder(title, defaultTime);
       } else {
         // Deactivate (delete) reminder
+        debugPrint('🗑️ Deleting reminder: $title');
         await _deactivateReminder(defaultTime);
       }
       
+      // Wait a bit for the server to process the change
+      await Future.delayed(Duration(milliseconds: 500));
+      
       // After successful toggle, FORCE refresh preset reminders to ensure sync
       // Use forceRefresh to bypass cache
+      debugPrint('🔄 Refreshing reminders after toggle...');
       final response = await _apiService.getReminders(forceRefresh: true);
+      
+      debugPrint('📦 API Response: ${response['success']}, reminders count: ${(response['reminders'] as List?)?.length ?? 0}');
+      
       if (response['success'] == true && mounted) {
         final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+        
+        // Log all reminders for debugging
+        for (var reminder in reminders) {
+          debugPrint('  - ${reminder['title']} (active: ${reminder['isActive']}, id: ${reminder['id']})');
+        }
         
         setState(() {
           // Reset to false first
           _presetReminders['morning_meditation'] = false;
           _presetReminders['evening_meditation'] = false;
           
-          // Check which preset reminders are active - language-agnostic checking
+          // Check which preset reminders exist and are active
+          // Check for BOTH English and Telugu titles (case-insensitive)
           for (var reminder in reminders) {
-            final time = (reminder['reminderTime'] as String? ?? '');
+            final reminderTitle = (reminder['title'] as String).toLowerCase();
+            final isActive = reminder['isActive'] as bool;
             
-            // Check for morning meditation (6:00 AM) - language agnostic
-            if (time == '06:00' || time.startsWith('06:00')) {
-              _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
+            // Check for Morning Meditation (English or Telugu)
+            if (reminderTitle == 'morning meditation' || reminderTitle == 'ఉదయం ధ్యానం') {
+              // Only show as ON if active, ignore inactive ones
+              if (isActive) {
+                _presetReminders['morning_meditation'] = true;
+                debugPrint('✅ Found active Morning Meditation');
+              } else {
+                debugPrint('⚠️ Found inactive Morning Meditation');
+              }
             } 
-            // Check for evening meditation (18:00 / 6:00 PM) - language agnostic
-            else if (time == '18:00' || time.startsWith('18:00')) {
-              _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
+            // Check for Evening Meditation (English or Telugu)
+            else if (reminderTitle == 'evening meditation' || reminderTitle == 'సాయంత్రం ధ్యానం') {
+              // Only show as ON if active, ignore inactive ones
+              if (isActive) {
+                _presetReminders['evening_meditation'] = true;
+                debugPrint('✅ Found active Evening Meditation');
+              } else {
+                debugPrint('⚠️ Found inactive Evening Meditation');
+              }
             }
           }
+          
+          debugPrint('📍 After toggle - Preset reminders state: morning=${_presetReminders['morning_meditation']}, evening=${_presetReminders['evening_meditation']}');
         });
       }
       
     } catch (e) {
+      debugPrint('❌ Toggle error: $e');
       // Revert on error
       if (mounted) {
         setState(() {
@@ -852,64 +887,69 @@ class _HomePageState extends State<HomePage>
   }
   
   Future<void> _createOrActivateReminder(String title, String defaultTime) async {
-    // Check if reminder already exists - use TIME instead of title for matching
+    // Check if reminder already exists - use TITLE for matching (time format is inconsistent)
     // FORCE REFRESH to get latest data
     final response = await _apiService.getReminders(forceRefresh: true);
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
       
-      // Find existing reminder by TIME (language-agnostic)
-      final existing = reminders.firstWhere(
-        (r) {
-          final time = (r['reminderTime'] as String? ?? '');
-          return time == defaultTime || time.startsWith(defaultTime);
-        },
-        orElse: () => {},
-      );
-      
-      bool success = false;
-      String? errorMessage;
-      
-      if (existing.isNotEmpty) {
-        // Check if it needs to be activated
-        final isCurrentlyActive = existing['isActive'] as bool;
-        if (!isCurrentlyActive) {
-          // Activate existing reminder
-          final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
-          success = toggleResponse['success'] == true;
-          errorMessage = toggleResponse['message'];
-        } else {
-          // Already active
-          success = true;
+      // Find ALL reminders with matching title (case-insensitive)
+      // Check for both English and Telugu variants
+      final matchingReminders = reminders.where((r) {
+        final rTitle = (r['title'] as String).toLowerCase();
+        final targetTitle = title.toLowerCase();
+        
+        // Match exact title OR Telugu equivalent
+        if (targetTitle == 'morning meditation') {
+          return rTitle == 'morning meditation' || rTitle == 'ఉదయం ధ్యానం';
+        } else if (targetTitle == 'evening meditation') {
+          return rTitle == 'evening meditation' || rTitle == 'సాయంత్రం ధ్యానం';
         }
-      } else {
-        // Create new reminder with English title (will be used for ALL languages)
-        // Use standardized English titles so they work across languages
-        final standardTitle = defaultTime == '06:00' 
-            ? 'Morning Meditation' 
-            : 'Evening Meditation';
-            
-        final createResponse = await _apiService.createReminder(
-          title: standardTitle,
-          message: 'Time for your meditation practice',
-          reminderTime: defaultTime,
-          daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days (Sunday to Saturday)
-          isActive: true,
-        );
-        success = createResponse['success'] == true;
-        errorMessage = createResponse['message'];
+        return rTitle == targetTitle;
+      }).toList();
+      
+      debugPrint('🔍 Found ${matchingReminders.length} existing "${title}" reminders');
+      
+      // Delete ALL inactive ones, keep only ONE active one
+      bool hasActiveReminder = false;
+      int? activeReminderId;
+      
+      for (var reminder in matchingReminders) {
+        final isActive = reminder['isActive'] as bool;
+        final id = reminder['id'] as int;
+        
+        if (isActive && !hasActiveReminder) {
+          // Keep the first active one
+          hasActiveReminder = true;
+          activeReminderId = id;
+          debugPrint('✅ Keeping active reminder ID: $id');
+        } else {
+          // Delete duplicates or inactive ones
+          debugPrint('🗑️ Deleting ${isActive ? "duplicate" : "inactive"} reminder ID: $id');
+          await _apiService.deleteReminder(id);
+        }
       }
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success 
-              ? '${context.tr('reminder_set')} $defaultTime'
-              : errorMessage ?? 'Failed to set reminder'),
-            backgroundColor: success ? Colors.green : Colors.red,
-            duration: Duration(seconds: success ? 3 : 4),
-          ),
-        );
+      // If we found an active reminder, we're done
+      if (hasActiveReminder) {
+        debugPrint('✅ Active "$title" reminder already exists (ID: $activeReminderId)');
+        return;
+      }
+      
+      // No active reminder found, create a new one
+      debugPrint('➕ Creating new "$title" reminder');
+      final createResponse = await _apiService.createReminder(
+        title: title,
+        message: 'Time for your meditation practice',
+        reminderTime: defaultTime,
+        daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days
+        isActive: true,
+      );
+      
+      if (createResponse['success'] == true) {
+        debugPrint('✅ Created "$title" reminder successfully');
+      } else {
+        debugPrint('❌ Failed to create "$title" reminder: ${createResponse['message']}');
       }
     }
   }
@@ -920,35 +960,40 @@ class _HomePageState extends State<HomePage>
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
       
-      // Find existing reminder by TIME (language-agnostic)
-      final existing = reminders.firstWhere(
-        (r) {
-          final time = (r['reminderTime'] as String? ?? '');
-          return time == defaultTime || time.startsWith(defaultTime);
-        },
-        orElse: () => {},
-      );
+      // Determine which type based on time
+      final reminderTitle = defaultTime == '06:00' ? 'Morning Meditation' : 'Evening Meditation';
       
-      if (existing.isNotEmpty) {
-        debugPrint('🗑️ Deleting reminder ID: ${existing['id']} at time: $defaultTime');
+      // Find ALL reminders with matching title (case-insensitive)
+      // Check for both English and Telugu variants
+      final matchingReminders = reminders.where((r) {
+        final rTitle = (r['title'] as String).toLowerCase();
         
-        // DELETE the reminder instead of just toggling it off
-        // This ensures it disappears from "Manage Reminders" screen
-        final deleteResponse = await _apiService.deleteReminder(existing['id'] as int);
-        
-        debugPrint('🗑️ Delete response: ${deleteResponse['success']}');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(deleteResponse['success'] == true 
-                ? context.tr('reminder_deactivated')
-                : deleteResponse['message'] ?? 'Failed to deactivate reminder'),
-              backgroundColor: deleteResponse['success'] == true ? Colors.orange : Colors.red,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+        if (reminderTitle == 'Morning Meditation') {
+          return rTitle == 'morning meditation' || rTitle == 'ఉదయం ధ్యానం';
+        } else {
+          return rTitle == 'evening meditation' || rTitle == 'సాయంత్రం ధ్యానం';
         }
+      }).toList();
+      
+      debugPrint('🗑️ Deleting ALL ${matchingReminders.length} "$reminderTitle" reminders');
+      
+      // Delete ALL matching reminders (both active and inactive)
+      for (var reminder in matchingReminders) {
+        final id = reminder['id'] as int;
+        final isActive = reminder['isActive'] as bool;
+        
+        debugPrint('🗑️ Deleting reminder ID: $id (${isActive ? "active" : "inactive"})');
+        final deleteResponse = await _apiService.deleteReminder(id);
+        
+        if (deleteResponse['success'] == true) {
+          debugPrint('✅ Deleted reminder ID: $id');
+        } else {
+          debugPrint('❌ Failed to delete reminder ID: $id - ${deleteResponse['message']}');
+        }
+      }
+      
+      if (matchingReminders.isEmpty) {
+        debugPrint('⚠️ No "$reminderTitle" reminders found to delete');
       }
     }
   }

@@ -45,12 +45,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
         final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
         
         // Filter out preset reminders (Morning and Evening Meditation) FOR DISPLAY ONLY
-        // These are shown on home page, so don't repeat them here
+        // Check for both English and Telugu titles (and any other language variants)
         final filteredReminders = allReminders.where((reminder) {
-          final time = (reminder['reminderTime'] as String? ?? '');
-          // Filter out 6:00 AM (morning) and 18:00 (6:00 PM evening)
-          return time != '06:00' && !time.startsWith('06:00') &&
-                 time != '18:00' && !time.startsWith('18:00');
+          final title = (reminder['title'] as String).toLowerCase();
+          // Filter out preset reminders in any language
+          return title != 'morning meditation' && 
+                 title != 'evening meditation' &&
+                 title != 'ఉదయం ధ్యానం' && // Telugu Morning Meditation
+                 title != 'సాయంత్రం ధ్యానం'; // Telugu Evening Meditation
         }).toList();
         
         debugPrint('✅ Loaded ${allReminders.length} reminders (${filteredReminders.length} shown after filtering presets)');
@@ -98,11 +100,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
         final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
         
         // Filter out preset reminders (Morning and Evening Meditation) FOR DISPLAY ONLY
+        // Check for both English and Telugu titles
         final filteredReminders = allReminders.where((reminder) {
-          final time = (reminder['reminderTime'] as String? ?? '');
-          // Filter out 6:00 AM (morning) and 18:00 (6:00 PM evening)
-          return time != '06:00' && !time.startsWith('06:00') &&
-                 time != '18:00' && !time.startsWith('18:00');
+          final title = (reminder['title'] as String).toLowerCase();
+          return title != 'morning meditation' && 
+                 title != 'evening meditation' &&
+                 title != 'ఉదయం ధ్యానం' && // Telugu Morning Meditation
+                 title != 'సాయంత్రం ధ్యానం'; // Telugu Evening Meditation
         }).toList();
         
         setState(() {

@@ -70,22 +70,52 @@ class QuotesService {
         queryParameters: {'language': dbLanguage},
       );
       
-      if (response['success'] == true && response['quotes'] != null) {
-        final quotes = List<Map<String, dynamic>>.from(response['quotes']);
+      debugPrint('[QuotesService] API Response: ${response.toString().substring(0, response.toString().length > 200 ? 200 : response.toString().length)}...');
+      
+      if (response['success'] == true) {
+        List<Map<String, dynamic>> quotes = [];
+        
+        // Handle different response formats
+        if (response['quotes'] != null) {
+          // Check if quotes is a Map (SQL Server format with recordset)
+          if (response['quotes'] is Map) {
+            final quotesMap = response['quotes'] as Map<String, dynamic>;
+            if (quotesMap['recordset'] != null) {
+              quotes = List<Map<String, dynamic>>.from(quotesMap['recordset']);
+            }
+          } 
+          // Or if quotes is directly an array
+          else if (response['quotes'] is List) {
+            quotes = List<Map<String, dynamic>>.from(response['quotes']);
+          }
+        }
         
         if (quotes.isNotEmpty) {
+          // Normalize the quote field name (API uses 'text', app expects 'quote_text')
+          final normalizedQuotes = quotes.map((q) {
+            return {
+              'id': q['id'],
+              'quote_text': q['text'] ?? q['quote_text'] ?? '',  // Handle both field names
+              'author': q['author'] ?? 'Gurudev',
+              'category': q['category'] ?? 'daily_wisdom',
+              'language': q['language'] ?? dbLanguage,
+            };
+          }).toList();
+          
           // Update memory cache
-          _cachedQuotes = quotes;
+          _cachedQuotes = normalizedQuotes;
           _cachedLanguage = dbLanguage;
           
           // Save to persistent storage
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_quotesKey, json.encode(quotes));
+          await prefs.setString(_quotesKey, json.encode(normalizedQuotes));
           await prefs.setInt(_quotesFetchTimeKey, DateTime.now().millisecondsSinceEpoch);
           await prefs.setString(_quotesLanguageKey, dbLanguage);
           
-          debugPrint('[QuotesService] ✅ Cached ${quotes.length} quotes for $dbLanguage');
-          return quotes;
+          debugPrint('[QuotesService] ✅ Cached ${normalizedQuotes.length} quotes for $dbLanguage');
+          return normalizedQuotes;
+        } else {
+          debugPrint('[QuotesService] ⚠️ No quotes found in response');
         }
       }
       

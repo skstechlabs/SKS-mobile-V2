@@ -69,37 +69,82 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     super.dispose();
   }
 
-  /// Download meditation sounds from CDN and cache locally
+  /// Download meditation sounds from API based on user's language
   Future<void> _downloadAndCacheSounds() async {
     try {
-      // Get current language code from LocalizationService
-      final languageCode = LocalizationService().currentLocale.languageCode;
+      // Get current language from LocalizationService
+      final currentLocale = LocalizationService().currentLocale;
+      final languageCode = currentLocale.languageCode;
       
-      debugPrint('Downloading meditation sounds for language: $languageCode');
+      // Map language code to database language name
+      final languageMap = {
+        'en': 'english',
+        'hi': 'hindi',
+        'te': 'telugu',
+        'kn': 'kannada',
+      };
       
-      // Download start sound
-      _cachedStartSoundPath = await _downloadAndCacheAudio(
-        'Meditation_start.mp3',
-        languageCode,
+      final dbLanguage = languageMap[languageCode] ?? 'english';
+      
+      debugPrint('Fetching meditation sounds for language: $dbLanguage (code: $languageCode)');
+      
+      // Fetch meditation sounds from API
+      final response = await _apiService.get(
+        '/api/audios',
+        queryParameters: {
+          'category': 'meditation_sound',
+          'language': dbLanguage,
+        },
       );
       
-      // Download end sound
-      _cachedEndSoundPath = await _downloadAndCacheAudio(
-        'Meditation_end.mp3',
-        languageCode,
-      );
-      
-      debugPrint('✅ Meditation sounds cached successfully');
-      debugPrint('   Start: $_cachedStartSoundPath');
-      debugPrint('   End: $_cachedEndSoundPath');
-    } catch (e) {
-      debugPrint('⚠️ Error downloading meditation sounds: $e');
-      debugPrint('   Will use fallback assets if available');
+      if (response['success'] == true && response['audios'] != null) {
+        final audios = response['audios'] as List;
+        
+        // Find start and end sounds
+        final startSound = audios.firstWhere(
+          (audio) => audio['title']?.toString().contains('Start') ?? false,
+          orElse: () => null,
+        );
+        
+        final endSound = audios.firstWhere(
+          (audio) => audio['title']?.toString().contains('End') ?? false,
+          orElse: () => null,
+        );
+        
+        // Download and cache start sound
+        if (startSound != null && startSound['audio_url'] != null) {
+          _cachedStartSoundPath = await _downloadAndCacheAudioFromUrl(
+            startSound['audio_url'],
+            'meditation_start_$dbLanguage.mp3',
+          );
+          debugPrint('✅ Start sound cached: $_cachedStartSoundPath');
+        }
+        
+        // Download and cache end sound
+        if (endSound != null && endSound['audio_url'] != null) {
+          _cachedEndSoundPath = await _downloadAndCacheAudioFromUrl(
+            endSound['audio_url'],
+            'meditation_end_$dbLanguage.mp3',
+          );
+          debugPrint('✅ End sound cached: $_cachedEndSoundPath');
+        }
+        
+        if (_cachedStartSoundPath != null && _cachedEndSoundPath != null) {
+          debugPrint('✅ All meditation sounds cached successfully');
+        } else {
+          debugPrint('⚠️ Some meditation sounds could not be cached');
+        }
+      } else {
+        debugPrint('⚠️ No meditation sounds found in API response');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ Error fetching meditation sounds: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
-  /// Download and cache a single audio file
-  Future<String?> _downloadAndCacheAudio(String filename, String languageCode) async {
+  /// Download and cache audio file from URL
+  Future<String?> _downloadAndCacheAudioFromUrl(String audioUrl, String filename) async {
     try {
       // Get cache directory
       final directory = await getApplicationDocumentsDirectory();
@@ -111,17 +156,16 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       }
       
       // Check if file already exists in cache
-      final cachedFile = File('${cacheDir.path}/${languageCode}_$filename');
+      final cachedFile = File('${cacheDir.path}/$filename');
       if (await cachedFile.exists()) {
         debugPrint('✅ Using cached file: ${cachedFile.path}');
         return cachedFile.path;
       }
       
-      // Download from CDN
-      final url = '$_cdnBaseUrl/$_audioBasePath/$languageCode/$filename';
-      debugPrint('Downloading from: $url');
+      // Download from URL
+      debugPrint('Downloading meditation sound from: $audioUrl');
       
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(Uri.parse(audioUrl));
       
       if (response.statusCode == 200) {
         // Save to cache
@@ -133,7 +177,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         return null;
       }
     } catch (e) {
-      debugPrint('❌ Error downloading audio: $e');
+      debugPrint('❌ Error downloading audio from URL: $e');
       return null;
     }
   }
@@ -142,21 +186,19 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     try {
       debugPrint('Attempting to play meditation start sound...');
       
-      // Try to use cached file first
+      // Use cached file
       if (_cachedStartSoundPath != null && await File(_cachedStartSoundPath!).exists()) {
         debugPrint('Playing cached start sound: $_cachedStartSoundPath');
         await _audioPlayer.setFilePath(_cachedStartSoundPath!);
+        
+        // Set volume and play
+        await _audioPlayer.setVolume(1.0);
+        await _audioPlayer.play();
+        
+        debugPrint('✅ Start sound playing');
       } else {
-        // Fallback to asset (if exists in build)
-        debugPrint('Cache not available, trying asset fallback');
-        await _audioPlayer.setAsset('assets/audio/Meditation_start.mp3');
+        debugPrint('⚠️ Start sound not available - please check internet connection');
       }
-      
-      // Set volume and play
-      await _audioPlayer.setVolume(1.0);
-      await _audioPlayer.play();
-      
-      debugPrint('✅ Start sound playing');
     } catch (e, stackTrace) {
       debugPrint('❌ Error playing start sound: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -167,26 +209,24 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     try {
       debugPrint('Attempting to play meditation end sound...');
       
-      // Try to use cached file first
+      // Use cached file
       if (_cachedEndSoundPath != null && await File(_cachedEndSoundPath!).exists()) {
         debugPrint('Playing cached end sound: $_cachedEndSoundPath');
         await _audioPlayer.setFilePath(_cachedEndSoundPath!);
+        
+        // Set volume and play
+        await _audioPlayer.setVolume(1.0);
+        await _audioPlayer.play();
+        
+        // Wait for completion
+        await _audioPlayer.playerStateStream.firstWhere(
+          (state) => state.processingState == ProcessingState.completed,
+        );
+        
+        debugPrint('✅ End sound completed');
       } else {
-        // Fallback to asset (if exists in build)
-        debugPrint('Cache not available, trying asset fallback');
-        await _audioPlayer.setAsset('assets/audio/Meditation_end.mp3');
+        debugPrint('⚠️ End sound not available - please check internet connection');
       }
-      
-      // Set volume and play
-      await _audioPlayer.setVolume(1.0);
-      await _audioPlayer.play();
-      
-      // Wait for completion
-      await _audioPlayer.playerStateStream.firstWhere(
-        (state) => state.processingState == ProcessingState.completed,
-      );
-      
-      debugPrint('✅ End sound completed');
     } catch (e, stackTrace) {
       debugPrint('❌ Error playing end sound: $e');
       debugPrint('Stack trace: $stackTrace');

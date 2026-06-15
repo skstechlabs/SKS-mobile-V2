@@ -12,6 +12,7 @@ import '../../core/providers/audio_provider.dart';
 import '../../core/models/audio_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/quotes_service.dart';
 import '../../core/widgets/cached_image.dart';
 
 import '../chakras/chakra_detail_page.dart';
@@ -44,6 +45,7 @@ class _HomePageState extends State<HomePage>
   final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
   final AudioProvider _audioProvider = AudioProvider();
   final ApiService _apiService = ApiService();
+  final QuotesService _quotesService = QuotesService();
   
   List<Map<String, dynamic>> _upcomingEvents = [];
   bool _isLoadingEvents = true;
@@ -51,8 +53,8 @@ class _HomePageState extends State<HomePage>
   List<Map<String, dynamic>> _gatherings = [];
   bool _isLoadingGatherings = true;
   
-  // Quotes from database
-  List<String> _quotes = [];
+  // Quotes from database - now stores full quote objects
+  List<Map<String, dynamic>> _quotes = [];
   
   // Preset reminders state
   final Map<String, bool> _presetReminders = {
@@ -77,7 +79,7 @@ class _HomePageState extends State<HomePage>
     // Start timer for quote rotation (3 seconds interval)
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (mounted) {
-        final quotesToDisplay = _quotes.isNotEmpty ? _quotes : AppConstants.dailyQuotes;
+        final quotesToDisplay = _quotes.isNotEmpty ? _quotes : [];
         if (quotesToDisplay.isNotEmpty) {
           setState(() {
             _currentQuoteIndex = (_currentQuoteIndex + 1) % quotesToDisplay.length;
@@ -92,6 +94,14 @@ class _HomePageState extends State<HomePage>
     _loadGatherings();
     _loadQuotes();
     _loadAudios();
+    
+    // Listen for language changes to refresh quotes
+    LocalizationService().addListener(_onLanguageChanged);
+  }
+  
+  void _onLanguageChanged() {
+    debugPrint('[HomePage] Language changed, refreshing quotes');
+    _loadQuotes();
   }
 
   @override
@@ -140,66 +150,19 @@ class _HomePageState extends State<HomePage>
   
   Future<void> _loadQuotes() async {
     try {
-      // First, try to load from local storage
-      final prefs = await SharedPreferences.getInstance();
-      final cachedQuotes = prefs.getStringList('cached_quotes');
-      final lastFetch = prefs.getInt('quotes_last_fetch') ?? 0;
-      final now = DateTime.now().millisecondsSinceEpoch;
+      debugPrint('[HomePage] Loading quotes from QuotesService');
+      final quotes = await _quotesService.getQuotes();
       
-      // Use cached quotes if available and less than 24 hours old
-      if (cachedQuotes != null && cachedQuotes.isNotEmpty && 
-          (now - lastFetch) < 86400000) { // 24 hours in milliseconds
-        if (mounted) {
-          setState(() {
-            _quotes = cachedQuotes;
-          });
-        }
-        // Still fetch in background to update cache
-        _fetchQuotesFromAPI();
-      } else {
-        // No cache or expired, fetch from API
-        await _fetchQuotesFromAPI();
-      }
-    } catch (e) {
-      debugPrint('Error loading quotes: $e');
-      // Fallback to AppConstants quotes
       if (mounted) {
         setState(() {
-          _quotes = AppConstants.dailyQuotes;
+          _quotes = quotes;
         });
-      }
-    }
-  }
-  
-  Future<void> _fetchQuotesFromAPI() async {
-    try {
-      final response = await _apiService.getQuotes();
-      
-      if (response['success'] == true) {
-        final quotesData = List<Map<String, dynamic>>.from(response['quotes'] ?? []);
-        final quoteTexts = quotesData.map((q) => q['quote_text'] as String).toList();
-        
-        if (quoteTexts.isNotEmpty) {
-          // Save to local storage
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setStringList('cached_quotes', quoteTexts);
-          await prefs.setInt('quotes_last_fetch', DateTime.now().millisecondsSinceEpoch);
-          
-          if (mounted) {
-            setState(() {
-              _quotes = quoteTexts;
-            });
-          }
-        }
+        debugPrint('[HomePage] ✅ Loaded ${quotes.length} quotes');
       }
     } catch (e) {
-      debugPrint('Error fetching quotes from API: $e');
-      // Use fallback quotes if API fails
-      if (mounted && _quotes.isEmpty) {
-        setState(() {
-          _quotes = AppConstants.dailyQuotes;
-        });
-      }
+      debugPrint('[HomePage] ❌ Error loading quotes: $e');
+      // On error, quotes list stays empty - no fallback to AppConstants
+      // This ensures we always use API data
     }
   }
   
@@ -322,7 +285,8 @@ class _HomePageState extends State<HomePage>
     WidgetsBinding.instance.removeObserver(this);
     _glowController.dispose();
     _audioService.removeListener(_onAudioStateChanged);
-    if (AppConstants.dailyQuotes.isNotEmpty) {
+    LocalizationService().removeListener(_onLanguageChanged);
+    if (_quotes.isNotEmpty) {
       _autoScrollTimer.cancel();
     }
     super.dispose();
@@ -363,10 +327,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildDailyQuotes() {
-    // Use database quotes if available, otherwise fallback to AppConstants
-    final quotesToDisplay = _quotes.isNotEmpty ? _quotes : AppConstants.dailyQuotes;
-    
-    if (quotesToDisplay.isEmpty) {
+    // Use database quotes - no fallback to AppConstants
+    if (_quotes.isEmpty) {
       return SizedBox.shrink();
     }
 
@@ -583,7 +545,7 @@ class _HomePageState extends State<HomePage>
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      quotesToDisplay[_currentQuoteIndex % quotesToDisplay.length],
+                      _quotes[_currentQuoteIndex % _quotes.length]['quote_text'] as String,
                       style: TextStyle(
                         fontSize: 16,
                         height: 1.6,

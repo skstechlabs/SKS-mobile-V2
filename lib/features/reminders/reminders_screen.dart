@@ -21,7 +21,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void initState() {
     super.initState();
     _initializeNotifications();
-    _loadReminders();
+    _loadReminders(); // Load once on init (uses cache if available)
   }
 
   Future<void> _initializeNotifications() async {
@@ -31,18 +31,36 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   Future<void> _loadReminders() async {
     if (!mounted) return;
+    
+    debugPrint('🔄 Loading reminders...');
     setState(() => _isLoading = true);
     
     try {
+      // Use cached data, only refresh on pull-to-refresh
       final response = await _apiService.getReminders();
       
+      debugPrint('📥 Reminders response: ${response['success']}, count: ${(response['reminders'] as List?)?.length ?? 0}');
+      
       if (response['success'] == true && mounted) {
+        final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+        
+        // Filter out preset reminders (Morning and Evening Meditation)
+        // These are shown on home page, so don't repeat them here
+        final filteredReminders = allReminders.where((reminder) {
+          final time = (reminder['reminderTime'] as String? ?? '');
+          // Filter out 6:00 AM (morning) and 18:00 (6:00 PM evening)
+          return time != '06:00' && !time.startsWith('06:00') &&
+                 time != '18:00' && !time.startsWith('18:00');
+        }).toList();
+        
+        debugPrint('✅ Loaded ${allReminders.length} reminders (${filteredReminders.length} shown after filtering presets)');
+        
         setState(() {
-          _reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+          _reminders = filteredReminders;
           _isLoading = false;
         });
         
-        // Reschedule all active reminders in background
+        // Reschedule all active reminders in background (including filtered ones)
         _scheduleActiveReminders();
       } else if (mounted) {
         setState(() => _isLoading = false);
@@ -56,6 +74,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         }
       }
     } catch (e) {
+      debugPrint('❌ Error loading reminders: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -65,6 +84,35 @@ class _RemindersScreenState extends State<RemindersScreen> {
           ),
         );
       }
+    }
+  }
+  
+  /// Force refresh (called by pull-to-refresh)
+  Future<void> _forceRefreshReminders() async {
+    debugPrint('🔄 Force refreshing reminders...');
+    
+    try {
+      final response = await _apiService.getReminders(forceRefresh: true);
+      
+      if (response['success'] == true && mounted) {
+        final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+        
+        // Filter out preset reminders (Morning and Evening Meditation)
+        final filteredReminders = allReminders.where((reminder) {
+          final time = (reminder['reminderTime'] as String? ?? '');
+          // Filter out 6:00 AM (morning) and 18:00 (6:00 PM evening)
+          return time != '06:00' && !time.startsWith('06:00') &&
+                 time != '18:00' && !time.startsWith('18:00');
+        }).toList();
+        
+        setState(() {
+          _reminders = filteredReminders;
+        });
+        
+        _scheduleActiveReminders();
+      }
+    } catch (e) {
+      debugPrint('❌ Error force refreshing: $e');
     }
   }
 
@@ -295,19 +343,44 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         Icon(Icons.alarm_off, size: 64, color: Colors.grey[400]),
                         const SizedBox(height: 16),
                         Text(
-                          'No reminders yet',
+                          'No custom reminders yet',
                           style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Tap + to create your first reminder',
+                          'Tap + to create a custom reminder',
                           style: TextStyle(color: Colors.grey[500]),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(horizontal: 32),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 32),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Morning & Evening Meditation reminders are managed on the Home page',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.orange[900],
+                                  height: 1.4,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: _loadReminders,
+                    onRefresh: _forceRefreshReminders,
                     child: ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: _reminders.length,

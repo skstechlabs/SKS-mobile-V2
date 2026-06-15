@@ -53,7 +53,7 @@ class AudioProvider extends ChangeNotifier {
     try {
       debugPrint('[AudioProvider] Fetching audios from API...');
       
-      final audios = await _repository.fetchAllAudios();
+      final audios = await _repository.fetchAllAudios(forceRefresh: forceRefresh);
       
       if (audios.isNotEmpty) {
         _allAudios = audios;

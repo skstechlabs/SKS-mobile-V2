@@ -96,10 +96,8 @@ class _HomePageState extends State<HomePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Reload preset reminders when user returns to app (e.g. from Manage screen)
-    if (state == AppLifecycleState.resumed) {
-      _loadPresetReminders();
-    }
+    // Removed aggressive reload on resume - cache handles data freshness
+    // Only specific user actions (pull-to-refresh, explicit refresh button) will force refresh
   }
   
   /// Extract YouTube video ID from various URL formats
@@ -207,6 +205,7 @@ class _HomePageState extends State<HomePage>
   
   Future<void> _loadPresetReminders() async {
     try {
+      // Use cached data by default
       final response = await _apiService.getReminders();
       if (response['success'] == true && mounted) {
         final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
@@ -248,6 +247,7 @@ class _HomePageState extends State<HomePage>
     if (!mounted) return;
     
     try {
+      // Use cached data by default
       final response = await _apiService.getEvents();
       
       if (response['success'] == true && mounted) {
@@ -277,6 +277,7 @@ class _HomePageState extends State<HomePage>
     if (!mounted) return;
     
     try {
+      // Use cached data by default
       final response = await _apiService.getGatherings();
       
       if (response['success'] == true && mounted) {
@@ -303,6 +304,7 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _loadAudios() async {
     try {
+      // Use cached data by default
       await _audioProvider.fetchAllAudios();
     } catch (e) {
       debugPrint('Error loading audios: $e');
@@ -841,9 +843,13 @@ class _HomePageState extends State<HomePage>
         // Create/activate reminder
         await _createOrActivateReminder(title, defaultTime);
       } else {
-        // Deactivate reminder - pass time instead of title
+        // Deactivate (delete) reminder
         await _deactivateReminder(defaultTime);
       }
+      
+      // After successful toggle, force refresh preset reminders to ensure sync
+      await _loadPresetReminders();
+      
     } catch (e) {
       // Revert on error
       if (mounted) {
@@ -937,15 +943,21 @@ class _HomePageState extends State<HomePage>
       );
       
       if (existing.isNotEmpty) {
-        final toggleResponse = await _apiService.toggleReminder(existing['id'] as int);
+        debugPrint('🗑️ Deleting reminder ID: ${existing['id']} at time: $defaultTime');
+        
+        // DELETE the reminder instead of just toggling it off
+        // This ensures it disappears from "Manage Reminders" screen
+        final deleteResponse = await _apiService.deleteReminder(existing['id'] as int);
+        
+        debugPrint('🗑️ Delete response: ${deleteResponse['success']}');
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(toggleResponse['success'] == true 
+              content: Text(deleteResponse['success'] == true 
                 ? context.tr('reminder_deactivated')
-                : toggleResponse['message'] ?? 'Failed to deactivate reminder'),
-              backgroundColor: toggleResponse['success'] == true ? Colors.orange : Colors.red,
+                : deleteResponse['message'] ?? 'Failed to deactivate reminder'),
+              backgroundColor: deleteResponse['success'] == true ? Colors.orange : Colors.red,
               duration: const Duration(seconds: 2),
             ),
           );

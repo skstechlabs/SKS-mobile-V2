@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 import '../constants/app_env.dart';
+import 'data_cache_service.dart';
 
 // Type alias for MediaType to avoid conflicts
 typedef DioMediaType = MediaType;
@@ -16,6 +17,12 @@ class ApiService {
   ApiService._internal();
 
   late final Dio _dio;
+  
+  /// Helper to invalidate cache after reminder mutations
+  void _invalidateRemindersCache() {
+    DataCacheService().invalidate('reminders');
+    debugPrint('🗑️ Reminders cache invalidated');
+  }
 
   void initialize() {
     // Use base URL as-is, don't modify it
@@ -54,18 +61,24 @@ class ApiService {
         client.connectionTimeout = const Duration(seconds: 30);
         client.idleTimeout = const Duration(seconds: 90);
         
-        // SSL Configuration
-        if (kDebugMode) {
-          // In debug mode, allow self-signed certificates for development
-          client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        // SSL Configuration - Accept certificates for our domains
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          // Allow our domains (sivakundalini.org and r2.dev)
+          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
+            debugPrint('✅ SSL: Accepting certificate for $host');
+            return true;
+          }
+          // In debug mode, accept all certificates for development
+          if (kDebugMode) {
             debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
-            return true; // Accept all certificates in debug mode
-          };
-          debugPrint('🔓 SSL verification bypassed for development');
-        } else {
-          // In release mode, use proper SSL validation
-          debugPrint('🔒 SSL verification enabled for production');
-        }
+            return true;
+          }
+          // In release mode, reject other domains with invalid certificates
+          debugPrint('❌ SSL: Rejecting certificate for $host');
+          return false;
+        };
+        
+        debugPrint('🔒 SSL configuration applied');
         
         return client;
       };
@@ -442,7 +455,16 @@ class ApiService {
   }
 
   // ── 8. GET /api/reminders ──────────────────────────────────────────────────
-  Future<Map<String, dynamic>> getReminders() async {
+  Future<Map<String, dynamic>> getReminders({bool forceRefresh = false}) async {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>('reminders');
+      if (cached != null) {
+        debugPrint('📦 Using cached reminders');
+        return cached;
+      }
+    }
+
     try {
       final idToken = await _getIdToken();
       if (idToken == null) {
@@ -451,10 +473,27 @@ class ApiService {
 
       final response = await _dio.get(
         '/api/reminders',
-        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+        queryParameters: forceRefresh ? {
+          // Add timestamp only when forcing refresh
+          '_t': DateTime.now().millisecondsSinceEpoch,
+        } : null,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $idToken',
+            // Cache for 5 minutes unless force refresh
+            if (forceRefresh) 'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+        ),
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set('reminders', data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -486,7 +525,14 @@ class ApiService {
         },
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      
+      // Invalidate reminders cache after mutation
+      if (data['success'] == true) {
+        _invalidateRemindersCache();
+      }
+
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -519,7 +565,11 @@ class ApiService {
         },
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        _invalidateRemindersCache();
+      }
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -538,7 +588,11 @@ class ApiService {
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        _invalidateRemindersCache();
+      }
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -557,17 +611,48 @@ class ApiService {
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        _invalidateRemindersCache();
+      }
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
   }
 
   // ── 13. GET /api/events ────────────────────────────────────────────────────
-  Future<Map<String, dynamic>> getEvents() async {
+  Future<Map<String, dynamic>> getEvents({bool forceRefresh = false}) async {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.events);
+      if (cached != null) {
+        debugPrint('📦 Using cached events');
+        return cached;
+      }
+    }
+
     try {
-      final response = await _dio.get('/api/events');
-      return response.data as Map<String, dynamic>;
+      final response = await _dio.get(
+        '/api/events',
+        queryParameters: forceRefresh ? {
+          '_t': DateTime.now().millisecondsSinceEpoch,
+        } : null,
+        options: Options(
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          } : null,
+        ),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set(CacheKeys.events, data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -593,10 +678,37 @@ class ApiService {
   }
 
   // ── 15. GET /api/gatherings ────────────────────────────────────────────────
-  Future<Map<String, dynamic>> getGatherings() async {
+  Future<Map<String, dynamic>> getGatherings({bool forceRefresh = false}) async {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.gatherings);
+      if (cached != null) {
+        debugPrint('📦 Using cached gatherings');
+        return cached;
+      }
+    }
+
     try {
-      final response = await _dio.get('/api/gatherings');
-      return response.data as Map<String, dynamic>;
+      final response = await _dio.get(
+        '/api/gatherings',
+        queryParameters: forceRefresh ? {
+          '_t': DateTime.now().millisecondsSinceEpoch,
+        } : null,
+        options: Options(
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          } : null,
+        ),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set(CacheKeys.gatherings, data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -1151,10 +1263,37 @@ class ApiService {
   }
 
   // ── 31. GET /api/quotes - Get all quotes ──────────────────────────────────
-  Future<Map<String, dynamic>> getQuotes() async {
+  Future<Map<String, dynamic>> getQuotes({bool forceRefresh = false}) async {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.quotes);
+      if (cached != null) {
+        debugPrint('📦 Using cached quotes');
+        return cached;
+      }
+    }
+
     try {
-      final response = await _dio.get('/api/quotes');
-      return response.data as Map<String, dynamic>;
+      final response = await _dio.get(
+        '/api/quotes',
+        queryParameters: forceRefresh ? {
+          '_t': DateTime.now().millisecondsSinceEpoch,
+        } : null,
+        options: Options(
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          } : null,
+        ),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set(CacheKeys.quotes, data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }

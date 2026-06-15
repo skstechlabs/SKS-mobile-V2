@@ -16,22 +16,38 @@ class _EventsPageState extends State<EventsPage> {
   List<Map<String, dynamic>> _events = [];
   bool _isLoading = true;
   String? _errorMessage;
+  bool _hasLoadedOnce = false;
 
   @override
   void initState() {
     super.initState();
-    _loadEvents();
+    // Load events on init
+    _loadEvents(forceRefresh: true);
   }
 
-  Future<void> _loadEvents() async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload events when page becomes visible (but not on first load)
+    if (_hasLoadedOnce && mounted) {
+      _loadEvents(forceRefresh: true);
+    }
+    _hasLoadedOnce = true;
+  }
+
+  Future<void> _loadEvents({bool forceRefresh = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    
+    // Only show loading on initial load, not on refresh
+    if (!forceRefresh) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
-      final response = await _apiService.getEvents();
+      final response = await _apiService.getEvents(forceRefresh: forceRefresh);
       
       if (response['success'] == true && mounted) {
         setState(() {
@@ -64,7 +80,7 @@ class _EventsPageState extends State<EventsPage> {
           backgroundColor: Colors.green,
         ),
       );
-      _loadEvents(); // Reload to update registration status
+      _loadEvents(forceRefresh: true); // Force refresh after registration
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -125,7 +141,7 @@ class _EventsPageState extends State<EventsPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _loadEvents,
+      onRefresh: () => _loadEvents(forceRefresh: true),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Padding(

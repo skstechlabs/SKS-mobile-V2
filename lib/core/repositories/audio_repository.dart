@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import '../models/audio_model.dart';
 import '../constants/app_env.dart';
+import '../services/data_cache_service.dart';
 
 class AudioRepository {
   late final Dio _dio;
@@ -29,8 +30,13 @@ class AudioRepository {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          // Allow Let's Encrypt certificates for our domain
-          if (host == 'app.sivakundalini.org') {
+          // Allow our domains (sivakundalini.org and r2.dev)
+          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
+            debugPrint('✅ SSL: Accepting certificate for $host');
+            return true;
+          }
+          // In debug mode, accept all
+          if (kDebugMode) {
             return true;
           }
           return false;
@@ -49,10 +55,29 @@ class AudioRepository {
   }
 
   // Fetch all audio files (PUBLIC - no auth required)
-  Future<List<AudioModel>> fetchAllAudios() async {
+  Future<List<AudioModel>> fetchAllAudios({bool forceRefresh = false}) async {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<List<AudioModel>>(CacheKeys.audios);
+      if (cached != null) {
+        debugPrint('📦 [AudioRepository] Using cached audios (${cached.length} items)');
+        return cached;
+      }
+    }
+
     try {
       debugPrint('[AudioRepository] Fetching all audios from /api/audios');
-      final response = await _dio.get('/api/audios');
+      final response = await _dio.get(
+        '/api/audios',
+        queryParameters: forceRefresh ? {
+          '_t': DateTime.now().millisecondsSinceEpoch,
+        } : null,
+        options: Options(
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          } : null,
+        ),
+      );
       
       debugPrint('[AudioRepository] Response status: ${response.statusCode}');
       debugPrint('[AudioRepository] Response data: ${response.data}');
@@ -60,7 +85,12 @@ class AudioRepository {
       if (response.data['success'] == true && response.data['data'] != null) {
         final List<dynamic> audioList = response.data['data'] as List<dynamic>;
         debugPrint('[AudioRepository] Found ${audioList.length} audios');
-        return audioList.map((json) => AudioModel.fromJson(json)).toList();
+        final audios = audioList.map((json) => AudioModel.fromJson(json)).toList();
+        
+        // Cache the successful response
+        DataCacheService().set(CacheKeys.audios, audios, ttl: const Duration(minutes: 5));
+        
+        return audios;
       }
       
       debugPrint('[AudioRepository] No audios found or invalid response');

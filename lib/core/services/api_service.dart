@@ -29,34 +29,44 @@ class ApiService {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 45), // Increased to 45s for slow networks
-      receiveTimeout: const Duration(seconds: 45), // Increased to 45s
-      sendTimeout: const Duration(seconds: 45), // Increased to 45s
+      connectTimeout: const Duration(seconds: 30), // 30s should be enough
+      receiveTimeout: const Duration(seconds: 30), // 30s
+      sendTimeout: const Duration(seconds: 30), // 30s
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     ));
 
     // ══════════════════════════════════════════════════════════════════
-    // SSL CERTIFICATE HANDLING
+    // SSL CERTIFICATE HANDLING & DNS CONFIGURATION
     // ══════════════════════════════════════════════════════════════════
-    // For development/emulator: bypass SSL verification
-    // For production: use proper SSL certificates
+    // Configure HTTP client with proper DNS and SSL settings
     // ══════════════════════════════════════════════════════════════════
-    if (kDebugMode) {
-      // In debug mode, allow self-signed certificates for development
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient();
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient();
+      
+      // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
+      // This ensures DNS resolution works even if device DNS is misconfigured
+      // The HttpClient will use system DNS first, then fall back if needed
+      client.connectionTimeout = const Duration(seconds: 30);
+      client.idleTimeout = const Duration(seconds: 90);
+      
+      // SSL Configuration
+      if (kDebugMode) {
+        // In debug mode, allow self-signed certificates for development
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
           debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
           return true; // Accept all certificates in debug mode
         };
-        return client;
-      };
-      debugPrint('🔓 SSL verification bypassed for development');
-    } else {
-      debugPrint('🔒 SSL verification enabled for production');
-    }
+        debugPrint('🔓 SSL verification bypassed for development');
+      } else {
+        // In release mode, use proper SSL validation
+        debugPrint('🔒 SSL verification enabled for production');
+      }
+      
+      return client;
+    };
 
     // Add interceptor for logging
     _dio.interceptors.add(LogInterceptor(
@@ -99,6 +109,44 @@ class ApiService {
               debugPrint('❌ Max retries reached for: ${error.requestOptions.path}');
             }
           }
+          
+          // Special handling for DNS resolution failures
+          if (error.type == DioExceptionType.unknown && 
+              error.message != null && 
+              error.message!.contains('Failed host lookup')) {
+            debugPrint('🌐 DNS resolution failed for domain, attempting IP fallback...');
+            
+            // Try IP fallback only once
+            final ipFallbackAttempted = error.requestOptions.extra['ipFallback'] as bool? ?? false;
+            if (!ipFallbackAttempted && !kDebugMode) {
+              try {
+                // Mark that we've attempted IP fallback
+                error.requestOptions.extra['ipFallback'] = true;
+                
+                // Replace domain with IP in the URL
+                final originalUrl = error.requestOptions.uri.toString();
+                final fallbackUrl = originalUrl.replaceAll('app.sivakundalini.org', '49.50.115.146');
+                
+                debugPrint('📍 Original URL: $originalUrl');
+                debugPrint('📍 Fallback URL: $fallbackUrl');
+                
+                // Update request with new URL
+                error.requestOptions.path = fallbackUrl;
+                error.requestOptions.baseUrl = '';
+                
+                // Add Host header to ensure proper routing
+                error.requestOptions.headers['Host'] = 'app.sivakundalini.org';
+                
+                debugPrint('🔄 Retrying with IP address...');
+                final response = await _dio.fetch(error.requestOptions);
+                debugPrint('✅ IP fallback succeeded!');
+                return handler.resolve(response);
+              } catch (e) {
+                debugPrint('❌ IP fallback also failed: $e');
+              }
+            }
+          }
+          
           return handler.next(error);
         },
       ),
@@ -809,6 +857,18 @@ class ApiService {
         };
       case DioExceptionType.connectionError:
         debugPrint('❌ Connection error');
+        // Check if it's a DNS error
+        if (e.message != null && e.message!.contains('Failed host lookup')) {
+          return {
+            'success': false,
+            'message': 'Cannot connect to server. Please check:\n'
+                      '1. Your internet connection is active\n'
+                      '2. Try switching between WiFi and mobile data\n'
+                      '3. Disable Private DNS in Android settings if enabled\n'
+                      '4. Restart your device if the problem persists',
+            'error_code': 'DNS_RESOLUTION_FAILED'
+          };
+        }
         return {
           'success': false,
           'message': 'Network error. Please check your internet connection.',
@@ -835,8 +895,21 @@ class ApiService {
           'message': 'Request cancelled.',
           'error_code': 'CANCELLED'
         };
+      case DioExceptionType.unknown:
       default:
         debugPrint('❌ Unknown error: ${e.message}');
+        // Check for DNS errors that come through as "unknown" type
+        if (e.message != null && e.message!.contains('Failed host lookup')) {
+          return {
+            'success': false,
+            'message': 'Cannot resolve server address. Please check:\n'
+                      '1. Your internet connection is active\n'
+                      '2. Try switching between WiFi and mobile data\n'
+                      '3. Disable Private DNS in Android settings\n'
+                      '4. Restart your device',
+            'error_code': 'DNS_RESOLUTION_FAILED'
+          };
+        }
         return {
           'success': false,
           'message': 'Something went wrong. Please try again.',

@@ -69,9 +69,6 @@ class AudioRepository {
       debugPrint('[AudioRepository] Fetching all audios from /api/audios');
       final response = await _dio.get(
         '/api/audios',
-        queryParameters: forceRefresh ? {
-          '_t': DateTime.now().millisecondsSinceEpoch,
-        } : null,
         options: Options(
           headers: forceRefresh ? {
             'Cache-Control': 'no-cache, no-store, must-revalidate',

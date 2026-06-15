@@ -44,7 +44,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (response['success'] == true && mounted) {
         final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
         
-        // Filter out preset reminders (Morning and Evening Meditation)
+        // Filter out preset reminders (Morning and Evening Meditation) FOR DISPLAY ONLY
         // These are shown on home page, so don't repeat them here
         final filteredReminders = allReminders.where((reminder) {
           final time = (reminder['reminderTime'] as String? ?? '');
@@ -60,8 +60,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
           _isLoading = false;
         });
         
-        // Reschedule all active reminders in background (including filtered ones)
-        _scheduleActiveReminders();
+        // Reschedule ALL active reminders (including preset ones that are filtered from display)
+        _scheduleActiveReminders(allReminders);
       } else if (mounted) {
         setState(() => _isLoading = false);
         if (context.mounted) {
@@ -97,7 +97,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (response['success'] == true && mounted) {
         final allReminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
         
-        // Filter out preset reminders (Morning and Evening Meditation)
+        // Filter out preset reminders (Morning and Evening Meditation) FOR DISPLAY ONLY
         final filteredReminders = allReminders.where((reminder) {
           final time = (reminder['reminderTime'] as String? ?? '');
           // Filter out 6:00 AM (morning) and 18:00 (6:00 PM evening)
@@ -109,16 +109,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
           _reminders = filteredReminders;
         });
         
-        _scheduleActiveReminders();
+        // Reschedule ALL active reminders (including preset ones)
+        _scheduleActiveReminders(allReminders);
       }
     } catch (e) {
       debugPrint('❌ Error force refreshing: $e');
     }
   }
 
-  Future<void> _scheduleActiveReminders() async {
+  Future<void> _scheduleActiveReminders(List<Map<String, dynamic>> reminders) async {
     try {
-      for (var reminder in _reminders) {
+      for (var reminder in reminders) {
         if (reminder['isActive'] == true) {
           await _notificationService.scheduleReminder(
             id: reminder['id'] as int,

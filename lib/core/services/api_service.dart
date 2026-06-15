@@ -172,11 +172,15 @@ class ApiService {
   }
 
   bool _shouldRetry(DioException error) {
-    // Retry on connection timeout, send timeout, receive timeout, or connection error
+    // Don't retry connection errors on web - they're usually CORS issues
+    if (kIsWeb && error.type == DioExceptionType.connectionError) {
+      return false;
+    }
+    
+    // Only retry on timeout errors
     return error.type == DioExceptionType.connectionTimeout ||
            error.type == DioExceptionType.sendTimeout ||
-           error.type == DioExceptionType.receiveTimeout ||
-           error.type == DioExceptionType.connectionError;
+           error.type == DioExceptionType.receiveTimeout;
   }
 
   Future<String?> _getIdToken() async {
@@ -473,14 +477,11 @@ class ApiService {
 
       final response = await _dio.get(
         '/api/reminders',
-        queryParameters: forceRefresh ? {
-          // Add timestamp only when forcing refresh
-          '_t': DateTime.now().millisecondsSinceEpoch,
-        } : null,
         options: Options(
           headers: {
             'Authorization': 'Bearer $idToken',
-            // Cache for 5 minutes unless force refresh
+            // Only add cache-busting header when forcing refresh
+            // Note: Pragma header causes CORS issues on web, so we only use Cache-Control
             if (forceRefresh) 'Cache-Control': 'no-cache, no-store, must-revalidate',
           },
         ),
@@ -635,9 +636,6 @@ class ApiService {
     try {
       final response = await _dio.get(
         '/api/events',
-        queryParameters: forceRefresh ? {
-          '_t': DateTime.now().millisecondsSinceEpoch,
-        } : null,
         options: Options(
           headers: forceRefresh ? {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -691,9 +689,6 @@ class ApiService {
     try {
       final response = await _dio.get(
         '/api/gatherings',
-        queryParameters: forceRefresh ? {
-          '_t': DateTime.now().millisecondsSinceEpoch,
-        } : null,
         options: Options(
           headers: forceRefresh ? {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1276,9 +1271,6 @@ class ApiService {
     try {
       final response = await _dio.get(
         '/api/quotes',
-        queryParameters: forceRefresh ? {
-          '_t': DateTime.now().millisecondsSinceEpoch,
-        } : null,
         options: Options(
           headers: forceRefresh ? {
             'Cache-Control': 'no-cache, no-store, must-revalidate',

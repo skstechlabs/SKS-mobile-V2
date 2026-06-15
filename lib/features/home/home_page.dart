@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
@@ -809,8 +808,32 @@ class _HomePageState extends State<HomePage>
         await _deactivateReminder(defaultTime);
       }
       
-      // After successful toggle, force refresh preset reminders to ensure sync
-      await _loadPresetReminders();
+      // After successful toggle, FORCE refresh preset reminders to ensure sync
+      // Use forceRefresh to bypass cache
+      final response = await _apiService.getReminders(forceRefresh: true);
+      if (response['success'] == true && mounted) {
+        final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
+        
+        setState(() {
+          // Reset to false first
+          _presetReminders['morning_meditation'] = false;
+          _presetReminders['evening_meditation'] = false;
+          
+          // Check which preset reminders are active - language-agnostic checking
+          for (var reminder in reminders) {
+            final time = (reminder['reminderTime'] as String? ?? '');
+            
+            // Check for morning meditation (6:00 AM) - language agnostic
+            if (time == '06:00' || time.startsWith('06:00')) {
+              _presetReminders['morning_meditation'] = reminder['isActive'] as bool;
+            } 
+            // Check for evening meditation (18:00 / 6:00 PM) - language agnostic
+            else if (time == '18:00' || time.startsWith('18:00')) {
+              _presetReminders['evening_meditation'] = reminder['isActive'] as bool;
+            }
+          }
+        });
+      }
       
     } catch (e) {
       // Revert on error
@@ -830,7 +853,8 @@ class _HomePageState extends State<HomePage>
   
   Future<void> _createOrActivateReminder(String title, String defaultTime) async {
     // Check if reminder already exists - use TIME instead of title for matching
-    final response = await _apiService.getReminders();
+    // FORCE REFRESH to get latest data
+    final response = await _apiService.getReminders(forceRefresh: true);
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
       
@@ -891,7 +915,8 @@ class _HomePageState extends State<HomePage>
   }
   
   Future<void> _deactivateReminder(String defaultTime) async {
-    final response = await _apiService.getReminders();
+    // FORCE REFRESH to get latest data
+    final response = await _apiService.getReminders(forceRefresh: true);
     if (response['success'] == true) {
       final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
       

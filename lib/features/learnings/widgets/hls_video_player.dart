@@ -171,6 +171,12 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   /// - Works on all browsers (including those without native HLS support)
   /// - Native fullscreen API for seamless fullscreen transitions
   String _buildHtml() {
+    debugPrint('🎬 Building HTML for HLS player');
+    debugPrint('   HLS URL: ${widget.hlsUrl}');
+    debugPrint('   Thumbnail URL: ${widget.thumbnailUrl}');
+    debugPrint('   Last Position: ${widget.lastPositionSeconds}s');
+    debugPrint('   Allow Skip: ${widget.allowSkip}');
+    
     final hlsUrl = widget.hlsUrl;
     
     final skipJs = widget.allowSkip

@@ -98,6 +98,17 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             debugPrint('   Error Type: ${error.errorType}');
             debugPrint('   Error Code: ${error.errorCode}');
             debugPrint('   Is For Main Frame: ${error.isForMainFrame}');
+            debugPrint('   Failed URL: ${error.url}');
+            
+            // Ignore SSL errors for trusted domains
+            if (error.url != null && 
+                (error.url!.contains('sivakundalini.org') || error.url!.contains('r2.dev')) &&
+                (error.errorType.toString().contains('SSL') || 
+                 error.errorType.toString().contains('CERTIFICATE') ||
+                 error.errorCode == -202)) {
+              debugPrint('⚠️ Ignoring SSL error for trusted domain');
+              return;
+            }
             
             if (error.isForMainFrame == true) {
               if (mounted) {
@@ -110,6 +121,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             }
           },
         ))
+        ..enableZoom(false)
         ..addJavaScriptChannel(
           'FlutterChannel',
           onMessageReceived: (JavaScriptMessage msg) {
@@ -679,6 +691,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     }
 
     // Initialize HLS
+    console.log('🎬 Initializing HLS player...');
+    console.log('   HLS.js version:', Hls.version);
+    console.log('   HLS supported:', Hls.isSupported());
+    console.log('   URL:', '${widget.hlsUrl}');
+    
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
@@ -754,8 +771,11 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
       hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
         console.log('✅ Manifest parsed successfully');
-        console.log('Available quality levels:', hls.levels.length);
-        console.log('Video duration:', video.duration);
+        console.log('   Available quality levels:', hls.levels.length);
+        console.log('   Video ready state:', video.readyState);
+        console.log('   Video duration:', video.duration);
+        console.log('   Video paused:', video.paused);
+        console.log('   Video ended:', video.ended);
         
         send({ type: 'ready', duration: Math.floor(video.duration || 0) });
         

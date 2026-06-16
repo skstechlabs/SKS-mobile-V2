@@ -790,8 +790,8 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     
     Widget player;
     if (streamingType == 'hls') {
-      // Use HLS Video Player
-      player = HLSVideoPlayer(
+      // Use native HLS Video Player (video_player + chewie) - works with SSL
+      player = SimpleHLSPlayer(
         key: const ValueKey('hls_player'), // Preserve player instance
         hlsUrl: _videoConfig!['hlsUrl']?.toString() ?? '',
         thumbnailUrl: _videoConfig!['thumbnailUrl']?.toString(),
@@ -1264,43 +1264,4 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildVideoPlayer() {
-    // Use native video player for HLS - works better with SSL
-    final streamingType = _videoConfig!['streamingType'] ?? 'cloudflare';
-    
-    if (streamingType == 'hls') {
-      return SimpleHLSPlayer(
-        hlsUrl: _videoConfig!['hlsUrl']!,
-        thumbnailUrl: _videoConfig!['thumbnailUrl'],
-        lastPositionSeconds: _videoConfig!['lastPositionSeconds'] ?? 0,
-        allowSkip: _videoConfig!['allowSkip'] ?? false,
-        onProgress: (position, duration, eventType) {
-          _trackProgress(position, duration, eventType);
-        },
-        onComplete: () {
-          setState(() => _isCompleted = true);
-        },
-        onStart: () {
-          _markDayAsStarted();
-        },
-      );
-    } else {
-      // Cloudflare Stream player
-      return CloudflareVideoPlayer(
-        videoId: _videoConfig!['cloudflareVideoId']!,
-        accountId: _videoConfig!['cloudflareAccountId']!,
-        lastPositionSeconds: _videoConfig!['lastPositionSeconds'] ?? 0,
-        allowSkip: _videoConfig!['allowSkip'] ?? false,
-        onProgress: (position, duration, eventType) {
-          _trackProgress(position, duration, eventType);
-        },
-        onComplete: () {
-          setState(() => _isCompleted = true);
-        },
-        onStart: () {
-          _markDayAsStarted();
-        },
-      );
-    }
-  }
-}
+  Widget _buildNote(String text) {

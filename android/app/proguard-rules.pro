@@ -53,12 +53,33 @@
 -dontwarn com.onesignal.**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WebView (MSG91 OTP widget)
+# WebView (for video players and HLS streaming)
 # ─────────────────────────────────────────────────────────────────────────────
 -keepclassmembers class * extends android.webkit.WebViewClient {
     public void *(android.webkit.WebView, java.lang.String, android.graphics.Bitmap);
     public boolean *(android.webkit.WebView, java.lang.String);
 }
+
+# Keep WebView JavaScript Interface classes
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# Keep WebView classes for HLS video streaming
+-keep class android.webkit.WebView { *; }
+-keep class android.webkit.WebViewClient { *; }
+-keep class android.webkit.WebChromeClient { *; }
+-keep class android.webkit.WebSettings { *; }
+-keep class android.webkit.JavascriptInterface { *; }
+
+# Keep WebView SSL error handling
+-keep class android.webkit.SslErrorHandler { *; }
+-keep class android.net.http.SslError { *; }
+
+# Keep WebView resource classes
+-keep class android.webkit.WebResourceRequest { *; }
+-keep class android.webkit.WebResourceResponse { *; }
+-keep class android.webkit.WebResourceError { *; }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App entry points

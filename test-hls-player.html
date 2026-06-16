@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HLS Test Player</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    #container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    video {
+      width: 100%;
+      max-width: 800px;
+      background: #000;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 10px;
+      background: #222;
+      border-radius: 5px;
+    }
+    .log {
+      margin-top: 10px;
+      padding: 10px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #666;
+    }
+    .log-error {
+      border-left-color: #f00;
+      color: #faa;
+    }
+    .log-success {
+      border-left-color: #0f0;
+      color: #afa;
+    }
+    .log-info {
+      border-left-color: #00f;
+      color: #aaf;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>🎬 HLS Video Player Test</h1>
+    
+    <div class="info">
+      <strong>Testing URL:</strong><br>
+      <code id="testUrl">https://app.sivakundalini.org/api/video-proxy/classes/videos/1/1/te/master.m3u8</code>
+    </div>
+
+    <video id="video" controls autoplay></video>
+
+    <div class="info">
+      <h3>📊 Player Status</h3>
+      <div id="status">Initializing...</div>
+    </div>
+
+    <div class="log" id="log">
+      <strong>Console Logs:</strong>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    const video = document.getElementById('video');
+    const statusDiv = document.getElementById('status');
+    const logDiv = document.getElementById('log');
+    const hlsUrl = 'https://app.sivakundalini.org/api/video-proxy/classes/videos/1/1/te/master.m3u8';
+
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function updateStatus(message, type = 'info') {
+      statusDiv.textContent = message;
+      statusDiv.style.color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#fff';
+      addLog(message, type);
+    }
+
+    addLog('🎬 Starting HLS player test...', 'info');
+    addLog(`Testing URL: ${hlsUrl}`, 'info');
+
+    if (Hls.isSupported()) {
+      addLog('✅ HLS.js is supported', 'success');
+      addLog(`HLS.js version: ${Hls.version}`, 'info');
+
+      const hls = new Hls({
+        debug: true,
+        enableWorker: true,
+        manifestLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 5,
+        xhrSetup: function(xhr, url) {
+          addLog(`📡 Loading: ${url}`, 'info');
+        }
+      });
+
+      hls.on(Hls.Events.MANIFEST_LOADING, function(event, data) {
+        updateStatus('📥 Loading manifest...', 'info');
+        addLog(`Manifest URL: ${data.url}`, 'info');
+      });
+
+      hls.on(Hls.Events.MANIFEST_LOADED, function(event, data) {
+        updateStatus('✅ Manifest loaded successfully!', 'success');
+        addLog(`Levels found: ${data.levels.length}`, 'success');
+        data.levels.forEach((level, idx) => {
+          addLog(`  Level ${idx}: ${level.width}x${level.height} @ ${level.bitrate}bps`, 'info');
+        });
+      });
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+        updateStatus('✅ Manifest parsed! Starting playback...', 'success');
+        addLog('📺 Video ready to play', 'success');
+      });
+
+      hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
+        addLog(`Level loaded: ${data.details.totalduration}s duration`, 'success');
+      });
+
+      hls.on(Hls.Events.FRAG_LOADING, function(event, data) {
+        addLog(`📥 Loading fragment ${data.frag.sn}`, 'info');
+      });
+
+      hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
+        addLog(`✅ Fragment ${data.frag.sn} loaded (${data.frag.duration.toFixed(2)}s)`, 'success');
+      });
+
+      hls.on(Hls.Events.ERROR, function(event, data) {
+        updateStatus(`❌ Error: ${data.type} - ${data.details}`, 'error');
+        addLog(`❌ Error Type: ${data.type}`, 'error');
+        addLog(`❌ Error Details: ${data.details}`, 'error');
+        addLog(`❌ Fatal: ${data.fatal}`, 'error');
+        
+        if (data.response) {
+          addLog(`Response code: ${data.response.code}`, 'error');
+          addLog(`Response text: ${data.response.text}`, 'error');
+        }
+
+        if (data.fatal) {
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              addLog('🔄 Attempting to recover from network error...', 'info');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              addLog('🔄 Attempting to recover from media error...', 'info');
+              hls.recoverMediaError();
+              break;
+            default:
+              addLog('❌ Fatal error - cannot recover', 'error');
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      video.addEventListener('loadedmetadata', function() {
+        addLog(`✅ Video metadata loaded: ${video.duration.toFixed(2)}s`, 'success');
+      });
+
+      video.addEventListener('playing', function() {
+        updateStatus('▶️ Video is playing!', 'success');
+        addLog('▶️ Playback started', 'success');
+      });
+
+      video.addEventListener('error', function(e) {
+        updateStatus(`❌ Video element error: ${e.message}`, 'error');
+        addLog(`❌ Video error: ${e.message}`, 'error');
+      });
+
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      addLog('✅ Native HLS support detected', 'success');
+      video.src = hlsUrl;
+      updateStatus('Using native HLS playback', 'success');
+    } else {
+      updateStatus('❌ HLS not supported in this browser', 'error');
+      addLog('❌ HLS.js not supported and no native HLS support', 'error');
+    }
+  </script>
+</body>
+</html>

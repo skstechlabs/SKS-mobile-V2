@@ -129,12 +129,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           onMessageReceived: (JavaScriptMessage msg) {
             _handleEvent(msg.message);
           },
-        )
-        // Enable Android WebView mixed content mode to handle SSL issues
-        ..setOnPlatformViewCreated((int viewId) async {
-          // This allows WebView to load resources even with SSL issues
-          debugPrint('✅ WebView created with ID: $viewId');
-        });
+        );
         
       // Load the HTML content
       _controller!.loadHtmlString(_buildHtml());

@@ -112,6 +112,7 @@ flutter:
     - assets/images/kalpataru-bg.png
     - assets/translations/
     - assets/icons/
+    - assets/hls.min.js
     # Note: Meditation sounds downloaded from R2 CDN and cached locally
     # Supports multiple languages: /sks-audio-files/audio/meditation/{lang}/Meditation_*.mp3
     # Bhajans/music streamed from R2: https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev/

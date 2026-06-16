@@ -7,7 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import 'widgets/cloudflare_video_player.dart';
-import 'widgets/hls_video_player.dart';
+import 'widgets/simple_hls_player.dart'; // Native video player - works with SSL
 import 'widgets/secure_screen_wrapper.dart';
 
 class DayVideoScreen extends StatefulWidget {
@@ -1262,5 +1262,46 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
         ],
       ),
     );
+  }
+
+  Widget _buildVideoPlayer() {
+    // Use native video player for HLS - works better with SSL
+    final streamingType = _videoConfig!['streamingType'] ?? 'cloudflare';
+    
+    if (streamingType == 'hls') {
+      return SimpleHLSPlayer(
+        hlsUrl: _videoConfig!['hlsUrl']!,
+        thumbnailUrl: _videoConfig!['thumbnailUrl'],
+        lastPositionSeconds: _videoConfig!['lastPositionSeconds'] ?? 0,
+        allowSkip: _videoConfig!['allowSkip'] ?? false,
+        onProgress: (position, duration, eventType) {
+          _trackProgress(position, duration, eventType);
+        },
+        onComplete: () {
+          setState(() => _isCompleted = true);
+        },
+        onStart: () {
+          _markDayAsStarted();
+        },
+      );
+    } else {
+      // Cloudflare Stream player
+      return CloudflareVideoPlayer(
+        videoId: _videoConfig!['cloudflareVideoId']!,
+        accountId: _videoConfig!['cloudflareAccountId']!,
+        thumbnailUrl: _videoConfig!['thumbnailUrl'],
+        lastPositionSeconds: _videoConfig!['lastPositionSeconds'] ?? 0,
+        allowSkip: _videoConfig!['allowSkip'] ?? false,
+        onProgress: (position, duration, eventType) {
+          _trackProgress(position, duration, eventType);
+        },
+        onComplete: () {
+          setState(() => _isCompleted = true);
+        },
+        onStart: () {
+          _markDayAsStarted();
+        },
+      );
+    }
   }
 }

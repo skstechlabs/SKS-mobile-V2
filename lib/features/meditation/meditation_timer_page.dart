@@ -40,6 +40,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   // Cached audio file paths
   String? _cachedStartSoundPath;
   String? _cachedEndSoundPath;
+  bool _soundsReady = false; // Flag to track if sounds are downloaded and ready
   
   // Animation
   late AnimationController _breathingController;
@@ -130,7 +131,10 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         }
         
         if (_cachedStartSoundPath != null && _cachedEndSoundPath != null) {
-          debugPrint('✅ All meditation sounds cached successfully');
+          setState(() {
+            _soundsReady = true;
+          });
+          debugPrint('✅ All meditation sounds cached successfully and ready to play');
         } else {
           debugPrint('⚠️ Some meditation sounds could not be cached');
         }
@@ -184,7 +188,13 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _playStartSound() async {
     try {
-      debugPrint('Attempting to play meditation start sound...');
+      debugPrint('Attempting to play meditation start sound... (soundsReady: $_soundsReady)');
+      
+      // Check if sounds are ready
+      if (!_soundsReady) {
+        debugPrint('⚠️ Start sound not ready yet - still downloading');
+        return;
+      }
       
       // Use cached file
       if (_cachedStartSoundPath != null && await File(_cachedStartSoundPath!).exists()) {
@@ -197,7 +207,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         
         debugPrint('✅ Start sound playing');
       } else {
-        debugPrint('⚠️ Start sound not available - please check internet connection');
+        debugPrint('⚠️ Start sound file not found - please check internet connection');
       }
     } catch (e, stackTrace) {
       debugPrint('❌ Error playing start sound: $e');
@@ -207,7 +217,13 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _playEndSound() async {
     try {
-      debugPrint('Attempting to play meditation end sound...');
+      debugPrint('Attempting to play meditation end sound... (soundsReady: $_soundsReady)');
+      
+      // Check if sounds are ready
+      if (!_soundsReady) {
+        debugPrint('⚠️ End sound not ready yet - still downloading');
+        return;
+      }
       
       // Use cached file
       if (_cachedEndSoundPath != null && await File(_cachedEndSoundPath!).exists()) {
@@ -225,7 +241,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         
         debugPrint('✅ End sound completed');
       } else {
-        debugPrint('⚠️ End sound not available - please check internet connection');
+        debugPrint('⚠️ End sound file not found - please check internet connection');
       }
     } catch (e, stackTrace) {
       debugPrint('❌ Error playing end sound: $e');
@@ -235,6 +251,18 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _startTimer() async {
     if (_isRunning) return;
+    
+    // Check if sounds are ready before starting
+    if (!_soundsReady && !_hasStarted) {
+      // Show warning that sounds are still downloading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Meditation sounds are still loading. Starting timer anyway...'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
     
     setState(() {
       _isRunning = true;

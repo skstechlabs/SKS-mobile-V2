@@ -41,6 +41,8 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
   bool _hasStarted = false;
   bool _isCompleted = false;
   bool _isScreenRecording = false;
+  bool _hasLoggedScreenRecording = false; // Prevent duplicate security event logging
+  DateTime? _lastSecurityEventTime; // Debounce security events
   
   // CRITICAL: Cache the video player widget to prevent rebuilds during rotation
   Widget? _cachedVideoPlayer;
@@ -86,14 +88,27 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     // You would need to use platform channels to implement this
     
     // For now, we log suspicious activity patterns
-    if (_isScreenRecording) {
+    // Only log once to prevent API spam
+    if (_isScreenRecording && !_hasLoggedScreenRecording) {
+      _hasLoggedScreenRecording = true; // Set flag to prevent duplicate logs
       _logSecurityEvent('screen_recording_detected');
       _showSecurityWarning();
     }
   }
 
   Future<void> _logSecurityEvent(String eventType) async {
+    // Debounce: Don't log same event type within 5 seconds
+    final now = DateTime.now();
+    if (_lastSecurityEventTime != null && 
+        now.difference(_lastSecurityEventTime!).inSeconds < 5) {
+      debugPrint('⏭️ Skipping duplicate security event: $eventType (debounced)');
+      return;
+    }
+    
+    _lastSecurityEventTime = now;
+    
     try {
+      debugPrint('🔒 Logging security event: $eventType');
       await _apiService.post(
         '/api/classes/days/${widget.dayId}/security-event',
         {

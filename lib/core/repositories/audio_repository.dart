@@ -79,15 +79,20 @@ class AudioRepository {
       debugPrint('[AudioRepository] Response status: ${response.statusCode}');
       debugPrint('[AudioRepository] Response data: ${response.data}');
       
-      if (response.data['success'] == true && response.data['data'] != null) {
-        final List<dynamic> audioList = response.data['data'] as List<dynamic>;
-        debugPrint('[AudioRepository] Found ${audioList.length} audios');
-        final audios = audioList.map((json) => AudioModel.fromJson(json)).toList();
+      // Check for 'audios' field (new format) or 'data' field (old format for backward compatibility)
+      if (response.data['success'] == true) {
+        final List<dynamic>? audioList = 
+            (response.data['audios'] ?? response.data['data']) as List<dynamic>?;
         
-        // Cache the successful response
-        DataCacheService().set(CacheKeys.audios, audios, ttl: const Duration(minutes: 5));
-        
-        return audios;
+        if (audioList != null && audioList.isNotEmpty) {
+          debugPrint('[AudioRepository] Found ${audioList.length} audios');
+          final audios = audioList.map((json) => AudioModel.fromJson(json)).toList();
+          
+          // Cache the successful response
+          DataCacheService().set(CacheKeys.audios, audios, ttl: const Duration(minutes: 5));
+          
+          return audios;
+        }
       }
       
       debugPrint('[AudioRepository] No audios found or invalid response');

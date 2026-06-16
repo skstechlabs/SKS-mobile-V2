@@ -1289,7 +1289,6 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       return CloudflareVideoPlayer(
         videoId: _videoConfig!['cloudflareVideoId']!,
         accountId: _videoConfig!['cloudflareAccountId']!,
-        thumbnailUrl: _videoConfig!['thumbnailUrl'],
         lastPositionSeconds: _videoConfig!['lastPositionSeconds'] ?? 0,
         allowSkip: _videoConfig!['allowSkip'] ?? false,
         onProgress: (position, duration, eventType) {

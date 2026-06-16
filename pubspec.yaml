@@ -39,6 +39,10 @@ dependencies:
   just_audio: ^0.9.36
   audio_service: ^0.18.12
   
+  # Video
+  video_player: ^2.9.2
+  chewie: ^1.8.5
+  
   # Charts
   fl_chart: ^0.69.0
   

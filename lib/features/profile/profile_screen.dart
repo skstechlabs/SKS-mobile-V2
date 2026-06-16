@@ -152,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.go('/'),
+          onPressed: () => context.pop(),
         ),
         title: Text(
           context.tr('profile'),
@@ -387,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 48),
 
             // Profile Information
             _buildSection(
@@ -415,6 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.cake,
                     label: context.tr('date_of_birth'),
                     value: user.dateOfBirth!,
+                    isLast: user.address == null && user.state == null && user.pincode == null,
                   ),
               ],
             ),
@@ -473,11 +474,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: context.tr('logout'),
                   onTap: _handleLogout,
                   isDestructive: true,
+                  isLast: true,
                 ),
               ],
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 48),
           ],
         ),
       ),
@@ -492,26 +494,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
               color: AppTheme.textSecondary,
+              letterSpacing: 1.2,
             ),
           ),
         ),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
+          margin: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [AppTheme.softShadow],
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: Column(children: children),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(children: children),
+          ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
       ],
     );
   }
@@ -520,48 +532,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String label,
     required String value,
+    bool isLast = false,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 1),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
         color: Colors.white,
+        border: isLast ? null : Border(
+          bottom: BorderSide(
+            color: Colors.grey.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primary.withValues(alpha: 0.1),
-                  AppTheme.saffron.withValues(alpha: 0.1),
+                  AppTheme.primary.withValues(alpha: 0.08),
+                  AppTheme.saffron.withValues(alpha: 0.08),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, size: 22, color: AppTheme.primary),
+            child: Icon(icon, size: 24, color: AppTheme.primary),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 18),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: const TextStyle(
+                    fontSize: 13,
                     color: AppTheme.textSecondary,
                     fontWeight: FontWeight.w500,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   value,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ],
@@ -577,59 +600,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required VoidCallback onTap,
     bool isDestructive = false,
+    bool isLast = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: isDestructive
-                    ? LinearGradient(
-                        colors: [
-                          Colors.red.shade50,
-                          Colors.red.shade100,
-                        ],
-                      )
-                    : LinearGradient(
-                        colors: [
-                          AppTheme.primary.withValues(alpha: 0.1),
-                          AppTheme.saffron.withValues(alpha: 0.1),
-                        ],
-                      ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: isDestructive ? Colors.red.shade700 : AppTheme.primary,
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          decoration: BoxDecoration(
+            border: isLast ? null : Border(
+              bottom: BorderSide(
+                color: Colors.grey.withValues(alpha: 0.1),
+                width: 1,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDestructive ? Colors.red.shade700 : Colors.black87,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: isDestructive
+                      ? LinearGradient(
+                          colors: [
+                            Colors.red.shade50,
+                            Colors.red.shade100,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : LinearGradient(
+                          colors: [
+                            AppTheme.primary.withValues(alpha: 0.08),
+                            AppTheme.saffron.withValues(alpha: 0.08),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: isDestructive ? Colors.red.shade700 : AppTheme.primary,
                 ),
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: AppTheme.textSecondary,
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: 18),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDestructive ? Colors.red.shade700 : Colors.black87,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.chevron_right,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -14,6 +14,7 @@ import 'core/services/onesignal_service.dart';
 import 'core/services/notification_storage_service.dart';
 import 'core/services/localization_service.dart';
 import 'core/services/enhanced_audio_player_service.dart';
+import 'core/services/version_migration_service.dart';
 import 'core/providers/audio_provider.dart';
 import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
@@ -32,6 +33,16 @@ void main() async {
 
     if (!EnvironmentChecker.isConfigured()) {
       developer.log('⚠️⚠️⚠️ WARNING: Environment not configured! ⚠️⚠️⚠️');
+    }
+
+    // ── Version Migration: Run FIRST to handle app upgrades ──
+    // This clears stale caches that may cause issues after APK updates
+    try {
+      await VersionMigrationService.instance.initialize();
+      developer.log('✅ Version migration check complete');
+    } catch (e) {
+      developer.log('⚠️ Version migration check failed: $e');
+      // Continue anyway - app should still work
     }
 
     // Firebase - CRITICAL: Must succeed or app cannot function
@@ -166,11 +177,11 @@ void main() async {
         oneSignalService.setupNotificationHandlers();
         oneSignalService.markInitialized();
 
-        // Step 4: Check if permission was already granted
-        // requestPermission(false) = silent check, no OS dialog shown on startup.
-        // We only want to link the user if they already granted permission previously.
-        final permissionGranted = await OneSignal.Notifications.requestPermission(false);
-        developer.log('🔔 Notification permission on startup: $permissionGranted');
+        // Step 4: Check if permission was already granted (WITHOUT prompting)
+        // Do NOT call requestPermission() here - we want to ask only on the permissions screen
+        // or when user clicks the bell icon
+        final permissionGranted = OneSignal.Notifications.permission;
+        developer.log('🔔 Notification permission on startup (no prompt): $permissionGranted');
 
         // Step 5: if user is already logged in AND permission granted, link them immediately
         final authState = AuthState();

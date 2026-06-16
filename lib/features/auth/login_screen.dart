@@ -86,6 +86,9 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // ── MSG91 OTP ──────────────────────────────────────────────────────────────
+  // NOTE: OTP login is disabled for now - only Google Sign-In is enabled
+  // Keeping this code for future use when OTP is implemented
+  // ignore: unused_element
   Future<void> _startOtpLogin() async {
     if (_loginInProgress || !mounted) return;
     _loginInProgress = true;
@@ -339,34 +342,16 @@ class _LoginScreenState extends State<LoginScreen>
 
                             const SizedBox(height: 48),
 
-                            // OTP button
-                            _buildPrimaryButton(
-                              label: context.tr('send_otp'),
-                              icon: Icons.phone_android,
-                              onPressed: _isLoading ? null : _startOtpLogin,
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Divider
-                            Row(
-                              children: [
-                                const Expanded(child: Divider()),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  child: Text(context.tr('or'),
-                                      style: const TextStyle(
-                                          color: AppTheme.textSecondary)),
-                                ),
-                                const Expanded(child: Divider()),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Google button
+                            // Google Sign-In button (primary)
                             _buildGoogleButton(),
+
+                            // OTP button is disabled - not yet implemented
+                            // Keeping the code for future use when OTP is enabled
+                            // _buildPrimaryButton(
+                            //   label: context.tr('send_otp'),
+                            //   icon: Icons.phone_android,
+                            //   onPressed: _isLoading ? null : _startOtpLogin,
+                            // ),
 
                             // Show network warning if Google is unavailable
                             if (_isGoogleAvailable == false) ...[
@@ -460,6 +445,8 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  // NOTE: This button is not currently used since OTP is disabled
+  // ignore: unused_element
   Widget _buildPrimaryButton({
     required String label,
     required IconData icon,

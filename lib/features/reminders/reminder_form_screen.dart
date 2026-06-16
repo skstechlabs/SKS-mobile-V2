@@ -194,6 +194,10 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: Text(widget.reminderId == null ? 'Add Reminder' : 'Edit Reminder'),
       ),
       body: _isLoading

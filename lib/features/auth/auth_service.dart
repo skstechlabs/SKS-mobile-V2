@@ -43,6 +43,28 @@ class AuthService {
     }
   }
 
+  /// Ensure Firebase is initialized before using auth
+  Future<void> _ensureFirebaseInitialized() async {
+    try {
+      Firebase.app();
+    } catch (e) {
+      debugPrint('⚠️ Firebase not ready, initializing...');
+      // Wait for Firebase - it should be initializing in main.dart
+      for (int i = 0; i < 50; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        try {
+          Firebase.app();
+          debugPrint('✅ Firebase ready after ${(i + 1) * 100}ms');
+          return;
+        } catch (_) {
+          // Keep waiting
+        }
+      }
+      debugPrint('❌ Firebase still not initialized after 5 seconds');
+      throw Exception('Firebase not initialized. Please restart the app.');
+    }
+  }
+
   /// Initialize GoogleSignIn singleton. Safe to call multiple times.
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
@@ -83,6 +105,9 @@ class AuthService {
   // ── Google Sign-In ─────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
+      // Ensure Firebase is ready before attempting sign-in
+      await _ensureFirebaseInitialized();
+      
       if (kIsWeb) {
         return await _signInWeb();
       } else {

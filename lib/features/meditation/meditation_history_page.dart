@@ -26,7 +26,14 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
   
   String _selectedPeriod = 'week';
   
-  bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
+  bool get _isLoggedIn {
+    try {
+      return FirebaseAuth.instance.currentUser != null;
+    } catch (e) {
+      // Firebase not initialized
+      return false;
+    }
+  }
   
   // Motivational messages based on streak
   String get _motivationalMessage {
@@ -188,6 +195,10 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
       return Scaffold(
         backgroundColor: AppTheme.white,
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(),
+          ),
           title: const Text('Meditation History'),
         ),
         body: Center(
@@ -255,6 +266,10 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Meditation Journey'),
         actions: [
           IconButton(

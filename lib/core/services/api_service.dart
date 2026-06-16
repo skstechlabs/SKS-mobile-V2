@@ -480,9 +480,6 @@ class ApiService {
         options: Options(
           headers: {
             'Authorization': 'Bearer $idToken',
-            // Only add cache-busting header when forcing refresh
-            // Note: Pragma header causes CORS issues on web, so we only use Cache-Control
-            if (forceRefresh) 'Cache-Control': 'no-cache, no-store, must-revalidate',
           },
         ),
       );
@@ -634,14 +631,7 @@ class ApiService {
     }
 
     try {
-      final response = await _dio.get(
-        '/api/events',
-        options: Options(
-          headers: forceRefresh ? {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          } : null,
-        ),
-      );
+      final response = await _dio.get('/api/events');
 
       final data = response.data as Map<String, dynamic>;
       

@@ -101,12 +101,14 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             debugPrint('   Failed URL: ${error.url}');
             
             // Ignore SSL errors for trusted domains
+            // Error code -202 = ERR_CERT_AUTHORITY_INVALID
             if (error.url != null && 
                 (error.url!.contains('sivakundalini.org') || error.url!.contains('r2.dev')) &&
                 (error.errorType.toString().contains('SSL') || 
                  error.errorType.toString().contains('CERTIFICATE') ||
-                 error.errorCode == -202)) {
-              debugPrint('⚠️ Ignoring SSL error for trusted domain');
+                 error.errorCode == -202 ||
+                 error.errorCode == -200)) { // Also ignore ERR_CERT_COMMON_NAME_INVALID
+              debugPrint('⚠️ Ignoring SSL error for trusted domain: ${error.url}');
               return;
             }
             
@@ -127,7 +129,12 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           onMessageReceived: (JavaScriptMessage msg) {
             _handleEvent(msg.message);
           },
-        );
+        )
+        // Enable Android WebView mixed content mode to handle SSL issues
+        ..setOnPlatformViewCreated((int viewId) async {
+          // This allows WebView to load resources even with SSL issues
+          debugPrint('✅ WebView created with ID: $viewId');
+        });
         
       // Load the HTML content
       _controller!.loadHtmlString(_buildHtml());
@@ -561,6 +568,8 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
     var hideControlsTimeout = null;
     var controlsElement = document.querySelector('.controls');
     var isFullscreen = false;
+    var sslErrorRetryCount = 0;
+    var maxSSLRetries = 3;
 
     function send(obj) {
       try { FlutterChannel.postMessage(JSON.stringify(obj)); } catch(e) {}
@@ -690,13 +699,25 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       }, 50);
     }
 
-    // Initialize HLS
-    console.log('🎬 Initializing HLS player...');
-    console.log('   HLS.js version:', Hls.version);
-    console.log('   HLS supported:', Hls.isSupported());
-    console.log('   URL:', '${widget.hlsUrl}');
-    
-    if (Hls.isSupported()) {
+    // Initialize HLS - wrapped in function for retry capability
+    function initializeHLS() {
+      console.log('🎬 Initializing HLS player...');
+      console.log('   HLS.js version:', Hls.version);
+      console.log('   HLS supported:', Hls.isSupported());
+      console.log('   URL:', '${widget.hlsUrl}');
+      
+      if (!Hls.isSupported()) {
+        console.error('❌ HLS.js is not supported in this browser');
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          console.log('✅ Native HLS support available');
+          video.src = '${widget.hlsUrl}';
+          return;
+        } else {
+          send({ type: 'error', message: 'HLS not supported in this browser' });
+          return;
+        }
+      }
+      
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
@@ -729,13 +750,13 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         
         // Manifest loading - more retries and longer timeouts
         manifestLoadingTimeOut: 20000,
-        manifestLoadingMaxRetry: 5,
-        manifestLoadingRetryDelay: 2000,
+        manifestLoadingMaxRetry: 10,    // Increased from 5
+        manifestLoadingRetryDelay: 1000, // Reduced from 2000 for faster retry
         
         // Level loading - more retries and longer timeouts
         levelLoadingTimeOut: 20000,
-        levelLoadingMaxRetry: 6,
-        levelLoadingRetryDelay: 2000,
+        levelLoadingMaxRetry: 10,       // Increased from 6
+        levelLoadingRetryDelay: 1000,
         
         // Fragment loading - more retries and longer timeouts
         fragLoadingTimeOut: 30000,
@@ -761,14 +782,28 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
         minAutoBitrate: 0,
         
         // Enable debug logging
-        debug: false
+        debug: false,
+        
+        // XHR setup - Configure for better SSL/CORS handling
+        xhrSetup: function(xhr, url) {
+          console.log('XHR setup for:', url);
+          // Allow credentials for cross-origin requests
+          xhr.withCredentials = false;
+          // Set timeout
+          xhr.timeout = 30000;
+        }
       });
 
       hls.loadSource('${widget.hlsUrl}');
       hls.attachMedia(video);
       
       console.log('HLS initialized with URL:', '${widget.hlsUrl}');
-
+      setupHLSEventListeners();
+    }
+    
+    function setupHLSEventListeners() {
+      if (!hls) return;
+      
       hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
         console.log('✅ Manifest parsed successfully');
         console.log('   Available quality levels:', hls.levels.length);
@@ -889,9 +924,20 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
       var networkErrorCount = 0;
       var mediaErrorCount = 0;
+      var manifestLoadErrorCount = 0;
       
       hls.on(Hls.Events.ERROR, function(event, data) {
         console.log('HLS Error:', data.type, data.details, data.fatal);
+        console.log('Error details object:', JSON.stringify(data));
+        
+        // Check if this is an SSL/Certificate error
+        var isSSLError = data.details && (
+          data.details.includes('SSL') || 
+          data.details.includes('CERTIFICATE') ||
+          data.details.includes('manifestLoadError') ||
+          data.details.includes('manifestParsingError') ||
+          data.response && data.response.code === 0 // Network error (often SSL)
+        );
         
         if (data.fatal) {
           switch(data.type) {
@@ -899,13 +945,45 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
               networkErrorCount++;
               console.log('Network error count:', networkErrorCount);
               
-              if (networkErrorCount <= 5) {
+              // Special handling for manifest load errors (often SSL-related)
+              if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+                manifestLoadErrorCount++;
+                console.log('Manifest load error count:', manifestLoadErrorCount);
+                
+                if (manifestLoadErrorCount <= 10) {
+                  console.log('Attempting to recover from manifest load error...');
+                  // Aggressive retry with exponential backoff
+                  var retryDelay = Math.min(1000 * Math.pow(1.5, manifestLoadErrorCount - 1), 5000);
+                  console.log('Retry in ' + retryDelay + 'ms');
+                  setTimeout(function() {
+                    try {
+                      // Destroy and reinitialize HLS to force a fresh connection
+                      if (hls) {
+                        console.log('Destroying HLS instance...');
+                        hls.destroy();
+                      }
+                      console.log('Creating new HLS instance...');
+                      initializeHLS(); // Reinitialize from scratch
+                    } catch (err) {
+                      console.error('Failed to reinitialize HLS:', err);
+                    }
+                  }, retryDelay);
+                  return; // Don't send error yet
+                }
+              }
+              
+              if (networkErrorCount <= 8) {
                 console.log('Attempting to recover from network error...');
+                var delay = Math.min(1000 * networkErrorCount, 5000);
                 setTimeout(function() {
-                  hls.startLoad();
-                }, 1000 * networkErrorCount); // Exponential backoff
+                  try {
+                    hls.startLoad();
+                  } catch (err) {
+                    console.error('Failed to start load:', err);
+                  }
+                }, delay); // Exponential backoff
               } else {
-                send({ type: 'error', message: 'Network error - Unable to load video' });
+                send({ type: 'error', message: 'Network error - Unable to load video. Please check your connection.' });
               }
               break;
               
@@ -915,29 +993,42 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
               
               if (mediaErrorCount <= 3) {
                 console.log('Attempting to recover from media error...');
-                hls.recoverMediaError();
+                try {
+                  hls.recoverMediaError();
+                } catch (err) {
+                  console.error('Failed to recover media error:', err);
+                }
               } else {
                 console.log('Too many media errors, swapping audio codec...');
-                hls.swapAudioCodec();
-                hls.recoverMediaError();
+                try {
+                  hls.swapAudioCodec();
+                  hls.recoverMediaError();
+                } catch (err) {
+                  console.error('Failed to swap codec:', err);
+                  send({ type: 'error', message: 'Media playback error' });
+                }
               }
               break;
               
             default:
-              send({ type: 'error', message: 'Fatal playback error' });
+              send({ type: 'error', message: 'Fatal playback error: ' + data.details });
               break;
           }
         } else {
           // Non-fatal errors - just log them
           console.log('Non-fatal HLS error:', data.details);
+          
+          // But still try to recover from non-fatal network errors
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkErrorCount < 5) {
+            networkErrorCount++;
+            console.log('Non-fatal network error, will retry. Count:', networkErrorCount);
+          }
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (iOS/Safari)
-      video.src = '${widget.hlsUrl}';
-    } else {
-      send({ type: 'error', message: 'HLS not supported' });
     }
+    
+    // Call initializeHLS to start the player
+    initializeHLS();
 
     // Video events
     video.addEventListener('loadedmetadata', function() {

@@ -7,6 +7,12 @@
         </trust-anchors>
     </base-config>
     
+    <!-- Allow cleartext (HTTP) traffic for IP address video streaming -->
+    <!-- This bypasses SSL issues with Android WebView and Let's Encrypt certificates -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain>49.50.115.146</domain>
+    </domain-config>
+    
     <!-- Special configuration for app.sivakundalini.org and pub-*.r2.dev domains -->
     <!-- This trusts user-installed certificates in addition to system certificates -->
     <!-- Allows the app to work with self-signed or incomplete certificate chains -->

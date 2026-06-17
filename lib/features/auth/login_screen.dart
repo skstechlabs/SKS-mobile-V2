@@ -245,8 +245,17 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       context.go(isLanguageSelected ? '/profile-setup' : '/language-selection');
     } else {
+      // After login, check if notification permission is granted
+      // If not, send to permission screen first
+      final hasPermission = await _oneSignal.hasPermission();
       if (!mounted) return;
-      context.go('/');
+      
+      if (hasPermission) {
+        context.go('/');
+      } else {
+        // User needs to grant notification permission
+        context.go('/notification-permission');
+      }
     }
   }
 

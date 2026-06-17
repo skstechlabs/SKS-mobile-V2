@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'dart:async';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
@@ -129,7 +130,27 @@ class _SplashScreenState extends State<SplashScreen>
       if (authState.user != null) {
         developer.log('✅ Cached user found: ${authState.user!.uid}');
         developer.log('📱 Profile complete: ${authState.user!.isProfileComplete}');
-        final destination = authState.user!.isProfileComplete ? '/' : '/profile-setup';
+        
+        // Check notification permission for returning users
+        String destination;
+        if (!authState.user!.isProfileComplete) {
+          destination = '/profile-setup';
+        } else {
+          // Check if notification permission is granted
+          try {
+            final hasPermission = await _checkNotificationPermission();
+            if (hasPermission) {
+              destination = '/';
+            } else {
+              destination = '/notification-permission';
+              developer.log('📱 User needs notification permission');
+            }
+          } catch (e) {
+            developer.log('⚠️ Error checking notification permission: $e');
+            destination = '/';
+          }
+        }
+        
         developer.log('🎯 Navigating to: $destination');
         _navigate(destination);
         return;
@@ -265,8 +286,22 @@ class _SplashScreenState extends State<SplashScreen>
       if (result['success'] == true) {
         final user = UserModel.fromJson(result['user'] as Map<String, dynamic>);
         await AuthState().setUser(user);
-        developer.log('✅ Silent login success → ${user.isProfileComplete ? "home" : "profile-setup"}');
-        _navigate(user.isProfileComplete ? '/' : '/profile-setup');
+        
+        // Check notification permission for returning users
+        String destination;
+        if (!user.isProfileComplete) {
+          destination = '/profile-setup';
+        } else {
+          try {
+            final hasPermission = await _checkNotificationPermission();
+            destination = hasPermission ? '/' : '/notification-permission';
+          } catch (e) {
+            destination = '/';
+          }
+        }
+        
+        developer.log('✅ Silent login success → $destination');
+        _navigate(destination);
       } else {
         // Backend rejected — could be blocked, server error, etc.
         // Send to login screen so user can see the error and retry.
@@ -304,6 +339,17 @@ class _SplashScreenState extends State<SplashScreen>
           .preloadCriticalImages(context)
           .timeout(const Duration(seconds: 3));
     } catch (_) {}
+  }
+
+  /// Check if notification permission is granted (without prompting)
+  Future<bool> _checkNotificationPermission() async {
+    if (kIsWeb) return true; // Web doesn't need this check
+    try {
+      return OneSignal.Notifications.permission;
+    } catch (e) {
+      developer.log('⚠️ Error checking notification permission: $e');
+      return true; // Assume granted on error to not block users
+    }
   }
 
   @override

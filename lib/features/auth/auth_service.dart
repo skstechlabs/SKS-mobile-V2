@@ -69,17 +69,16 @@ class AuthService {
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     if (_initializing) {
-      while (_initializing) {
+      // Wait for the in-progress initialization with a safety timeout
+      for (int i = 0; i < 100; i++) {
         await Future.delayed(const Duration(milliseconds: 50));
+        if (_initialized) return;
+        if (!_initializing) break; // init failed, fall through to retry
       }
-      return;
+      if (_initialized) return;
     }
     _initializing = true;
     try {
-      // Always pass serverClientId explicitly.
-      // The automatic google-services.json resource lookup can fail on some
-      // devices when minification is enabled (R8 strips the resource lookup).
-      // Using AppEnv value if set, otherwise fall back to the hardcoded constant.
       final serverClientId = AppEnv.googleClientId.isNotEmpty
           ? AppEnv.googleClientId
           : _webClientId;
@@ -93,10 +92,11 @@ class AuthService {
       debugPrint('✅ GoogleSignIn.instance initialized');
     } catch (e) {
       debugPrint('❌ GoogleSignIn.initialize() failed: $e');
-      _initializing = false;
+      _initialized = false;
       rethrow;
+    } finally {
+      _initializing = false;
     }
-    _initializing = false;
   }
 
   User? get currentUser => _auth.currentUser;

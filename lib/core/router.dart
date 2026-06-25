@@ -31,7 +31,10 @@ import 'theme/app_theme.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
-  refreshListenable: LocalizationService(),
+  // Removed refreshListenable: LocalizationService() — language changes should NOT
+  // trigger a full route re-evaluation. That caused a double-rebuild on language
+  // change (once from SpiritualApp.setState, once from router refresh).
+  // The SpiritualApp setState is enough to propagate new locale strings.
   // Error handling for navigation issues
   errorBuilder: (context, state) {
     return Scaffold(

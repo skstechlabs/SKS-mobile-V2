@@ -19,6 +19,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
     with SingleTickerProviderStateMixin {
   final LocalizationService _localizationService = LocalizationService();
   String? _selectedLanguage;
+  bool _isChanging = false; // loading state during language change
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -59,18 +60,22 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
   }
 
   Future<void> _handleLanguageSelection() async {
-    if (_selectedLanguage == null) return;
+    if (_selectedLanguage == null || _isChanging) return;
 
-    // Change language
-    await _localizationService.changeLanguage(_selectedLanguage!);
+    setState(() => _isChanging = true);
+
+    try {
+      // Change language — this loads the JSON and syncs to backend
+      await _localizationService.changeLanguage(_selectedLanguage!);
+    } finally {
+      if (mounted) setState(() => _isChanging = false);
+    }
 
     if (!mounted) return;
 
     if (widget.isFromSettings) {
-      // If from settings, navigate back
       context.pop();
     } else {
-      // If from initial setup, navigate to login
       context.go('/login');
     }
   }
@@ -196,7 +201,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
                   
                   // Continue Button
                   ElevatedButton(
-                    onPressed: _selectedLanguage != null
+                    onPressed: (_selectedLanguage != null && !_isChanging)
                         ? _handleLanguageSelection
                         : null,
                     style: ElevatedButton.styleFrom(
@@ -209,13 +214,22 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
                       elevation: 2,
                       disabledBackgroundColor: AppTheme.textSecondary.withValues(alpha: 0.3),
                     ),
-                    child: Text(
-                      context.tr('continue'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isChanging
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            context.tr('continue'),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                   
                   const SizedBox(height: 16),

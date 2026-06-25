@@ -48,14 +48,18 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   void _onAudioStateChanged() {
-    if (mounted) {
-      try {
-        setState(() {});
-      } catch (e) {
-        debugPrint('Error updating audio state: $e');
-      }
+    // Only rebuild if the audio playback visibility actually changed
+    // (song started or stopped) to avoid rebuilding the entire scaffold
+    // on every audio position update.
+    if (!mounted) return;
+    final hasAudio = _audioService.currentSong != null;
+    if (hasAudio != _hadAudio) {
+      _hadAudio = hasAudio;
+      setState(() {});
     }
   }
+
+  bool _hadAudio = false;
 
   void _onNotificationsChanged(List<NotificationModel> notifications) {
     _updateUnreadCount();

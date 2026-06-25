@@ -38,9 +38,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  int _currentQuoteIndex = 0;
   late AnimationController _glowController;
-  late Timer _autoScrollTimer;
+  // Timer removed — quote rotation now handled by _QuoteRotatorWidget
+  // to avoid rebuilding the entire HomePage every 3 seconds.
   final EnhancedAudioPlayerService _audioService = EnhancedAudioPlayerService();
   final AudioProvider _audioProvider = AudioProvider();
   final ApiService _apiService = ApiService();
@@ -72,20 +72,7 @@ class _HomePageState extends State<HomePage>
     _audioService.initialize();
     _audioService.addListener(_onAudioStateChanged);
 
-    // Initialize quote index
-    _currentQuoteIndex = 0;
-
-    // Start timer for quote rotation (3 seconds interval)
-    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (mounted) {
-        final quotesToDisplay = _quotes.isNotEmpty ? _quotes : [];
-        if (quotesToDisplay.isNotEmpty) {
-          setState(() {
-            _currentQuoteIndex = (_currentQuoteIndex + 1) % quotesToDisplay.length;
-          });
-        }
-      }
-    });
+    // Quote rotation is now handled by _QuoteRotatorWidget — no timer here.
     
     // Load events from database
     _loadEvents();
@@ -277,9 +264,9 @@ class _HomePageState extends State<HomePage>
   }
 
   void _onAudioStateChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    // Do NOT rebuild the entire home page on audio state changes.
+    // MiniAudioPlayer is its own widget that listens independently.
+    // HomePage only needs to rebuild if audio affects a visible home element.
   }
 
   @override
@@ -288,9 +275,6 @@ class _HomePageState extends State<HomePage>
     _glowController.dispose();
     _audioService.removeListener(_onAudioStateChanged);
     LocalizationService().removeListener(_onLanguageChanged);
-    if (_quotes.isNotEmpty) {
-      _autoScrollTimer.cancel();
-    }
     super.dispose();
   }
 
@@ -543,20 +527,7 @@ class _HomePageState extends State<HomePage>
                   
                   // Quote text with beautiful typography and scrollable if needed
                   Expanded(
-                    child: SingleChildScrollView(
-                      child: Text(
-                        _quotes[_currentQuoteIndex % _quotes.length]['quote_text'] as String,
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 1.6,
-                          color: Color(0xFF6D4C41),
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.3,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                    child: _QuoteRotatorWidget(quotes: _quotes),
                   ),
                   
                   SizedBox(height: 12),
@@ -2826,6 +2797,83 @@ class _HomePageState extends State<HomePage>
             );
           }).toList(),
         ],
+      ),
+    );
+  }
+}
+
+
+/// Self-contained widget that rotates through quotes every 3 seconds.
+/// Isolates the Timer-driven setState to this widget only,
+/// preventing the entire HomePage from rebuilding on each tick.
+class _QuoteRotatorWidget extends StatefulWidget {
+  final List<Map<String, dynamic>> quotes;
+
+  const _QuoteRotatorWidget({required this.quotes});
+
+  @override
+  State<_QuoteRotatorWidget> createState() => _QuoteRotatorWidgetState();
+}
+
+class _QuoteRotatorWidgetState extends State<_QuoteRotatorWidget> {
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(_QuoteRotatorWidget old) {
+    super.didUpdateWidget(old);
+    // Reset index if quotes list changed
+    if (old.quotes != widget.quotes) {
+      _index = 0;
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    if (widget.quotes.length > 1) {
+      _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (mounted && widget.quotes.isNotEmpty) {
+          setState(() {
+            _index = (_index + 1) % widget.quotes.length;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.quotes.isEmpty) return const SizedBox.shrink();
+    final quote = widget.quotes[_index % widget.quotes.length]['quote_text'] as String? ?? '';
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 600),
+      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+      child: SingleChildScrollView(
+        key: ValueKey(_index),
+        child: Text(
+          quote,
+          style: const TextStyle(
+            fontSize: 16,
+            height: 1.6,
+            color: Color(0xFF6D4C41),
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

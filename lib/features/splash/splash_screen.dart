@@ -343,32 +343,29 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   /// Check if notification permission is granted (without prompting).
-  /// Uses SharedPreferences flag as primary source to avoid OneSignal timing issues.
-  /// Falls back to the live OneSignal property.
+  /// Always checks live OS state to detect if user revoked permission in Settings.
+  /// Updates the persisted flag to stay in sync.
   Future<bool> _checkNotificationPermission() async {
     if (kIsWeb) return true;
     try {
-      // Primary: check persisted flag (set when user granted permission in permissions screen)
-      final prefs = await SharedPreferences.getInstance();
-      final persisted = prefs.getBool('notification_permission_granted') ?? false;
-      if (persisted) {
-        developer.log('✅ Notification permission: persisted=true');
-        return true;
-      }
-
-      // Fallback: check live OneSignal state
-      // Give OneSignal a moment to sync before reading
-      await Future.delayed(const Duration(milliseconds: 300));
+      // Always check live OS permission state first — detects if user revoked
+      // permission in system Settings since last launch.
+      await Future.delayed(const Duration(milliseconds: 200)); // Give OneSignal time to sync
       final live = OneSignal.Notifications.permission;
-      developer.log('🔔 Notification permission: persisted=false, live=$live');
 
-      // If live says granted but flag not persisted yet, persist it now
+      final prefs = await SharedPreferences.getInstance();
+
       if (live) {
+        // Granted — persist so we can use this as fast path next launch
         await prefs.setBool('notification_permission_granted', true);
-        developer.log('✅ Persisted notification permission from live state');
+        developer.log('✅ Notification permission: granted (live)');
+        return true;
+      } else {
+        // Not granted — clear stale persisted flag so we re-prompt
+        await prefs.setBool('notification_permission_granted', false);
+        developer.log('🔔 Notification permission: not granted (live), cleared persisted flag');
+        return false;
       }
-
-      return live;
     } catch (e) {
       developer.log('⚠️ Error checking notification permission: $e');
       return true; // Assume granted on error to not block users

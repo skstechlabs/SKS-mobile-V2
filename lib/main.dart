@@ -64,15 +64,27 @@ void main() async {
       developer.log('❌ API Service init failed: $e');
     }
 
-    // Notification Storage
-    try {
-      await NotificationStorageService().initialize();
-      developer.log('✅ Notification Storage initialized');
-    } catch (e) {
-      developer.log('❌ Notification Storage init failed: $e');
-    }
+    // Run non-critical services in parallel to speed up startup
+    await Future.wait([
+      // Notification Storage
+      NotificationStorageService().initialize().then((_) {
+        developer.log('✅ Notification Storage initialized');
+      }).catchError((e) {
+        developer.log('❌ Notification Storage init failed: $e');
+      }),
 
-    // Localization
+      // Localization — must complete before UI, keep sequential below
+      Future.value(),
+
+      // ConnectivityService
+      ConnectivityService().initialize().then((_) {
+        developer.log('✅ ConnectivityService initialized');
+      }).catchError((e) {
+        developer.log('❌ ConnectivityService init failed: $e');
+      }),
+    ]);
+
+    // Localization — must be ready before runApp
     try {
       await LocalizationService().initialize();
       developer.log('✅ Localization initialized');
@@ -80,7 +92,7 @@ void main() async {
       developer.log('❌ Localization init failed: $e');
     }
 
-    // AuthState
+    // AuthState — must be ready before runApp (used by splash logic)
     try {
       await AuthState().initialize();
       developer.log('✅ AuthState initialized');
@@ -88,15 +100,7 @@ void main() async {
       developer.log('❌ AuthState init failed: $e');
     }
 
-    // ConnectivityService
-    try {
-      await ConnectivityService().initialize();
-      developer.log('✅ ConnectivityService initialized');
-    } catch (e) {
-      developer.log('❌ ConnectivityService init failed: $e');
-    }
-
-    // AudioService
+    // AudioService — needed for playback background service
     try {
       await AudioService.init(
         builder: () => MyAudioHandler(),
@@ -121,15 +125,9 @@ void main() async {
       developer.log('❌ Enhanced Audio Player init failed: $e');
     }
 
-    // Audio Provider - Fetch audio data from API
-    try {
-      await AudioProvider().initialize();
-      developer.log('✅ AudioProvider initialized with dynamic audio loading');
-    } catch (e) {
-      developer.log('❌ AudioProvider init failed: $e');
-      // Continue app initialization even if audio fetch fails
-      // Will retry on demand when user opens audio pages
-    }
+    // AudioProvider — defer API network call to AFTER runApp so it
+    // does NOT block the first frame from rendering.
+    // It will initialize lazily when the audio page is first opened.
 
     FlutterError.onError = (FlutterErrorDetails details) {
       developer.log('Flutter Error: ${details.exception}',
@@ -207,6 +205,17 @@ void main() async {
     // ── Start the app ──────────────────────────────────────────────────────────
     runApp(const SpiritualApp());
 
+    // ── Post-runApp deferred work — does NOT block first frame ────────────────
+    Future.microtask(() async {
+      // AudioProvider — deferred network call (was blocking startup before)
+      try {
+        await AudioProvider().initialize();
+        developer.log('✅ AudioProvider initialized (deferred)');
+      } catch (e) {
+        developer.log('❌ AudioProvider init failed (deferred): $e');
+      }
+    });
+
     // ── Post-runApp: re-link logged-in user if permission was already granted ──
     if (!kIsWeb) {
       Future.microtask(() async {
@@ -268,7 +277,9 @@ class _SpiritualAppState extends State<SpiritualApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      key: ValueKey(_localizationService.currentLocale.languageCode),
+      // Removed ValueKey — it forced full widget tree disposal on language change,
+      // wiping all page state. The setState() in _onLocaleChanged is sufficient
+      // to propagate the new locale to all context.tr() calls.
       routerConfig: appRouter,
       showPerformanceOverlay: false,
       checkerboardRasterCacheImages: false,

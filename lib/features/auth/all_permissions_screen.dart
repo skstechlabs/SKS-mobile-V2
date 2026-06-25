@@ -3,10 +3,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/api_service.dart';
 import 'auth_state.dart';
+
+/// Key stored in SharedPreferences once the user grants notification permission.
+/// This lets us skip the permission screen on subsequent app launches
+/// without relying on OneSignal's synchronous .permission getter.
+const String _kNotificationPermissionGrantedKey = 'notification_permission_granted';
 
 class AllPermissionsScreen extends StatefulWidget {
   const AllPermissionsScreen({super.key});
@@ -26,11 +32,6 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   final AuthState _authState = AuthState();
 
   bool _notificationGranted = false;
-  bool _cameraGranted = false;
-  bool _microphoneGranted = false;
-  bool _locationGranted = false;
-
-  // Track if user previously denied and we need to open settings
   bool _notificationPermanentlyDenied = false;
 
   @override
@@ -57,7 +58,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     super.dispose();
   }
 
-  // Re-check permissions when user returns from app settings
+  // Re-check when user returns from system settings
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -66,72 +67,61 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   }
 
   Future<void> _checkPermissions() async {
+    // Web: skip permission screen
     if (kIsWeb) {
       if (mounted) context.go('/');
       return;
     }
 
     final notification = await _oneSignal.hasPermission();
-    final camera = await Permission.camera.isGranted;
-    final microphone = await Permission.microphone.isGranted;
-    final location = await Permission.location.isGranted;
-
-    // Check if notification was permanently denied (user tapped "Don't allow" before)
     final notifStatus = await _oneSignal.getPermissionStatus();
     final permanentlyDenied = notifStatus == OSNotificationPermission.denied;
 
     if (mounted) {
       setState(() {
         _notificationGranted = notification;
-        _cameraGranted = camera;
-        _microphoneGranted = microphone;
-        _locationGranted = location;
         _notificationPermanentlyDenied = permanentlyDenied && !notification;
       });
     }
 
-    // If notification permission is already granted, set up OneSignal and proceed
+    // If already granted → persist the flag, set up OneSignal, and go home
     if (notification) {
+      await _persistPermissionGranted();
       await _setupOneSignalUser();
-      // If all permissions granted, go home
-      if (camera && microphone && location && mounted) {
-        context.go('/');
-      }
+      if (mounted) context.go('/');
+    }
+  }
+
+  /// Persist that notification permission was granted.
+  /// This is the source of truth used by the splash screen to skip this screen.
+  Future<void> _persistPermissionGranted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kNotificationPermissionGrantedKey, true);
+      debugPrint('✅ Notification permission flag persisted');
+    } catch (e) {
+      debugPrint('⚠️ Could not persist permission flag: $e');
     }
   }
 
   Future<void> _setupOneSignalUser() async {
     try {
-      debugPrint('🔧 Setting up OneSignal user...');
-
       final user = _authState.user;
       if (user != null) {
-        // Correct order: login(uid) THEN optIn()
-        // login() links this device's push token to the user's external_id
         OneSignal.login(user.uid);
-        // optIn() ensures the subscription is active
         OneSignal.User.pushSubscription.optIn();
-
-        // Set targeting tags
         await _oneSignal.setTags({
           'auth_provider': user.authProvider,
           'has_notifications': 'true',
-          'has_camera': _cameraGranted.toString(),
-          'has_microphone': _microphoneGranted.toString(),
-          'has_location': _locationGranted.toString(),
         });
-
         debugPrint('✅ OneSignal.login(${user.uid}) called');
-        debugPrint('   Player ID: ${_oneSignal.playerId}');
-        debugPrint('   Subscribed: ${_oneSignal.isSubscribed}');
       }
-
-      // Save permissions to backend
+      // Save to backend
       if (user != null) {
         await _apiService.savePermissions(
-          camera: _cameraGranted,
-          microphone: _microphoneGranted,
-          notifications: _notificationGranted,
+          camera: false,
+          microphone: false,
+          notifications: true,
         ).catchError((_) => <String, dynamic>{'success': false});
       }
     } catch (e) {
@@ -139,62 +129,55 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     }
   }
 
-  Future<void> _requestAllPermissions() async {
+  Future<void> _requestPermission() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      // ── Step 1: Notifications (MANDATORY) ───────────────────────────────────
-      if (!_notificationGranted) {
-        if (_notificationPermanentlyDenied) {
-          setState(() => _isLoading = false);
-          _showOpenSettingsDialog();
-          return;
-        }
-
-        debugPrint('🔔 Requesting notification permission...');
-        // Uses the native OS permission dialog — same as camera/location
-        final granted = await _oneSignal.requestPermission();
-        debugPrint('🔔 Notification permission: $granted');
-
-        if (mounted) setState(() => _notificationGranted = granted);
-
-        if (!granted) {
-          final status = await _oneSignal.getPermissionStatus();
-          if (mounted) {
-            setState(() {
-              _notificationPermanentlyDenied = status == OSNotificationPermission.denied;
-              _isLoading = false;
-            });
-          }
-          _showNotificationRequiredDialog();
-          return;
-        }
+      if (_notificationGranted) {
+        // Already granted — just go home
+        await _persistPermissionGranted();
+        await _setupOneSignalUser();
+        if (mounted) context.go('/');
+        return;
       }
 
-      // Permission granted — set up OneSignal subscription + user identity
-      await _setupOneSignalUser();
+      if (_notificationPermanentlyDenied) {
+        setState(() => _isLoading = false);
+        _showOpenSettingsDialog();
+        return;
+      }
 
-      // ── Camera, Microphone, Location are NOT requested here ──
-      // They will be requested when needed:
-      // - Camera: when user clicks upload image
-      // - Microphone: when user joins audio/video session
-      // - Location: when user accesses location-based features
+      debugPrint('🔔 Requesting notification permission...');
+      final granted = await _oneSignal.requestPermission();
+      debugPrint('🔔 Result: $granted');
 
-      if (mounted) context.go('/');
+      if (!mounted) return;
+      setState(() => _notificationGranted = granted);
+
+      if (granted) {
+        await _persistPermissionGranted();
+        await _setupOneSignalUser();
+        if (mounted) context.go('/');
+      } else {
+        final status = await _oneSignal.getPermissionStatus();
+        if (mounted) {
+          setState(() {
+            _notificationPermanentlyDenied = status == OSNotificationPermission.denied;
+            _isLoading = false;
+          });
+        }
+        _showPermissionDeniedDialog();
+      }
     } catch (e) {
       debugPrint('❌ Permission request error: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showErrorDialog(e.toString());
-      }
+      if (mounted) setState(() => _isLoading = false);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Shown when notification permission is denied but not permanently
-  void _showNotificationRequiredDialog() {
+  void _showPermissionDeniedDialog() {
     if (!mounted) return;
     showDialog(
       context: context,
@@ -217,7 +200,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _requestAllPermissions();
+              _requestPermission();
             },
             child: const Text('Allow Notifications'),
           ),
@@ -226,7 +209,6 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     );
   }
 
-  // Shown when notification permission is permanently denied — must go to settings
   void _showOpenSettingsDialog() {
     if (!mounted) return;
     showDialog(
@@ -255,30 +237,9 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
             onPressed: () {
               Navigator.pop(context);
-              openAppSettings(); // Opens system app settings
+              openAppSettings();
             },
             child: const Text('Open Settings', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showErrorDialog(String error) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Error'),
-        content: Text('Failed to request permissions.\n\nError: $error'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _requestAllPermissions();
-            },
-            child: const Text('Retry'),
           ),
         ],
       ),
@@ -288,7 +249,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Cannot go back — notification permission is mandatory
+      canPop: false,
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(
@@ -301,12 +262,13 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           child: SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: SingleChildScrollView(
+              child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    const SizedBox(height: 40),
+                    const Spacer(),
 
+                    // Icon
                     Container(
                       width: 120,
                       height: 120,
@@ -314,111 +276,123 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                         shape: BoxShape.circle,
                         color: AppTheme.primary.withValues(alpha: 0.1),
                       ),
-                      child: const Icon(Icons.security_outlined, size: 60, color: AppTheme.primary),
+                      child: const Icon(Icons.notifications_active_outlined, size: 60, color: AppTheme.primary),
                     ),
 
                     const SizedBox(height: 32),
 
                     Text(
-                      'App Permissions',
-                      style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primary,
-                          ),
+                      'Stay Connected',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primary,
+                      ),
                       textAlign: TextAlign.center,
                     ),
 
                     const SizedBox(height: 12),
 
                     Text(
-                      'We need a few permissions to provide you the best experience',
+                      'Allow notifications to receive blessings and updates from Guruji',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppTheme.textSecondary,
-                            height: 1.6,
-                          ),
+                        color: AppTheme.textSecondary,
+                        height: 1.6,
+                      ),
                       textAlign: TextAlign.center,
                     ),
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 40),
 
-                    _buildPermissionItem(
-                      icon: Icons.notifications_active_outlined,
-                      title: 'Notifications',
-                      description: 'Receive updates and blessings from Guruji',
-                      required: true,
-                      granted: _notificationGranted,
-                      permanentlyDenied: _notificationPermanentlyDenied,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Warning if notification permanently denied
-                    if (_notificationPermanentlyDenied)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Notifications are blocked. Please enable them in your device Settings to continue.',
-                                style: TextStyle(
-                                  color: Colors.red.shade900,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Notifications are required to receive updates from Guruji. Other permissions like camera will be requested when needed.',
-                                style: TextStyle(
-                                  color: Colors.blue.shade900,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
+                    // Status card
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [AppTheme.softShadow],
+                        border: Border.all(
+                          color: _notificationGranted
+                              ? Colors.green.shade200
+                              : _notificationPermanentlyDenied
+                                  ? Colors.red.shade200
+                                  : AppTheme.softGray,
+                          width: 1.5,
                         ),
                       ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _notificationGranted
+                                  ? Colors.green.shade50
+                                  : _notificationPermanentlyDenied
+                                      ? Colors.red.shade50
+                                      : AppTheme.primary.withValues(alpha: 0.1),
+                            ),
+                            child: Icon(
+                              _notificationGranted
+                                  ? Icons.check_circle
+                                  : _notificationPermanentlyDenied
+                                      ? Icons.block
+                                      : Icons.notifications_outlined,
+                              color: _notificationGranted
+                                  ? Colors.green.shade600
+                                  : _notificationPermanentlyDenied
+                                      ? Colors.red.shade600
+                                      : AppTheme.primary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _notificationGranted
+                                      ? 'Allowed'
+                                      : _notificationPermanentlyDenied
+                                          ? 'Blocked — open Settings to enable'
+                                          : 'Required to receive Guruji updates',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _notificationGranted
+                                        ? Colors.green.shade700
+                                        : _notificationPermanentlyDenied
+                                            ? Colors.red.shade700
+                                            : AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_notificationGranted)
+                            Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                        ],
+                      ),
+                    ),
 
-                    const SizedBox(height: 24),
+                    const Spacer(),
 
+                    // Continue button
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _requestAllPermissions,
+                        onPressed: _isLoading ? null : _requestPermission,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 2,
                         ),
                         child: _isLoading
                             ? const SizedBox(
-                                width: 22,
-                                height: 22,
+                                width: 22, height: 22,
                                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                               )
                             : Text(
@@ -426,115 +400,19 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                                     ? 'Open Settings'
                                     : _notificationGranted
                                         ? 'Continue'
-                                        : 'Grant Permissions',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
+                                        : 'Allow Notifications',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                               ),
                       ),
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPermissionItem({
-    required IconData icon,
-    required String title,
-    required String description,
-    required bool required,
-    required bool granted,
-    bool permanentlyDenied = false,
-  }) {
-    Color borderColor = Colors.transparent;
-    Color bgColor = Colors.white;
-    if (granted) {
-      borderColor = Colors.green.shade300;
-    } else if (permanentlyDenied && required) {
-      borderColor = Colors.red.shade300;
-      bgColor = Colors.red.shade50;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [AppTheme.softShadow],
-        border: Border.all(color: borderColor, width: granted || permanentlyDenied ? 2 : 0),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: granted
-                  ? Colors.green.shade100
-                  : permanentlyDenied && required
-                      ? Colors.red.shade100
-                      : AppTheme.primary.withValues(alpha: 0.1),
-            ),
-            child: Icon(
-              granted
-                  ? Icons.check_circle
-                  : permanentlyDenied && required
-                      ? Icons.block
-                      : icon,
-              color: granted
-                  ? Colors.green.shade700
-                  : permanentlyDenied && required
-                      ? Colors.red.shade700
-                      : AppTheme.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(title,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                    if (required) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'REQUIRED',
-                          style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(description,
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-              ],
-            ),
-          ),
-          if (granted) Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
-        ],
       ),
     );
   }

@@ -545,7 +545,6 @@ class _LearningsPageState extends State<LearningsPage> {
 
   Widget _buildMeditationTestCard(BuildContext context) {
     final testPassed = _meditationTest?['passed'] == true;
-    final testTaken = _meditationTest?['taken'] == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -620,35 +619,60 @@ class _LearningsPageState extends State<LearningsPage> {
           ),
           if (!testPassed) ...[
             const SizedBox(height: 16),
+            // Disabled button — test is conducted offline
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: testTaken
-                    ? null
-                    : () {
-                        // TODO: Navigate to meditation test
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(context.tr('meditation_test_coming_soon')),
-                            backgroundColor: AppTheme.gold,
-                          ),
-                        );
-                      },
+                onPressed: null, // Always disabled — test is offline only
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.saffron,
+                  backgroundColor: AppTheme.saffron.withValues(alpha: 0.4),
+                  disabledBackgroundColor: AppTheme.saffron.withValues(alpha: 0.3),
+                  disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: Text(
-                  testTaken ? context.tr('test_submitted') : context.tr('take_test'),
+                  context.tr('take_test'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Offline test notice
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.gold.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppTheme.gold.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: AppTheme.gold,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.tr('meditation_test_offline_notice'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -97,6 +97,9 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
   
+  # App Info for version tracking
+  package_info_plus: ^8.0.0
+  
   cupertino_icons: ^1.0.6
 
 dev_dependencies:
@@ -117,9 +120,13 @@ flutter:
     - assets/translations/
     - assets/icons/
     - assets/hls.min.js
-    # Note: Meditation sounds downloaded from R2 CDN and cached locally
-    # Supports multiple languages: /sks-audio-files/audio/meditation/{lang}/Meditation_*.mp3
-    # Bhajans/music streamed from R2: https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev/
+    # Audio files for ringtone and meditation
+    - assets/audio/Sivoham_ringtone.mp3
+    - assets/audio/Meditation_start.mp3
+    - assets/audio/Meditation_end.mp3
+    - assets/audio/Sivoham_Mantra_10min_guided_Meditation.mp3
+    - assets/audio/Sivoham_Mantra_15min_guided_Meditation.mp3
+    # Note: Bhajans/music streamed from R2 CDN
     # Images loaded from R2 and cached locally by cached_network_image package
 
 flutter_launcher_icons:

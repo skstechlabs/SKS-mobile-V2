@@ -7,7 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import 'widgets/cloudflare_video_player.dart';
-import 'widgets/simple_hls_player.dart'; // Native video player - works with SSL
+import 'widgets/native_hls_player.dart';
 import 'widgets/secure_screen_wrapper.dart';
 
 class DayVideoScreen extends StatefulWidget {
@@ -791,8 +791,8 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     Widget player;
     if (streamingType == 'hls') {
       // Use native HLS Video Player (video_player + chewie) - works with SSL
-      player = SimpleHLSPlayer(
-        key: const ValueKey('hls_player'), // Preserve player instance
+      player = NativeHLSPlayer(
+        key: const ValueKey('native_hls_player'),
         hlsUrl: _videoConfig!['hlsUrl']?.toString() ?? '',
         thumbnailUrl: _videoConfig!['thumbnailUrl']?.toString(),
         lastPositionSeconds: _parseIntSafely(_videoConfig!['lastPositionSeconds']),

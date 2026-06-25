@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -356,6 +357,10 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: Text(context.tr('sivoham_ringtone_page_title')),
         actions: [
           IconButton(

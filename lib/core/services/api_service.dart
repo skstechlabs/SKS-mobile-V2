@@ -184,49 +184,61 @@ class ApiService {
   }
 
   Future<String?> _getIdToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    
     try {
-      // First try cached token
-      final cachedToken = await user.getIdToken(false);
-      if (cachedToken != null && cachedToken.isNotEmpty) {
-        return cachedToken;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+      
+      try {
+        // First try cached token
+        final cachedToken = await user.getIdToken(false);
+        if (cachedToken != null && cachedToken.isNotEmpty) {
+          return cachedToken;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Cached token failed: $e, trying force refresh');
       }
-    } catch (e) {
-      debugPrint('⚠️ Cached token failed: $e, trying force refresh');
-    }
-    
-    // If cached token fails, force refresh
-    try {
-      final freshToken = await user.getIdToken(true);
-      if (freshToken != null && freshToken.isNotEmpty) {
-        return freshToken;
+      
+      // If cached token fails, force refresh
+      try {
+        final freshToken = await user.getIdToken(true);
+        if (freshToken != null && freshToken.isNotEmpty) {
+          return freshToken;
+        }
+      } catch (e) {
+        debugPrint('❌ getIdToken force refresh failed: $e');
       }
+      
+      return null;
     } catch (e) {
-      debugPrint('❌ getIdToken force refresh failed: $e');
+      // Firebase not initialized or other error
+      debugPrint('⚠️ _getIdToken error (Firebase may not be ready): $e');
+      return null;
     }
-    
-    return null;
   }
 
   /// Force-refresh the Firebase ID token. Use ONLY for the login call where
   /// we need a guaranteed-fresh token for the backend to verify.
   Future<String?> _getFreshIdToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
     try {
-      // forceRefresh=true — hits Firebase network to get a brand-new token.
-      // Safe to call once per login; not on every API request.
-      return await user.getIdToken(true);
-    } catch (e) {
-      debugPrint('⚠️ getIdToken(forceRefresh=true) failed, trying cached: $e');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
       try {
-        return await user.getIdToken(false);
-      } catch (e2) {
-        debugPrint('❌ getIdToken failed entirely: $e2');
-        return null;
+        // forceRefresh=true — hits Firebase network to get a brand-new token.
+        // Safe to call once per login; not on every API request.
+        return await user.getIdToken(true);
+      } catch (e) {
+        debugPrint('⚠️ getIdToken(forceRefresh=true) failed, trying cached: $e');
+        try {
+          return await user.getIdToken(false);
+        } catch (e2) {
+          debugPrint('❌ getIdToken failed entirely: $e2');
+          return null;
+        }
       }
+    } catch (e) {
+      // Firebase not initialized or other error
+      debugPrint('⚠️ _getFreshIdToken error (Firebase may not be ready): $e');
+      return null;
     }
   }
 
@@ -709,9 +721,14 @@ class ApiService {
     try {
       final idToken = await _getIdToken();
       if (idToken == null) {
-        return {'success': false, 'message': 'Not authenticated'};
+        return {'success': false, 'message': 'Not authenticated. Please login again.'};
       }
 
+      debugPrint('📡 Recording meditation session...');
+      debugPrint('   Start: $startTime');
+      debugPrint('   End: $endTime');
+      debugPrint('   Duration: $durationSeconds seconds');
+      
       final response = await _dio.post(
         '/api/meditation/sessions',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
@@ -719,13 +736,22 @@ class ApiService {
           'start_time': startTime,
           'end_time': endTime,
           'duration_seconds': durationSeconds,
-          if (notes != null) 'notes': notes,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
         },
       );
 
+      debugPrint('✅ Meditation session response: ${response.data}');
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
+      debugPrint('❌ Meditation session error: ${e.message}');
+      debugPrint('   Response: ${e.response?.data}');
       return _handleError(e);
+    } catch (e) {
+      debugPrint('❌ Unexpected error recording meditation: $e');
+      return {
+        'success': false,
+        'message': 'Failed to record meditation session. Please try again.',
+      };
     }
   }
 

@@ -67,8 +67,8 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
     if (!mounted) return;
 
     if (widget.isFromSettings) {
-      // If from settings, navigate back to profile
-      context.go('/profile');
+      // If from settings, navigate back
+      context.pop();
     } else {
       // If from initial setup, navigate to login
       context.go('/login');
@@ -85,7 +85,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black),
-                onPressed: () => context.go('/profile'),
+                onPressed: () => context.pop(),
               ),
               title: Text(
                 context.tr('change_language'),

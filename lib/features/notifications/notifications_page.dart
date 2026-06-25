@@ -332,7 +332,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.go('/'),
+          onPressed: () => context.pop(),
         ),
         title: Row(
           children: [

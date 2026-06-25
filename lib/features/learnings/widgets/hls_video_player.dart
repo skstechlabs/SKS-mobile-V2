@@ -123,7 +123,6 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
             }
           },
         ))
-        ..enableZoom(false)
         ..addJavaScriptChannel(
           'FlutterChannel',
           onMessageReceived: (JavaScriptMessage msg) {

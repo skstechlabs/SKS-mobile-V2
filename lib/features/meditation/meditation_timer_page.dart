@@ -610,19 +610,24 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
           ),
         );
       } else if (mounted) {
+        final errorMsg = response['message'] ?? 'Failed to save session';
+        debugPrint('❌ Meditation save failed: $errorMsg');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Failed to save session'),
+            content: Text(errorMsg),
             backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
+      debugPrint('❌ Exception saving meditation: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session saved locally. Will sync when online.'),
-            backgroundColor: Colors.blue,
+          SnackBar(
+            content: Text('Could not save session: ${e.toString().length > 50 ? 'Network error' : e.toString()}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
           ),
         );
       }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/wallpaper_service.dart';
 import '../../core/services/localization_service.dart';
@@ -205,6 +206,10 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: Text(context.tr('wisdom_wallpapers_title')),
       ),
       body: _isLoading

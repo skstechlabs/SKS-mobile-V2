@@ -118,7 +118,12 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/notification-permission',
-      builder: (context, state) => const AllPermissionsScreen(),
+      builder: (context, state) {
+        // extra: {'isFirstTime': false} when coming from bell icon
+        final extra = state.extra as Map<String, dynamic>?;
+        final isFirstTime = extra?['isFirstTime'] as bool? ?? true;
+        return AllPermissionsScreen(isFirstTime: isFirstTime);
+      },
     ),
     // GoRoute(
     //   path: '/permissions',

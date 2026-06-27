@@ -110,8 +110,8 @@ class _MainScaffoldState extends State<MainScaffold> {
     if (hasPermission) {
       context.push('/notifications');
     } else {
-      // Permission not granted — send to permissions screen to get it
-      context.push('/notification-permission');
+      // Not granted — show permission screen (not first-time, so user can dismiss it)
+      context.push('/notification-permission', extra: {'isFirstTime': false});
     }
   }
 

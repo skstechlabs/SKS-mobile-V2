@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
@@ -132,39 +131,22 @@ class _SplashScreenState extends State<SplashScreen>
         developer.log('✅ Cached user found: ${authState.user!.uid}');
         developer.log('📱 Profile complete: ${authState.user!.isProfileComplete}');
 
-        // Always re-link OneSignal identity for cached users — no permission required.
+        // Always re-link OneSignal identity for cached users
         if (!kIsWeb) {
           try {
             OneSignal.login(authState.user!.uid);
             if (OneSignal.Notifications.permission) {
               OneSignal.User.pushSubscription.optIn();
             }
-            developer.log('✅ OneSignal.login(${authState.user!.uid}) called for cached user');
           } catch (e) {
-            developer.log('⚠️ OneSignal login failed for cached user: $e');
+            developer.log('⚠️ OneSignal link failed: $e');
           }
         }
 
-        // Check notification permission for returning users
-        String destination;
-        if (!authState.user!.isProfileComplete) {
-          destination = '/profile-setup';
-        } else {
-          // Check if notification permission is granted
-          try {
-            final hasPermission = await _checkNotificationPermission();
-            if (hasPermission) {
-              destination = '/';
-            } else {
-              destination = '/notification-permission';
-              developer.log('📱 User needs notification permission');
-            }
-          } catch (e) {
-            developer.log('⚠️ Error checking notification permission: $e');
-            destination = '/';
-          }
-        }
-        
+        // Navigate: incomplete profile → setup, otherwise → home
+        // We never redirect returning users to the permission screen.
+        // The permission screen is only shown ONCE during first-time login flow.
+        final destination = authState.user!.isProfileComplete ? '/' : '/profile-setup';
         developer.log('🎯 Navigating to: $destination');
         _navigate(destination);
         return;
@@ -301,33 +283,21 @@ class _SplashScreenState extends State<SplashScreen>
         final user = UserModel.fromJson(result['user'] as Map<String, dynamic>);
         await AuthState().setUser(user);
 
-        // Always link OneSignal identity on login — permission is not required
-        // for identity registration (OneSignal SDK v5).
+        // Link OneSignal identity
         if (!kIsWeb) {
           try {
             OneSignal.login(user.uid);
             if (OneSignal.Notifications.permission) {
               OneSignal.User.pushSubscription.optIn();
             }
-            developer.log('✅ OneSignal.login(${user.uid}) called in silent login');
           } catch (e) {
-            developer.log('⚠️ OneSignal login failed in silent login: $e');
+            developer.log('⚠️ OneSignal link failed in silent login: $e');
           }
         }
-        
-        // Check notification permission for returning users
-        String destination;
-        if (!user.isProfileComplete) {
-          destination = '/profile-setup';
-        } else {
-          try {
-            final hasPermission = await _checkNotificationPermission();
-            destination = hasPermission ? '/' : '/notification-permission';
-          } catch (e) {
-            destination = '/';
-          }
-        }
-        
+
+        // Navigate: incomplete profile → setup, otherwise → home
+        // Never redirect to permission screen for returning users.
+        final destination = user.isProfileComplete ? '/' : '/profile-setup';
         developer.log('✅ Silent login success → $destination');
         _navigate(destination);
       } else {
@@ -367,36 +337,6 @@ class _SplashScreenState extends State<SplashScreen>
           .preloadCriticalImages(context)
           .timeout(const Duration(seconds: 3));
     } catch (_) {}
-  }
-
-  /// Check if notification permission is granted (without prompting).
-  /// Always checks live OS state to detect if user revoked permission in Settings.
-  /// Updates the persisted flag to stay in sync.
-  Future<bool> _checkNotificationPermission() async {
-    if (kIsWeb) return true;
-    try {
-      // Always check live OS permission state first — detects if user revoked
-      // permission in system Settings since last launch.
-      await Future.delayed(const Duration(milliseconds: 200)); // Give OneSignal time to sync
-      final live = OneSignal.Notifications.permission;
-
-      final prefs = await SharedPreferences.getInstance();
-
-      if (live) {
-        // Granted — persist so we can use this as fast path next launch
-        await prefs.setBool('notification_permission_granted', true);
-        developer.log('✅ Notification permission: granted (live)');
-        return true;
-      } else {
-        // Not granted — clear stale persisted flag so we re-prompt
-        await prefs.setBool('notification_permission_granted', false);
-        developer.log('🔔 Notification permission: not granted (live), cleared persisted flag');
-        return false;
-      }
-    } catch (e) {
-      developer.log('⚠️ Error checking notification permission: $e');
-      return true; // Assume granted on error to not block users
-    }
   }
 
   @override

@@ -181,14 +181,21 @@ void main() async {
         final permissionGranted = OneSignal.Notifications.permission;
         developer.log('🔔 Notification permission on startup (no prompt): $permissionGranted');
 
-        // Step 5: if user is already logged in AND permission granted, link them immediately
+        // Step 5: if user is already logged in, ALWAYS link identity in OneSignal.
+        // OneSignal v5: login() is safe to call regardless of notification permission.
+        // Identity is stored and automatically associated with the push token once
+        // the user grants permission. Calling it only when permissionGranted=true
+        // was causing 0-recipient errors for users who hadn't yet allowed notifications.
         final authState = AuthState();
-        if (authState.user != null && permissionGranted) {
+        if (authState.user != null) {
           OneSignal.login(authState.user!.uid);
-          OneSignal.User.pushSubscription.optIn();
           developer.log('✅ OneSignal.login(${authState.user!.uid}) called on startup');
-        } else if (authState.user != null && !permissionGranted) {
-          developer.log('⚠️ User logged in but no notification permission - will register after permission granted');
+          if (permissionGranted) {
+            OneSignal.User.pushSubscription.optIn();
+            developer.log('✅ OneSignal optIn() called (permission already granted)');
+          } else {
+            developer.log('ℹ️ OneSignal identity linked; optIn() deferred until permission is granted');
+          }
         }
 
         // Step 6: set navigation callback (router available after runApp)
@@ -216,16 +223,18 @@ void main() async {
       }
     });
 
-    // ── Post-runApp: re-link logged-in user if permission was already granted ──
+    // ── Post-runApp: always re-link logged-in user identity in OneSignal ────────
+    // This covers the case where OneSignal wasn't fully ready during main() init.
     if (!kIsWeb) {
       Future.microtask(() async {
         try {
           final authState = AuthState();
-          // permission is a synchronous bool getter — no await needed
-          final hasPermission = OneSignal.Notifications.permission;
-          if (authState.user != null && hasPermission) {
+          if (authState.user != null) {
             OneSignal.login(authState.user!.uid);
-            OneSignal.User.pushSubscription.optIn();
+            final hasPermission = OneSignal.Notifications.permission;
+            if (hasPermission) {
+              OneSignal.User.pushSubscription.optIn();
+            }
             developer.log('✅ OneSignal post-runApp re-link: ${authState.user!.uid}');
           }
         } catch (e) {

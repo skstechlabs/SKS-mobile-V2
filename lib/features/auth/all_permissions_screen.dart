@@ -108,13 +108,14 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     try {
       final user = _authState.user;
       if (user != null) {
+        // login() links identity; optIn() enables push delivery now that permission is granted
         OneSignal.login(user.uid);
         OneSignal.User.pushSubscription.optIn();
         await _oneSignal.setTags({
           'auth_provider': user.authProvider,
           'has_notifications': 'true',
         });
-        debugPrint('✅ OneSignal.login(${user.uid}) called');
+        debugPrint('✅ OneSignal.login(${user.uid}) + optIn() called after permission granted');
       }
       // Save to backend
       if (user != null) {

@@ -131,7 +131,20 @@ class _SplashScreenState extends State<SplashScreen>
       if (authState.user != null) {
         developer.log('✅ Cached user found: ${authState.user!.uid}');
         developer.log('📱 Profile complete: ${authState.user!.isProfileComplete}');
-        
+
+        // Always re-link OneSignal identity for cached users — no permission required.
+        if (!kIsWeb) {
+          try {
+            OneSignal.login(authState.user!.uid);
+            if (OneSignal.Notifications.permission) {
+              OneSignal.User.pushSubscription.optIn();
+            }
+            developer.log('✅ OneSignal.login(${authState.user!.uid}) called for cached user');
+          } catch (e) {
+            developer.log('⚠️ OneSignal login failed for cached user: $e');
+          }
+        }
+
         // Check notification permission for returning users
         String destination;
         if (!authState.user!.isProfileComplete) {
@@ -287,6 +300,20 @@ class _SplashScreenState extends State<SplashScreen>
       if (result['success'] == true) {
         final user = UserModel.fromJson(result['user'] as Map<String, dynamic>);
         await AuthState().setUser(user);
+
+        // Always link OneSignal identity on login — permission is not required
+        // for identity registration (OneSignal SDK v5).
+        if (!kIsWeb) {
+          try {
+            OneSignal.login(user.uid);
+            if (OneSignal.Notifications.permission) {
+              OneSignal.User.pushSubscription.optIn();
+            }
+            developer.log('✅ OneSignal.login(${user.uid}) called in silent login');
+          } catch (e) {
+            developer.log('⚠️ OneSignal login failed in silent login: $e');
+          }
+        }
         
         // Check notification permission for returning users
         String destination;

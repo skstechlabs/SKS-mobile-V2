@@ -12,7 +12,9 @@ import '../router.dart';
 ///   3. setupNotificationHandlers()
 ///   4. markInitialized()
 ///   5. runApp(...)
-///   6. setExternalUserId(uid)  + optIn()    ← after runApp, for logged-in users
+///   6. setExternalUserId(uid)               ← after runApp, for ALL logged-in users
+///                                              (safe to call without notification permission)
+///   7. optIn()                              ← only after user grants notification permission
 class OneSignalService {
   static final OneSignalService _instance = OneSignalService._internal();
   factory OneSignalService() => _instance;
@@ -235,16 +237,21 @@ class OneSignalService {
   // ── User identity ─────────────────────────────────────────────────────────────
 
   /// Link this device to a user account.
-  /// Must be called after permission is granted and OneSignal is initialized.
-  /// This is what makes `include_aliases.external_id` targeting work on the backend.
+  /// Safe to call even before notification permission is granted (OneSignal SDK v5).
+  /// The identity is stored and automatically associated with the push token
+  /// once the user grants notification permission.
   Future<void> setExternalUserId(String userId) async {
     if (_isWebPlatform || userId.isEmpty) return;
     try {
       await _waitForInit();
-      // OneSignal.login links the device subscription to this external_id
+      // OneSignal.login links the device subscription to this external_id.
+      // This MUST be called regardless of notification permission status.
       OneSignal.login(userId);
-      // Ensure the subscription is opted in
-      OneSignal.User.pushSubscription.optIn();
+      // Only opt in if permission is already granted — do not force opt-in
+      // before the user has made a permission decision.
+      if (OneSignal.Notifications.permission) {
+        OneSignal.User.pushSubscription.optIn();
+      }
       debugPrint('✅ OneSignal.login($userId) called');
     } catch (e) {
       debugPrint('❌ setExternalUserId error: $e');

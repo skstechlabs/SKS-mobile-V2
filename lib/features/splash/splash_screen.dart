@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../core/theme/app_theme.dart';
@@ -370,25 +371,20 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   /// Check if notification permission is granted (without prompting).
-  /// Uses the live OS state from OneSignal as the single source of truth.
-  /// Clears/sets the persisted flag to stay in sync across app updates.
+  /// Uses permission_handler to query the OS directly — always accurate,
+  /// no SDK sync delay needed.
   Future<bool> _checkNotificationPermission() async {
     if (kIsWeb) return true;
     try {
-      // Give OneSignal time to sync permission state from the OS.
-      // 800ms is needed on slower devices / cold starts.
-      await Future.delayed(const Duration(milliseconds: 800));
+      final status = await Permission.notification.status;
+      final granted = status.isGranted;
 
-      // Use the synchronous .permission getter — this is the most reliable
-      // indicator on both Android and iOS. permissionNative() can return
-      // "denied" on Android even when the OS has granted permission.
-      final live = OneSignal.Notifications.permission;
-
+      // Keep the persisted flag in sync with the live OS state
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('notification_permission_granted', live);
+      await prefs.setBool('notification_permission_granted', granted);
 
-      developer.log('✅ Notification permission (live): $live');
-      return live;
+      developer.log('✅ Notification permission (OS direct): $granted');
+      return granted;
     } catch (e) {
       developer.log('⚠️ Error checking notification permission: $e');
       return true; // Assume granted on error — don't block users

@@ -74,22 +74,16 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
       return;
     }
 
-    // Give OneSignal time to sync its permission state from the OS.
-    // On some devices the SDK needs ~800ms after cold start to reflect the real state.
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-
-    // Use the synchronous .permission getter as the source of truth.
-    // permissionNative() can return "denied" on Android even when the user
-    // has granted permission (it reflects a different OS-level query).
-    final bool granted = OneSignal.Notifications.permission;
+    // Query the OS directly via permission_handler — this is always accurate
+    // regardless of OneSignal SDK initialization state.
+    // No delay needed: permission_handler calls the OS synchronously.
+    final status = await Permission.notification.status;
+    final bool granted = status.isGranted;
 
     if (mounted) {
       setState(() {
         _notificationGranted = granted;
-        // Only mark as permanently denied if the OS says not granted AND
-        // we have already asked before (determined by the persisted flag).
-        _notificationPermanentlyDenied = false; // reset; we'll update below
+        _notificationPermanentlyDenied = false; // reset; update below if needed
       });
     }
 
@@ -100,18 +94,11 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
       return;
     }
 
-    // Not granted — check native status to decide if we should show
-    // "Blocked" (permanently denied) vs "Allow Notifications" (not yet asked)
-    try {
-      final notifStatus = await _oneSignal.getPermissionStatus();
-      final permanentlyDenied = notifStatus == OSNotificationPermission.denied;
-      if (mounted) {
-        setState(() {
-          _notificationPermanentlyDenied = permanentlyDenied;
-        });
-      }
-    } catch (e) {
-      debugPrint('⚠️ Could not get permission status: $e');
+    // Not granted — check if permanently denied (user tapped "Don't ask again")
+    if (mounted) {
+      setState(() {
+        _notificationPermanentlyDenied = status.isPermanentlyDenied;
+      });
     }
   }
 
@@ -184,10 +171,11 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         await _setupOneSignalUser();
         if (mounted) context.go('/');
       } else {
-        final status = await _oneSignal.getPermissionStatus();
+        // Check OS state to distinguish "denied this time" vs "permanently denied"
+        final status = await Permission.notification.status;
         if (mounted) {
           setState(() {
-            _notificationPermanentlyDenied = status == OSNotificationPermission.denied;
+            _notificationPermanentlyDenied = status.isPermanentlyDenied;
             _isLoading = false;
           });
         }

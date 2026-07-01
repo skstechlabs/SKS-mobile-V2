@@ -201,7 +201,10 @@ class ReminderNotificationService {
           scheduledDate = scheduledDate.add(const Duration(days: 7));
         }
 
-        // Android notification details with custom sound
+        // Android notification details with Sivoham ringtone
+        // Use inexactAllowWhileIdle to work on all Android versions including
+        // Android 12+ which restricts exactAllowWhileIdle without special permission.
+        // For daily reminders, ~1 min accuracy is perfectly acceptable.
         const androidDetails = AndroidNotificationDetails(
           'reminders_channel',
           'Daily Reminders',
@@ -212,6 +215,7 @@ class ReminderNotificationService {
           sound: RawResourceAndroidNotificationSound('sivoham_ringtone'),
           enableVibration: true,
           icon: '@mipmap/ic_launcher',
+          fullScreenIntent: false,
         );
 
       // iOS notification details with custom sound
@@ -259,7 +263,7 @@ class ReminderNotificationService {
           );
         }
 
-        debugPrint('✅ Scheduled reminder $notificationId: $title on day $dayOfWeek at $reminderTime');
+        debugPrint('✅ Scheduled reminder $notificationId: $title on day $dayOfWeek at $reminderTime (inexact)');
       }
     } catch (e) {
       debugPrint('❌ Error scheduling reminder: $e');

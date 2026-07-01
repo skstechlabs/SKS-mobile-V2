@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ExoPlayer custom load control configuration for HLS streaming.
+
+  Goals:
+  - Eliminate rebuffering at 1x–2x playback speeds
+  - Aggressively pre-buffer so millions of concurrent users get smooth playback
+  - Keep memory usage reasonable by capping max buffer at 120s
+
+  Key values:
+  minBufferMs         = 15 000 ms  → resume playback once 15s is buffered (was 2.5s)
+  maxBufferMs         = 120 000 ms → keep 120s buffered ahead (was 50s)
+  bufferForPlaybackMs = 2 500 ms   → initial playback starts after 2.5s buffered
+  bufferForPlaybackAfterRebufferMs = 5 000 ms → after a stall, need 5s before resuming
+
+  At 2x speed you consume 2s of video per second, so:
+    - 15s min buffer covers  7.5s of real time at 2x
+    - 120s max buffer covers 60s of real time at 2x
+  This virtually eliminates mid-play stalls.
+-->
+<LoadControl
+    minBufferMs="15000"
+    maxBufferMs="120000"
+    bufferForPlaybackMs="2500"
+    bufferForPlaybackAfterRebufferMs="5000"
+/>

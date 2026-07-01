@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:convert';
 import 'user_model.dart';
 import '../../core/services/api_service.dart';
@@ -12,6 +13,7 @@ class AuthState extends ChangeNotifier {
 
   static const String _userKey = 'cached_user_data';
   static const String _authTokenKey = 'cached_auth_token';
+  static const String _appVersionKey = 'cached_app_version';
   
   UserModel? _user;
   bool _isInitialized = false;
@@ -34,17 +36,41 @@ class AuthState extends ChangeNotifier {
     try {
       debugPrint('🔐 Initializing AuthState from cache...');
       final prefs = await SharedPreferences.getInstance();
-      
+
+      // ── Version-based cache invalidation ──────────────────────────────────
+      // When the app updates, clear permission flags so the live OS state is
+      // re-checked. User session (uid/token) is preserved across updates —
+      // only volatile flags like notification_permission_granted are reset.
+      try {
+        final info = await PackageInfo.fromPlatform();
+        final currentVersion = '${info.version}+${info.buildNumber}';
+        final cachedVersion = prefs.getString(_appVersionKey);
+        if (cachedVersion != currentVersion) {
+          debugPrint('🔄 App version changed ($cachedVersion → $currentVersion), clearing permission flags');
+          await prefs.remove('notification_permission_granted');
+          await prefs.setString(_appVersionKey, currentVersion);
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not check app version: $e');
+      }
+
       // Load cached user data
       final userJson = prefs.getString(_userKey);
       if (userJson != null && userJson.isNotEmpty) {
         try {
           final userData = json.decode(userJson) as Map<String, dynamic>;
-          _user = UserModel.fromJson(userData);
-          debugPrint('✅ Loaded cached user: ${_user!.uid}');
+          final parsed = UserModel.fromJson(userData);
+          // Discard cached data if uid is empty — it's from a corrupted/old cache
+          if (parsed.uid.isNotEmpty) {
+            _user = parsed;
+            debugPrint('✅ Loaded cached user: ${_user!.uid}');
+          } else {
+            debugPrint('⚠️ Cached user has empty uid — discarding stale cache');
+            await prefs.remove(_userKey);
+          }
         } catch (e) {
           debugPrint('❌ Error parsing cached user data: $e');
-          // Clear corrupted cache
+          // Clear corrupted cache so the next launch works cleanly
           await prefs.remove(_userKey);
         }
       } else {

@@ -370,34 +370,28 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   /// Check if notification permission is granted (without prompting).
-  /// Always checks live OS state to detect if user revoked permission in Settings.
-  /// Updates the persisted flag to stay in sync.
+  /// Uses the live OS state from OneSignal as the single source of truth.
+  /// Clears/sets the persisted flag to stay in sync across app updates.
   Future<bool> _checkNotificationPermission() async {
     if (kIsWeb) return true;
     try {
-      // Give OneSignal enough time to sync its permission state from the OS.
-      // On some devices/OS versions the synchronous .permission getter returns
-      // false immediately after a cold start even when the user already granted
-      // it — a short delay lets the SDK sync the real state.
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Give OneSignal time to sync permission state from the OS.
+      // 800ms is needed on slower devices / cold starts.
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // Use the synchronous .permission getter — this is the most reliable
+      // indicator on both Android and iOS. permissionNative() can return
+      // "denied" on Android even when the OS has granted permission.
       final live = OneSignal.Notifications.permission;
 
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('notification_permission_granted', live);
 
-      if (live) {
-        // Granted — persist so we can use this as fast path next launch
-        await prefs.setBool('notification_permission_granted', true);
-        developer.log('✅ Notification permission: granted (live)');
-        return true;
-      } else {
-        // Not granted — clear stale persisted flag so we re-prompt
-        await prefs.setBool('notification_permission_granted', false);
-        developer.log('🔔 Notification permission: not granted (live), cleared persisted flag');
-        return false;
-      }
+      developer.log('✅ Notification permission (live): $live');
+      return live;
     } catch (e) {
       developer.log('⚠️ Error checking notification permission: $e');
-      return true; // Assume granted on error to not block users
+      return true; // Assume granted on error — don't block users
     }
   }
 

@@ -64,22 +64,35 @@ class UserModel {
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Defensive parsing — any field that was added in a newer version
+    // may be missing in cached data from an older install. Never throw.
+    final uid = (json['uid'] as String?)?.trim() ?? '';
     return UserModel(
-      uid: json['uid'] as String,
-      mobile: json['mobile'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      photo: json['photo'] as String? ?? '',
+      uid: uid,
+      mobile: (json['mobile'] as String?)?.trim() ?? '',
+      email: (json['email'] as String?)?.trim() ?? '',
+      name: (json['name'] as String?)?.trim() ?? '',
+      photo: (json['photo'] as String?)?.trim() ?? '',
       gender: json['gender'] as String?,
       dateOfBirth: json['date_of_birth'] as String?,
       address: json['address'] as String?,
       state: json['state'] as String?,
       pincode: json['pincode'] as String?,
-      authProvider: json['auth_provider'] as String? ?? 'phone',
-      isProfileComplete: json['is_profile_complete'] as bool? ?? false,
-      isBlocked: json['is_blocked'] as bool? ?? false,
+      authProvider: (json['auth_provider'] as String?)?.trim() ?? 'phone',
+      isProfileComplete: _parseBool(json['is_profile_complete']),
+      isBlocked: _parseBool(json['is_blocked']),
       blockReason: json['block_reason'] as String?,
     );
+  }
+
+  /// Safely coerce various representations of bool that may come from
+  /// older cached JSON (e.g. 0/1 integers, "true"/"false" strings).
+  static bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) return value.toLowerCase() == 'true';
+    return false;
   }
 
   Map<String, dynamic> toJson() => {

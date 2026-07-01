@@ -62,7 +62,8 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkPermissions();
+      // Short delay for OS to sync permission state after returning from Settings
+      Future.delayed(const Duration(milliseconds: 500), _checkPermissions);
     }
   }
 
@@ -73,28 +74,44 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
       return;
     }
 
-    // Give OneSignal a brief moment to sync its permission state from the OS.
-    // The synchronous .permission getter can return false immediately after a
-    // cold start even when the user already granted permission on a prior launch.
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Give OneSignal time to sync its permission state from the OS.
+    // On some devices the SDK needs ~800ms after cold start to reflect the real state.
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    final notification = await _oneSignal.hasPermission();
-    final notifStatus = await _oneSignal.getPermissionStatus();
-    final permanentlyDenied = notifStatus == OSNotificationPermission.denied;
+    // Use the synchronous .permission getter as the source of truth.
+    // permissionNative() can return "denied" on Android even when the user
+    // has granted permission (it reflects a different OS-level query).
+    final bool granted = OneSignal.Notifications.permission;
 
     if (mounted) {
       setState(() {
-        _notificationGranted = notification;
-        _notificationPermanentlyDenied = permanentlyDenied && !notification;
+        _notificationGranted = granted;
+        // Only mark as permanently denied if the OS says not granted AND
+        // we have already asked before (determined by the persisted flag).
+        _notificationPermanentlyDenied = false; // reset; we'll update below
       });
     }
 
-    // If already granted → persist the flag, set up OneSignal, and go home
-    if (notification) {
+    if (granted) {
       await _persistPermissionGranted();
       await _setupOneSignalUser();
       if (mounted) context.go('/');
+      return;
+    }
+
+    // Not granted — check native status to decide if we should show
+    // "Blocked" (permanently denied) vs "Allow Notifications" (not yet asked)
+    try {
+      final notifStatus = await _oneSignal.getPermissionStatus();
+      final permanentlyDenied = notifStatus == OSNotificationPermission.denied;
+      if (mounted) {
+        setState(() {
+          _notificationPermanentlyDenied = permanentlyDenied;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not get permission status: $e');
     }
   }
 

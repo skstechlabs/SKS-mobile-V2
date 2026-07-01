@@ -26,7 +26,6 @@ import '../features/learnings/day_video_screen.dart';
 import '../features/settings/ringtone_settings_page.dart';
 import '../features/settings/wallpaper_settings_page.dart';
 import '../features/audio/now_playing_screen.dart';
-import 'services/localization_service.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
@@ -119,12 +118,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/notification-permission',
-      builder: (context, state) {
-        // extra: {'isFirstTime': false} when coming from bell icon
-        final extra = state.extra as Map<String, dynamic>?;
-        final isFirstTime = extra?['isFirstTime'] as bool? ?? true;
-        return AllPermissionsScreen(isFirstTime: isFirstTime);
-      },
+      builder: (context, state) => const AllPermissionsScreen(),
     ),
     // GoRoute(
     //   path: '/permissions',

@@ -65,7 +65,7 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
       // Quick sanity check: if the player's processing state is not accessible,
       // it has been disposed — force a fresh initialization.
       try {
-        _ = _audioPlayer!.processingState; // throws if disposed
+        _audioPlayer!.processingState; // access getter — throws if player is disposed
         return; // still healthy — nothing to do
       } catch (_) {
         developer.log('⚠️ EnhancedAudioPlayerService: existing player is disposed, re-initializing');
@@ -155,7 +155,7 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
         // Cache in background
         _cacheService.downloadAndCache(url).then((p) {
           if (p != null) developer.log('Audio cached: ${song.title}');
-        }).catchError((e) => developer.log('Background cache failed: $e'));
+        }).catchError((e) { developer.log('Background cache failed: $e'); });
       }
     } catch (e) {
       developer.log('Error loading audio: $e');
@@ -317,7 +317,7 @@ class EnhancedAudioPlayerService extends ChangeNotifier {
       if (!isCached) {
         _cacheService.downloadAndCache(song.audioUrl).then((p) {
           if (p != null) developer.log('Preloaded: ${song.title}');
-        }).catchError((e) => developer.log('Preload failed for ${song.title}: $e'));
+        }).catchError((e) { developer.log('Preload failed for ${song.title}: $e'); });
         await Future.delayed(const Duration(milliseconds: 500));
       }
     }

@@ -58,11 +58,17 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
           _messageController.text = (reminder['message'] as String?) ?? '';
           
           final timeStr = reminder['reminderTime'] as String;
-          final parts = timeStr.split(':');
-          _selectedTime = TimeOfDay(
-            hour: int.parse(parts[0]),
-            minute: int.parse(parts[1]),
-          );
+          // Handle ISO 8601 ("1970-01-01T06:30:00.000Z"), "HH:MM", or "HH:MM:SS"
+          if (timeStr.contains('T')) {
+            final dt = DateTime.parse(timeStr).toUtc();
+            _selectedTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
+          } else {
+            final parts = timeStr.split(':');
+            _selectedTime = TimeOfDay(
+              hour: int.parse(parts[0]),
+              minute: int.parse(parts[1]),
+            );
+          }
           
           final days = List<int>.from(reminder['daysOfWeek'] as List);
           for (var day in days) {

@@ -308,17 +308,29 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return days.map((d) => dayNames[d as int]).join(', ');
   }
 
-  /// Format time string — handles both HH:MM and HH:MM:SS from API
+  /// Format time string for display — handles HH:MM, HH:MM:SS, and ISO 8601.
   String _formatTime(String? timeStr) {
     if (timeStr == null || timeStr.isEmpty) return '';
-    final parts = timeStr.split(':');
-    if (parts.length >= 2) {
-      final h = int.tryParse(parts[0]) ?? 0;
-      final m = int.tryParse(parts[1]) ?? 0;
-      final period = h >= 12 ? 'PM' : 'AM';
-      final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-      return '${displayH.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} $period';
-    }
+    try {
+      // ISO 8601 datetime (e.g. "1970-01-01T06:30:00.000Z")
+      if (timeStr.contains('T')) {
+        final dt = DateTime.parse(timeStr).toUtc();
+        final h = dt.hour;
+        final m = dt.minute;
+        final period = h >= 12 ? 'PM' : 'AM';
+        final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+        return '${displayH.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} $period';
+      }
+      // Plain "HH:MM" or "HH:MM:SS"
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final period = h >= 12 ? 'PM' : 'AM';
+        final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+        return '${displayH.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} $period';
+      }
+    } catch (_) {}
     return timeStr;
   }
 

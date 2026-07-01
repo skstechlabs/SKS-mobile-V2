@@ -125,11 +125,52 @@ class ReminderNotificationService {
     }
   }
 
+  /// Parse any time string the API might return into a `({int hour, int minute})`.
+  ///
+  /// Handles:
+  ///   "06:00"                    → (hour: 6,  minute: 0)
+  ///   "06:00:00"                 → (hour: 6,  minute: 0)
+  ///   "1970-01-01T06:00:00.000Z" → (hour: 6,  minute: 0)
+  ///   "1970-01-01T06:00:00Z"     → (hour: 6,  minute: 0)
+  ({int hour, int minute}) _parseTimeString(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) throw FormatException('Empty time string');
+
+    // ISO 8601 datetime: contains a 'T' separator between date and time
+    if (s.contains('T')) {
+      try {
+        final dt = DateTime.parse(s).toUtc();
+        debugPrint('✅ Parsed ISO 8601 time "$s" → ${dt.hour}:${dt.minute}');
+        return (hour: dt.hour, minute: dt.minute);
+      } catch (e) {
+        throw FormatException('Cannot parse ISO 8601 time "$s": $e');
+      }
+    }
+
+    // Plain time: "HH:MM" or "HH:MM:SS"
+    final parts = s.split(':');
+    if (parts.length < 2) {
+      throw FormatException('Invalid time format "$s" — expected HH:MM');
+    }
+    final hour   = int.tryParse(parts[0].trim());
+    final minute = int.tryParse(parts[1].trim());
+    if (hour == null || minute == null) {
+      throw FormatException('Cannot parse hour/minute from "$s"');
+    }
+    if (hour < 0 || hour > 23) {
+      throw FormatException('Hour $hour out of range 0–23 in "$s"');
+    }
+    if (minute < 0 || minute > 59) {
+      throw FormatException('Minute $minute out of range 0–59 in "$s"');
+    }
+    return (hour: hour, minute: minute);
+  }
+
   Future<void> scheduleReminder({
     required int id,
     required String title,
     required String? message,
-    required String reminderTime, // Format: "HH:MM" (24-hour)
+    required String reminderTime, // "HH:MM", "HH:MM:SS", or ISO 8601
     required List<int> daysOfWeek, // 0=Sunday, 6=Saturday
   }) async {
     // Web: Skip scheduling
@@ -141,37 +182,14 @@ class ReminderNotificationService {
     if (!_initialized) await initialize();
 
     try {
-      // Validate and parse time
-      if (reminderTime.isEmpty || !reminderTime.contains(':')) {
-        debugPrint('❌ Invalid reminderTime format: "$reminderTime" (expected HH:MM)');
-        throw FormatException('Invalid time format: "$reminderTime". Expected HH:MM format.');
-      }
-
-      // Parse time - handle both "HH:MM" and "HH:MM:SS" formats
-      final timeParts = reminderTime.split(':');
-      if (timeParts.length < 2) {
-        debugPrint('❌ Invalid reminderTime format: "$reminderTime" (not enough parts)');
-        throw FormatException('Invalid time format: "$reminderTime". Expected HH:MM format.');
-      }
-
-      // Try to parse hour and minute
-      int hour;
-      int minute;
-      try {
-        hour = int.parse(timeParts[0].trim());
-        minute = int.parse(timeParts[1].trim());
-      } catch (e) {
-        debugPrint('❌ Error parsing time parts from "$reminderTime": $e');
-        throw FormatException('Unable to parse time "$reminderTime". Hour: "${timeParts[0]}", Minute: "${timeParts[1]}"');
-      }
-
-      // Validate time ranges
-      if (hour < 0 || hour > 23) {
-        throw FormatException('Invalid hour: $hour (must be 0-23)');
-      }
-      if (minute < 0 || minute > 59) {
-        throw FormatException('Invalid minute: $minute (must be 0-59)');
-      }
+      // Normalize to HH:MM — handles all formats the API may return:
+      //   "06:00"                    → hour=6,  minute=0
+      //   "06:00:00"                 → hour=6,  minute=0
+      //   "1970-01-01T06:00:00.000Z" → hour=6,  minute=0
+      //   "1970-01-01T06:00:00Z"     → hour=6,  minute=0
+      final parsed = _parseTimeString(reminderTime);
+      final hour   = parsed.hour;
+      final minute = parsed.minute;
 
       // Cancel existing notification for this ID
       await cancelReminder(id);

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 import '../constants/app_env.dart';
+import 'connectivity_service.dart';
 import 'data_cache_service.dart';
 import 'secure_storage_service.dart';
 
@@ -56,9 +57,9 @@ class ApiService {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 30), // 30s should be enough
-      receiveTimeout: const Duration(seconds: 30), // 30s
-      sendTimeout: const Duration(seconds: 30), // 30s
+      connectTimeout: const Duration(seconds: 10), // fail fast, don't hang for 30s
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 10),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -206,20 +207,34 @@ class ApiService {
   }
 
   Future<String?> _getIdToken() async {
-    // 1. Try Firebase ID token first (Google sign-in users)
+    final isOnline = ConnectivityService().isOnline;
+
+    // ── Strategy: JWT first when offline, Firebase first when online ──────────
+    // Firebase getIdToken() requires network when the cached token is expired.
+    // When offline, skip Firebase entirely and go straight to the stored JWT.
+    if (!isOnline) {
+      debugPrint('📵 Offline — skipping Firebase token, trying stored JWT');
+      return await _getStoredJwt();
+    }
+
+    // ── Online path: try Firebase first (Google sign-in users) ───────────────
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // Try cached token first — works without network if not expired
         try {
-          final cachedToken = await user.getIdToken(false);
+          final cachedToken = await user.getIdToken(false)
+              .timeout(const Duration(seconds: 5));
           if (cachedToken != null && cachedToken.isNotEmpty) {
             return cachedToken;
           }
         } catch (e) {
           debugPrint('⚠️ Cached Firebase token failed: $e, trying force refresh');
         }
+        // Force refresh — needs network, but we're online here
         try {
-          final freshToken = await user.getIdToken(true);
+          final freshToken = await user.getIdToken(true)
+              .timeout(const Duration(seconds: 8));
           if (freshToken != null && freshToken.isNotEmpty) {
             return freshToken;
           }
@@ -231,31 +246,36 @@ class ApiService {
       debugPrint('⚠️ _getIdToken Firebase error: $e');
     }
 
-    // 2. Fallback: use stored JWT access token (phone/OTP users or when Firebase
-    //    session is not available). The backend's verifyJwtToken middleware accepts
-    //    both Firebase tokens AND JWT tokens, so this works transparently.
+    // ── Fallback: stored JWT (phone users or when Firebase session expired) ───
+    return await _getStoredJwt();
+  }
+
+  /// Read the stored JWT access token, refreshing it if expired.
+  /// Returns null only if no token exists and refresh also fails.
+  Future<String?> _getStoredJwt() async {
     try {
       final storage = SecureStorageService();
       storage.initialize();
 
-      // Check if access token is still valid
       final isExpired = await storage.isTokenExpired();
       if (!isExpired) {
         final jwt = await storage.getAccessToken();
         if (jwt != null && jwt.isNotEmpty) {
-          debugPrint('ℹ️ Using stored JWT access token (phone user)');
+          debugPrint('ℹ️ Using stored JWT access token');
           return jwt;
         }
       }
 
-      // Access token expired — try to refresh using the refresh token
-      final refreshToken = await storage.getRefreshToken();
-      if (refreshToken != null && refreshToken.isNotEmpty) {
-        debugPrint('🔄 JWT access token expired, refreshing...');
-        final refreshed = await _refreshJwtToken(refreshToken);
-        if (refreshed != null) {
-          debugPrint('✅ JWT token refreshed successfully');
-          return refreshed;
+      // Token expired — try refresh (needs network)
+      if (ConnectivityService().isOnline) {
+        final refreshToken = await storage.getRefreshToken();
+        if (refreshToken != null && refreshToken.isNotEmpty) {
+          debugPrint('🔄 JWT access token expired, refreshing...');
+          final refreshed = await _refreshJwtToken(refreshToken);
+          if (refreshed != null) {
+            debugPrint('✅ JWT token refreshed successfully');
+            return refreshed;
+          }
         }
       }
     } catch (e) {
@@ -756,6 +776,12 @@ class ApiService {
       }
     }
 
+    // Offline: no cache and no network → return empty gracefully
+    if (ConnectivityService().isOffline) {
+      debugPrint('📵 Offline — returning empty events');
+      return {'success': false, 'message': 'No internet connection', 'events': []};
+    }
+
     try {
       final response = await _client.get('/api/events');
 
@@ -800,6 +826,11 @@ class ApiService {
         debugPrint('📦 Using cached gatherings');
         return cached;
       }
+    }
+
+    if (ConnectivityService().isOffline) {
+      debugPrint('📵 Offline — returning empty gatherings');
+      return {'success': false, 'message': 'No internet connection', 'gatherings': []};
     }
 
     try {
@@ -966,6 +997,12 @@ class ApiService {
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
+    // Fast fail when offline — avoids waiting 10s for a timeout
+    if (ConnectivityService().isOffline) {
+      debugPrint('📵 Offline — skipping GET $path');
+      return {'success': false, 'message': 'No internet connection'};
+    }
+
     try {
       final idToken = await _getIdToken();
       if (idToken == null) {

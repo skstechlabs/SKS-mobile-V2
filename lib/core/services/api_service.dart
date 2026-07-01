@@ -73,39 +73,46 @@ class ApiService {
     // Only for mobile/desktop platforms (not web)
     // ══════════════════════════════════════════════════════════════════
     if (!kIsWeb) {
+      const serverIp   = '49.50.115.146';  // app.sivakundalini.org resolved IP
+      const serverHost = 'app.sivakundalini.org';
+
       (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
-        
-        // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
-        // This ensures DNS resolution works even if device DNS is misconfigured
-        // The HttpClient will use system DNS first, then fall back if needed
-        client.connectionTimeout = const Duration(seconds: 30);
-        client.idleTimeout = const Duration(seconds: 120);
+        client.connectionTimeout = const Duration(seconds: 15);
+        client.idleTimeout       = const Duration(seconds: 120);
         client.maxConnectionsPerHost = 8;
-        
-        // SSL Configuration - Accept certificates for our domains
+
+        // SSL: accept our domains + debug mode
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          // Allow our domains (sivakundalini.org and r2.dev)
-          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
-            debugPrint('✅ SSL: Accepting certificate for $host');
-            return true;
-          }
-          // In debug mode, accept all certificates for development
-          if (kDebugMode) {
-            debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
-            return true;
-          }
-          // In release mode, reject other domains with invalid certificates
-          debugPrint('❌ SSL: Rejecting certificate for $host');
+          if (host == serverIp ||
+              host.contains('sivakundalini.org') ||
+              host.contains('r2.dev')) return true;
+          if (kDebugMode) return true;
           return false;
         };
-        
-        debugPrint('🔒 SSL configuration applied');
-        
+
         return client;
       };
-    } else {
-      debugPrint('🌐 Running on Web - using browser HTTP client');
+
+      // ── DNS bypass interceptor ─────────────────────────────────────────
+      // Android emulators can take 8–30s on DNS because they probe IPv6
+      // first (our server has no AAAA record) then fall back to IPv4.
+      // This interceptor rewrites the URL to use the known IP directly
+      // and sets the Host header so TLS SNI still validates.
+      _dio!.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.uri.host == serverHost) {
+            options.headers['Host'] = serverHost;
+            options.baseUrl = options.baseUrl
+                .replaceAll(serverHost, serverIp);
+            options.path = options.uri
+                .toString()
+                .replaceAll(serverHost, serverIp)
+                .replaceFirst(options.baseUrl.replaceAll(serverHost, serverIp), '');
+          }
+          handler.next(options);
+        },
+      ));
     }
 
     // Add interceptor for logging

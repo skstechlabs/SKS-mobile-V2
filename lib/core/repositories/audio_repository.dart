@@ -24,25 +24,36 @@ class AudioRepository {
       },
     ));
 
-    // SSL certificate handling for Let's Encrypt certificates
-    // Only for mobile/desktop platforms (not web)
+    // SSL certificate handling + DNS bypass
     if (!kIsWeb) {
+      const serverIp   = '49.50.115.146';
+      const serverHost = 'app.sivakundalini.org';
+
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
+        client.connectionTimeout    = const Duration(seconds: 15);
+        client.idleTimeout          = const Duration(seconds: 120);
+        client.maxConnectionsPerHost = 8;
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          // Allow our domains (sivakundalini.org and r2.dev)
-          if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
-            debugPrint('✅ SSL: Accepting certificate for $host');
-            return true;
-          }
-          // In debug mode, accept all
-          if (kDebugMode) {
-            return true;
-          }
+          if (host == serverIp ||
+              host.contains('sivakundalini.org') ||
+              host.contains('r2.dev')) return true;
+          if (kDebugMode) return true;
           return false;
         };
         return client;
       };
+
+      _dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.uri.host == serverHost) {
+            options.headers['Host'] = serverHost;
+            options.baseUrl = options.baseUrl
+                .replaceAll(serverHost, serverIp);
+          }
+          handler.next(options);
+        },
+      ));
     }
 
     // Add logging interceptor

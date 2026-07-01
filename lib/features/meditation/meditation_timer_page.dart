@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/enhanced_audio_player_service.dart';
 import '../auth/auth_state.dart';
 
 class MeditationTimerPage extends StatefulWidget {
@@ -188,10 +189,10 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         debugPrint('✅ Using cached: ${cachedFile.path}');
       }
 
-      // Pre-buffer: load the file into the player NOW so play() is instant
+      // setFilePath() already loads AND buffers the audio.
+      // Do NOT call player.load() after it — that resets the player to idle
+      // and wipes the buffer, causing silence when play() is called.
       await player.setFilePath(cachedFile.path);
-      // Load without playing — just buffers the audio into memory
-      await player.load();
 
       // Store path for reference
       if (filename.contains('start')) {
@@ -201,18 +202,17 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       }
 
       onReady();
+      debugPrint('✅ Preloaded and ready: $filename (state: ${player.processingState})');
     } catch (e) {
       debugPrint('❌ Error caching/preloading $filename: $e');
       onError();
     }
   }
 
-  /// Play the start sound and wait until it actually begins playing,
-  /// then start the timer — ensures audio and timer are in sync.
+  /// Play the start sound then begin the timer tick.
   Future<void> _playStartSoundAndBeginTimer() async {
     if (_startSoundState != 'ready') {
-      // Sound not ready — start timer anyway but skip sound
-      debugPrint('⚠️ Start sound not ready, starting timer without audio');
+      debugPrint('⚠️ Start sound not ready (state: $_startSoundState), starting timer without audio');
       _beginTimerTick();
       return;
     }
@@ -221,20 +221,13 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       // Seek to beginning in case it was played before
       await _startPlayer.seek(Duration.zero);
       await _startPlayer.play();
-
-      // Wait until the player is actually playing (buffered and started)
-      await _startPlayer.playerStateStream.firstWhere(
-        (s) =>
-            s.playing ||
-            s.processingState == ProcessingState.completed,
-      ).timeout(const Duration(seconds: 3));
-
-      debugPrint('✅ Start sound playing — starting timer');
+      debugPrint('✅ Start sound play() called');
     } catch (e) {
-      debugPrint('⚠️ Start sound timeout/error, starting timer anyway: $e');
+      debugPrint('⚠️ Start sound play error: $e');
     }
 
-    // Timer starts exactly when audio starts
+    // Start the timer immediately — don't wait for audio confirmation.
+    // Waiting on playerStateStream can hang if AudioService holds audio focus.
     _beginTimerTick();
   }
 
@@ -261,19 +254,27 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _playEndSound() async {
     if (_endSoundState != 'ready') {
-      debugPrint('⚠️ End sound not ready, skipping');
+      debugPrint('⚠️ End sound not ready (state: $_endSoundState), skipping');
       return;
     }
     try {
       await _endPlayer.seek(Duration.zero);
       await _endPlayer.play();
+      debugPrint('✅ End sound play() called');
 
-      // Wait for completion so the dialog shows after the sound finishes
+      // Wait for completion so the dialog shows after the sound finishes.
+      // Use a safe timeout — if it never completes (e.g. audio focus lost),
+      // continue after the timeout rather than hanging forever.
       await _endPlayer.playerStateStream.firstWhere(
         (s) => s.processingState == ProcessingState.completed,
-      ).timeout(const Duration(seconds: 10));
-
-      debugPrint('✅ End sound completed');
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('⚠️ End sound timeout — continuing');
+          return _endPlayer.playerState;
+        },
+      );
+      debugPrint('✅ End sound finished');
     } catch (e) {
       debugPrint('⚠️ End sound error: $e');
     }
@@ -291,13 +292,19 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       }
     });
 
+    // Pause the global audio/bhajan player if it's running so it doesn't
+    // hold the audio session and block the meditation sounds from playing.
+    final globalPlayer = EnhancedAudioPlayerService();
+    if (globalPlayer.isPlaying) {
+      await globalPlayer.pause();
+      debugPrint('⏸️ Paused global audio player for meditation');
+    }
+
     if (!_hasStarted) {
-      // Very first start — play the start sound and begin the timer
-      // only once the audio is confirmed playing (keeps them in sync).
       _hasStarted = true;
       await _playStartSoundAndBeginTimer();
     } else {
-      // Resume after pause — resume the start-sound player if it was paused
+      // Resume after pause
       if (_startPlayer.processingState != ProcessingState.idle &&
           _startPlayer.processingState != ProcessingState.completed &&
           !_startPlayer.playing) {
@@ -849,7 +856,728 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth  = MediaQuery.of(context).size.width;
     final isSmallScreen = screenHeight < 700;
+
+    // ── Spiritual colour palette ──────────────────────────────────────────
+    const deepPurple    = Color(0xFF1A0533); // very dark violet — night sky
+    const midPurple     = Color(0xFF2D0B55); // deep cosmic purple
+    const saffronGlow   = Color(0xFFFF7B00); // warm saffron
+    const goldGlow      = Color(0xFFFFD700); // sacred gold
+    const petalPink     = Color(0xFFFF9E7A); // lotus petal
+    const divineWhite   = Color(0xFFFFF8F0); // warm white
+    const calmTeal      = Color(0xFF00BCD4); // peaceful teal accent
+
+    return Scaffold(
+      backgroundColor: deepPurple,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+
+          // ── 1. Deep cosmic background gradient ──────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF0D001A), // near-black violet top
+                  Color(0xFF1A0533), // deep cosmic purple
+                  Color(0xFF2D0B55), // mid purple
+                  Color(0xFF1A0533),
+                  Color(0xFF0D001A), // dark bottom
+                ],
+                stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+              ),
+            ),
+          ),
+
+          // ── 2. Radial glow from center (the divine light source) ─────────
+          Center(
+            child: AnimatedBuilder(
+              animation: _breathingAnimation,
+              builder: (_, __) => Container(
+                width: screenWidth * 1.2,
+                height: screenWidth * 1.2,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      saffronGlow.withValues(alpha: 0.18 * _breathingAnimation.value),
+                      goldGlow.withValues(alpha: 0.10 * _breathingAnimation.value),
+                      midPurple.withValues(alpha: 0.05),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.3, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── 3. Faint star particles (static dots simulated with Container) ─
+          ..._buildStarField(screenWidth, screenHeight),
+
+          // ── 4. Main scrollable content ───────────────────────────────────
+          SafeArea(
+            child: Column(
+              children: [
+
+                // ── Top bar ────────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Back
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.10),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back, color: divineWhite),
+                          onPressed: () => context.pop(),
+                        ),
+                      ),
+                      // Title
+                      Text(
+                        'Meditation',
+                        style: TextStyle(
+                          color: divineWhite.withValues(alpha: 0.9),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                      // History
+                      if (_isLoggedIn)
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.10),
+                          ),
+                          child: IconButton(
+                            icon: Icon(Icons.history, color: goldGlow.withValues(alpha: 0.9)),
+                            onPressed: () async {
+                              final wasRunning = _isRunning;
+                              if (_isRunning) _pauseTimer();
+                              await context.push('/meditation/history');
+                              if (wasRunning && mounted) _startTimer();
+                            },
+                            tooltip: 'View History',
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+
+                // ── Main body ───────────────────────────────────────────────
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final imageSize = isSmallScreen
+                          ? 220.0
+                          : (constraints.maxHeight * 0.42).clamp(220.0, 300.0);
+
+                      return SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: constraints.maxHeight,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+
+                              // ── Sacred title text ────────────────────────
+                              Text(
+                                '✦  ॐ  श्री गुरुवे नमः  ✦',
+                                style: TextStyle(
+                                  color: goldGlow.withValues(alpha: 0.75),
+                                  fontSize: isSmallScreen ? 12 : 14,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: 2.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+
+                              SizedBox(height: isSmallScreen ? 16 : 24),
+
+                              // ── Guruji image with aura rings ─────────────
+                              _buildGurujiAura(imageSize, saffronGlow, goldGlow, petalPink, calmTeal),
+
+                              SizedBox(height: isSmallScreen ? 20 : 28),
+
+                              // ── Status label ─────────────────────────────
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 600),
+                                child: Text(
+                                  _isRunning
+                                      ? '🌸  Breathe in... Breathe out...'
+                                      : _hasStarted
+                                          ? '⏸  Paused — tap to resume'
+                                          : '✨  Begin your journey within',
+                                  key: ValueKey(_isRunning ? 'running' : _hasStarted ? 'paused' : 'idle'),
+                                  style: TextStyle(
+                                    color: divineWhite.withValues(alpha: 0.70),
+                                    fontSize: isSmallScreen ? 13 : 15,
+                                    fontWeight: FontWeight.w300,
+                                    letterSpacing: 1.2,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+
+                              SizedBox(height: isSmallScreen ? 14 : 20),
+
+                              // ── Timer display ─────────────────────────────
+                              _buildTimerDisplay(isSmallScreen, saffronGlow, goldGlow, divineWhite),
+
+                              SizedBox(height: isSmallScreen ? 10 : 16),
+
+                              // ── Duration chip ─────────────────────────────
+                              if (_targetSeconds > 0 && !_isRunning && _seconds == 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: goldGlow.withValues(alpha: 0.35)),
+                                    color: goldGlow.withValues(alpha: 0.08),
+                                  ),
+                                  child: Text(
+                                    'Duration: ${_formatDuration(_targetSeconds)}',
+                                    style: TextStyle(
+                                      color: goldGlow.withValues(alpha: 0.85),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // ── Bottom control panel ─────────────────────────────────────
+                _buildControlPanel(isSmallScreen, saffronGlow, goldGlow, divineWhite),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Decorative static star field — 12 small white dots scattered around
+  List<Widget> _buildStarField(double w, double h) {
+    final positions = [
+      [0.08, 0.12], [0.88, 0.08], [0.15, 0.45], [0.82, 0.38],
+      [0.05, 0.72], [0.93, 0.65], [0.25, 0.85], [0.70, 0.90],
+      [0.45, 0.07], [0.60, 0.15], [0.35, 0.55], [0.75, 0.50],
+    ];
+    return positions.map((p) {
+      final opacity = (p[0] + p[1]) % 0.6 + 0.2;
+      return Positioned(
+        left: p[0] * w,
+        top: p[1] * h,
+        child: AnimatedBuilder(
+          animation: _breathingAnimation,
+          builder: (_, __) => Opacity(
+            opacity: (opacity * _breathingAnimation.value).clamp(0.1, 0.7),
+            child: Container(
+              width: 3,
+              height: 3,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFFFD700),
+              ),
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  /// The Guruji image surrounded by multi-layer glowing aura rings
+  Widget _buildGurujiAura(
+    double size,
+    Color saffron,
+    Color gold,
+    Color petal,
+    Color teal,
+  ) {
+    return AnimatedBuilder(
+      animation: _breathingAnimation,
+      builder: (_, __) {
+        final pulse = _isRunning ? _breathingAnimation.value : 1.0;
+        final softPulse = _isRunning
+            ? 0.85 + (_breathingAnimation.value - 0.8) * 0.75
+            : 1.0;
+
+        return SizedBox(
+          width: size + 80,
+          height: size + 80,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outermost ring — very faint teal/gold
+              Opacity(
+                opacity: 0.12 * pulse,
+                child: Container(
+                  width: size + 72,
+                  height: size + 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.transparent,
+                        teal.withValues(alpha: 0.0),
+                        gold.withValues(alpha: 0.3),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.75, 0.88, 1.0],
+                    ),
+                    border: Border.all(
+                      color: teal.withValues(alpha: 0.20 * pulse),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Second ring — petal pink, dashed-look via opacity
+              Opacity(
+                opacity: 0.25 * softPulse,
+                child: Container(
+                  width: size + 48,
+                  height: size + 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: petal.withValues(alpha: 0.55 * softPulse),
+                      width: 1.5,
+                    ),
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.transparent,
+                        petal.withValues(alpha: 0.08 * pulse),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.85, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Third ring — saffron glow
+              Container(
+                width: size + 28,
+                height: size + 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: saffron.withValues(alpha: 0.45 * softPulse),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: saffron.withValues(alpha: 0.30 * pulse),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: gold.withValues(alpha: 0.15 * pulse),
+                      blurRadius: 40,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Immediate ring — bright gold
+              Container(
+                width: size + 8,
+                height: size + 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      gold.withValues(alpha: 0.70 * pulse),
+                      saffron.withValues(alpha: 0.50 * pulse),
+                      gold.withValues(alpha: 0.70 * pulse),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: gold.withValues(alpha: 0.50 * pulse),
+                      blurRadius: 20,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+
+              // The image itself
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF3D1278).withValues(alpha: 0.3),
+                      const Color(0xFF1A0533).withValues(alpha: 0.6),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: saffron.withValues(alpha: 0.35 * pulse),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/Guruji_Meditation.PNG',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [saffron, gold.withValues(alpha: 0.7)],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.self_improvement,
+                        size: size * 0.5,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Lotus petal shimmer overlay at bottom of image
+              Positioned(
+                bottom: 4,
+                child: Container(
+                  width: size * 0.9,
+                  height: size * 0.25,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(size),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        saffron.withValues(alpha: 0.18 * pulse),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// The glowing timer display
+  Widget _buildTimerDisplay(
+    bool isSmall,
+    Color saffron,
+    Color gold,
+    Color white,
+  ) {
+    return AnimatedBuilder(
+      animation: _breathingAnimation,
+      builder: (_, __) {
+        final glow = _isRunning ? _breathingAnimation.value : 1.0;
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isSmall ? 32 : 44,
+            vertical: isSmall ? 14 : 18,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            color: Colors.white.withValues(alpha: 0.06),
+            border: Border.all(
+              color: gold.withValues(alpha: 0.30 * glow),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: saffron.withValues(alpha: 0.20 * glow),
+                blurRadius: 30,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Text(
+            _formatDuration(_seconds),
+            style: TextStyle(
+              fontSize: isSmall ? 48 : 60,
+              fontWeight: FontWeight.w200,
+              color: white,
+              letterSpacing: 6,
+              shadows: [
+                Shadow(
+                  color: gold.withValues(alpha: 0.70 * glow),
+                  blurRadius: 16,
+                ),
+                Shadow(
+                  color: saffron.withValues(alpha: 0.40 * glow),
+                  blurRadius: 32,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Bottom control panel on dark glass card
+  Widget _buildControlPanel(
+    bool isSmall,
+    Color saffron,
+    Color gold,
+    Color white,
+  ) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, isSmall ? 16 : 20, 24, isSmall ? 24 : 32),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.10),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 36,
+            height: 3,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Buttons row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Duration picker
+              if (!_isRunning && _seconds == 0) ...[
+                _buildGlassButton(
+                  icon: Icons.timer_outlined,
+                  onPressed: _showDurationPicker,
+                  color: gold.withValues(alpha: 0.20),
+                  iconColor: gold,
+                  size: isSmall ? 52 : 60,
+                ),
+                SizedBox(width: isSmall ? 14 : 18),
+              ],
+
+              // Reset
+              if (!_isRunning && (_seconds > 0 || _targetSeconds > 0)) ...[
+                _buildGlassButton(
+                  icon: Icons.refresh,
+                  onPressed: _resetTimer,
+                  color: Colors.white.withValues(alpha: 0.10),
+                  iconColor: white.withValues(alpha: 0.60),
+                  size: isSmall ? 52 : 60,
+                ),
+                SizedBox(width: isSmall ? 14 : 18),
+              ],
+
+              // Stop
+              if (_isRunning) ...[
+                _buildGlassButton(
+                  icon: Icons.stop_rounded,
+                  onPressed: _stopTimer,
+                  color: Colors.red.withValues(alpha: 0.15),
+                  iconColor: Colors.red.shade300,
+                  size: isSmall ? 52 : 60,
+                ),
+                SizedBox(width: isSmall ? 14 : 18),
+              ],
+
+              // Play / Pause — the hero button
+              AnimatedBuilder(
+                animation: _breathingAnimation,
+                builder: (_, __) {
+                  final glow = _isRunning ? _breathingAnimation.value : 1.0;
+                  return GestureDetector(
+                    onTap: _soundsLoading && !_isRunning
+                        ? null
+                        : (_isRunning ? _pauseTimer : _startTimer),
+                    child: Container(
+                      width: isSmall ? 74 : 84,
+                      height: isSmall ? 74 : 84,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            saffron,
+                            gold.withValues(alpha: 0.85),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: saffron.withValues(alpha: 0.55 * glow),
+                            blurRadius: 24,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 6),
+                          ),
+                          BoxShadow(
+                            color: gold.withValues(alpha: 0.30 * glow),
+                            blurRadius: 40,
+                            spreadRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: _soundsLoading && !_isRunning
+                          ? const Padding(
+                              padding: EdgeInsets.all(22),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Icon(
+                              _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                              size: isSmall ? 40 : 46,
+                              color: Colors.white,
+                            ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+
+          SizedBox(height: isSmall ? 12 : 16),
+
+          // Info note
+          if (!_isLoggedIn && _seconds == 0)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, size: 14, color: white.withValues(alpha: 0.40)),
+                const SizedBox(width: 6),
+                Text(
+                  'Login to save your meditation sessions',
+                  style: TextStyle(
+                    color: white.withValues(alpha: 0.40),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    required Color iconColor,
+    double size = 60,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.20),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: size * 0.45, color: iconColor),
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    required Color iconColor,
+    double size = 60,
+  }) => _buildGlassButton(
+        icon: icon,
+        onPressed: onPressed,
+        color: color,
+        iconColor: iconColor,
+        size: size,
+      );
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String message,
+    required Color color,
+    bool isSmall = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isSmall ? 10 : 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: isSmall ? 18 : 22),
+          SizedBox(width: isSmall ? 8 : 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.9),
+                fontSize: isSmall ? 11 : 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
     
     return Scaffold(
       body: Container(

@@ -20,28 +20,33 @@ class MeditationTimerPage extends StatefulWidget {
 class _MeditationTimerPageState extends State<MeditationTimerPage>
     with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  
+
+  // Two separate players so start and end sounds never conflict with each other
+  final AudioPlayer _startPlayer = AudioPlayer();
+  final AudioPlayer _endPlayer = AudioPlayer();
+
   // Timer state
   Timer? _timer;
   int _seconds = 0;
-  int _targetSeconds = 0; // 0 means no target (free meditation)
+  int _targetSeconds = 0;
   bool _isRunning = false;
-  bool _hasStarted = false; // Track if meditation has started (to prevent start sound on resume)
+  bool _hasStarted = false;
   DateTime? _startTime;
-  
+
   // Auth state — uses cached AuthState, works offline
   bool get _isLoggedIn => AuthState().isAuthenticated;
-  
-  // CDN Configuration
-  static const String _cdnBaseUrl = 'https://pub-feda269d36484d78b7cfc71353b6d67c.r2.dev';
-  static const String _audioBasePath = 'audio/meditation';
-  
-  // Cached audio file paths
-  String? _cachedStartSoundPath;
-  String? _cachedEndSoundPath;
-  bool _soundsReady = false; // Flag to track if sounds are downloaded and ready
-  
+
+  // Cached audio file paths (kept for debug logging only)
+  String? _cachedStartSoundPath;  // ignore: unused_field
+  String? _cachedEndSoundPath;    // ignore: unused_field
+
+  // Preload states: 'idle' | 'loading' | 'ready' | 'error'
+  String _startSoundState = 'idle';
+  String _endSoundState = 'idle';
+
+  bool get _soundsLoading =>
+      _startSoundState == 'idle' || _endSoundState == 'idle';
+
   // Animation
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
@@ -53,12 +58,12 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat(reverse: true);
-    
+
     _breathingAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
-    
-    // Download and cache meditation sounds on init
+
+    // Download, cache, AND pre-buffer both sounds on page open
     _downloadAndCacheSounds();
   }
 
@@ -66,227 +71,180 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   void dispose() {
     _timer?.cancel();
     _breathingController.dispose();
-    _audioPlayer.dispose();
+    _startPlayer.dispose();
+    _endPlayer.dispose();
     super.dispose();
   }
 
-  /// Download meditation sounds from API based on user's language
+  /// Fetch URLs from API, download to disk, then pre-buffer into the players
+  /// so playback starts instantly with zero latency.
   Future<void> _downloadAndCacheSounds() async {
     try {
-      // Get current language from LocalizationService
-      final currentLocale = LocalizationService().currentLocale;
-      final languageCode = currentLocale.languageCode;
-      
-      // Map language code to database language name
+      final languageCode = LocalizationService().currentLocale.languageCode;
       final languageMap = {
         'en': 'english',
         'hi': 'hindi',
         'te': 'telugu',
         'kn': 'kannada',
       };
-      
       final dbLanguage = languageMap[languageCode] ?? 'english';
-      
-      debugPrint('Fetching meditation sounds for language: $dbLanguage (code: $languageCode)');
-      
-      // Fetch meditation sounds from API
+
+      debugPrint('Fetching meditation sounds for language: $dbLanguage');
+
       final response = await _apiService.get(
         '/api/audios',
-        queryParameters: {
-          'category': 'meditation_sound',
-          'language': dbLanguage,
-        },
+        queryParameters: {'category': 'meditation_sound', 'language': dbLanguage},
       );
-      
+
       if (response['success'] == true && response['audios'] != null) {
         final audios = response['audios'] as List;
-        
-        // Find start and end sounds
-        final startSound = audios.firstWhere(
-          (audio) => audio['title']?.toString().contains('Start') ?? false,
-          orElse: () => null,
-        );
-        
-        final endSound = audios.firstWhere(
-          (audio) => audio['title']?.toString().contains('End') ?? false,
-          orElse: () => null,
-        );
-        
-        // Download and cache start sound
-        if (startSound != null && startSound['audio_url'] != null) {
-          _cachedStartSoundPath = await _downloadAndCacheAudioFromUrl(
-            startSound['audio_url'],
-            'meditation_start_$dbLanguage.mp3',
-          );
-          debugPrint('✅ Start sound cached: $_cachedStartSoundPath');
-        }
-        
-        // Download and cache end sound
-        if (endSound != null && endSound['audio_url'] != null) {
-          _cachedEndSoundPath = await _downloadAndCacheAudioFromUrl(
-            endSound['audio_url'],
-            'meditation_end_$dbLanguage.mp3',
-          );
-          debugPrint('✅ End sound cached: $_cachedEndSoundPath');
-        }
-        
-        if (_cachedStartSoundPath != null && _cachedEndSoundPath != null) {
-          setState(() {
-            _soundsReady = true;
-          });
-          debugPrint('✅ All meditation sounds cached successfully and ready to play');
-        } else {
-          debugPrint('⚠️ Some meditation sounds could not be cached');
-        }
-      } else {
-        debugPrint('⚠️ No meditation sounds found in API response');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('⚠️ Error fetching meditation sounds: $e');
-      debugPrint('Stack trace: $stackTrace');
-    }
-  }
 
-  /// Download and cache audio file from URL
-  Future<String?> _downloadAndCacheAudioFromUrl(String audioUrl, String filename) async {
-    try {
-      // Get cache directory
-      final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/meditation_sounds');
-      
-      // Create cache directory if it doesn't exist
-      if (!await cacheDir.exists()) {
-        await cacheDir.create(recursive: true);
-      }
-      
-      // Check if file already exists in cache
-      final cachedFile = File('${cacheDir.path}/$filename');
-      if (await cachedFile.exists()) {
-        debugPrint('✅ Using cached file: ${cachedFile.path}');
-        return cachedFile.path;
-      }
-      
-      // Download from URL
-      debugPrint('Downloading meditation sound from: $audioUrl');
-      
-      final response = await http.get(Uri.parse(audioUrl));
-      
-      if (response.statusCode == 200) {
-        // Save to cache
-        await cachedFile.writeAsBytes(response.bodyBytes);
-        debugPrint('✅ Downloaded and cached: ${cachedFile.path} (${response.bodyBytes.length} bytes)');
-        return cachedFile.path;
+        final startAudio = audios.firstWhere(
+          (a) => a['title']?.toString().contains('Start') ?? false,
+          orElse: () => null,
+        );
+        final endAudio = audios.firstWhere(
+          (a) => a['title']?.toString().contains('End') ?? false,
+          orElse: () => null,
+        );
+
+        // Download both in parallel
+        await Future.wait([
+          if (startAudio?['audio_url'] != null)
+            _cacheAndPreload(
+              url: startAudio['audio_url'] as String,
+              filename: 'meditation_start_$dbLanguage.mp3',
+              player: _startPlayer,
+              onReady: () {
+                if (mounted) setState(() => _startSoundState = 'ready');
+              },
+              onError: () {
+                if (mounted) setState(() => _startSoundState = 'error');
+              },
+            ),
+          if (endAudio?['audio_url'] != null)
+            _cacheAndPreload(
+              url: endAudio['audio_url'] as String,
+              filename: 'meditation_end_$dbLanguage.mp3',
+              player: _endPlayer,
+              onReady: () {
+                if (mounted) setState(() => _endSoundState = 'ready');
+              },
+              onError: () {
+                if (mounted) setState(() => _endSoundState = 'error');
+              },
+            ),
+        ]);
+
+        debugPrint('✅ Meditation sounds ready — start:$_startSoundState end:$_endSoundState');
       } else {
-        debugPrint('❌ Download failed: ${response.statusCode}');
-        return null;
+        debugPrint('⚠️ No meditation sounds in API response');
+        if (mounted) {
+          setState(() {
+            _startSoundState = 'error';
+            _endSoundState = 'error';
+          });
+        }
       }
     } catch (e) {
-      debugPrint('❌ Error downloading audio from URL: $e');
-      return null;
+      debugPrint('⚠️ Error fetching meditation sounds: $e');
+      if (mounted) {
+        setState(() {
+          _startSoundState = 'error';
+          _endSoundState = 'error';
+        });
+      }
     }
   }
 
-  Future<void> _playStartSound() async {
+  /// Download audio to disk (skips if already cached), then pre-buffer it
+  /// into [player] so it's ready for instant playback.
+  Future<void> _cacheAndPreload({
+    required String url,
+    required String filename,
+    required AudioPlayer player,
+    required VoidCallback onReady,
+    required VoidCallback onError,
+  }) async {
     try {
-      debugPrint('Attempting to play meditation start sound... (soundsReady: $_soundsReady)');
-      
-      // Check if sounds are ready
-      if (!_soundsReady) {
-        debugPrint('⚠️ Start sound not ready yet - still downloading');
-        return;
-      }
-      
-      // Use cached file
-      if (_cachedStartSoundPath != null && await File(_cachedStartSoundPath!).exists()) {
-        debugPrint('Playing cached start sound: $_cachedStartSoundPath');
-        await _audioPlayer.setFilePath(_cachedStartSoundPath!);
-        
-        // Set volume and play
-        await _audioPlayer.setVolume(1.0);
-        await _audioPlayer.play();
-        
-        debugPrint('✅ Start sound playing');
+      final directory = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${directory.path}/meditation_sounds');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+
+      final cachedFile = File('${cacheDir.path}/$filename');
+
+      if (!await cachedFile.exists()) {
+        debugPrint('Downloading: $url');
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) {
+          await cachedFile.writeAsBytes(response.bodyBytes);
+          debugPrint('✅ Cached: ${cachedFile.path}');
+        } else {
+          debugPrint('❌ Download failed (${response.statusCode}): $url');
+          onError();
+          return;
+        }
       } else {
-        debugPrint('⚠️ Start sound file not found - please check internet connection');
+        debugPrint('✅ Using cached: ${cachedFile.path}');
       }
-    } catch (e, stackTrace) {
-      debugPrint('❌ Error playing start sound: $e');
-      debugPrint('Stack trace: $stackTrace');
+
+      // Pre-buffer: load the file into the player NOW so play() is instant
+      await player.setFilePath(cachedFile.path);
+      // Load without playing — just buffers the audio into memory
+      await player.load();
+
+      // Store path for reference
+      if (filename.contains('start')) {
+        _cachedStartSoundPath = cachedFile.path;
+      } else {
+        _cachedEndSoundPath = cachedFile.path;
+      }
+
+      onReady();
+    } catch (e) {
+      debugPrint('❌ Error caching/preloading $filename: $e');
+      onError();
     }
   }
 
-  Future<void> _playEndSound() async {
+  /// Play the start sound and wait until it actually begins playing,
+  /// then start the timer — ensures audio and timer are in sync.
+  Future<void> _playStartSoundAndBeginTimer() async {
+    if (_startSoundState != 'ready') {
+      // Sound not ready — start timer anyway but skip sound
+      debugPrint('⚠️ Start sound not ready, starting timer without audio');
+      _beginTimerTick();
+      return;
+    }
+
     try {
-      debugPrint('Attempting to play meditation end sound... (soundsReady: $_soundsReady)');
-      
-      // Check if sounds are ready
-      if (!_soundsReady) {
-        debugPrint('⚠️ End sound not ready yet - still downloading');
-        return;
-      }
-      
-      // Use cached file
-      if (_cachedEndSoundPath != null && await File(_cachedEndSoundPath!).exists()) {
-        debugPrint('Playing cached end sound: $_cachedEndSoundPath');
-        await _audioPlayer.setFilePath(_cachedEndSoundPath!);
-        
-        // Set volume and play
-        await _audioPlayer.setVolume(1.0);
-        await _audioPlayer.play();
-        
-        // Wait for completion
-        await _audioPlayer.playerStateStream.firstWhere(
-          (state) => state.processingState == ProcessingState.completed,
-        );
-        
-        debugPrint('✅ End sound completed');
-      } else {
-        debugPrint('⚠️ End sound file not found - please check internet connection');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('❌ Error playing end sound: $e');
-      debugPrint('Stack trace: $stackTrace');
+      // Seek to beginning in case it was played before
+      await _startPlayer.seek(Duration.zero);
+      await _startPlayer.play();
+
+      // Wait until the player is actually playing (buffered and started)
+      await _startPlayer.playerStateStream.firstWhere(
+        (s) =>
+            s.playing ||
+            s.processingState == ProcessingState.completed,
+      ).timeout(const Duration(seconds: 3));
+
+      debugPrint('✅ Start sound playing — starting timer');
+    } catch (e) {
+      debugPrint('⚠️ Start sound timeout/error, starting timer anyway: $e');
     }
+
+    // Timer starts exactly when audio starts
+    _beginTimerTick();
   }
 
-  Future<void> _startTimer() async {
-    if (_isRunning) return;
-    
-    // Check if sounds are ready before starting
-    if (!_soundsReady && !_hasStarted) {
-      // Show warning that sounds are still downloading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Meditation sounds are still loading. Starting timer anyway...'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-    
-    setState(() {
-      _isRunning = true;
-      _startTime = _startTime ?? DateTime.now();
-      if (_targetSeconds > 0 && _seconds == 0) {
-        _seconds = _targetSeconds;
-      }
-    });
-    
-    // Play start sound only on very first start.
-    // Do NOT play again on resume — the audio player may still be active.
-    if (!_hasStarted) {
-      _hasStarted = true;
-      _playStartSound(); // Fire and forget
-    } else {
-      // Resume: only play if the player is paused (not already playing)
-      if (!_audioPlayer.playing &&
-          _audioPlayer.processingState != ProcessingState.idle &&
-          _audioPlayer.processingState != ProcessingState.completed) {
-        _audioPlayer.play();
-      }
-    }
-    
+  void _beginTimerTick() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         if (_targetSeconds > 0) {
           _seconds--;
@@ -301,36 +259,78 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     });
   }
 
+  Future<void> _playEndSound() async {
+    if (_endSoundState != 'ready') {
+      debugPrint('⚠️ End sound not ready, skipping');
+      return;
+    }
+    try {
+      await _endPlayer.seek(Duration.zero);
+      await _endPlayer.play();
+
+      // Wait for completion so the dialog shows after the sound finishes
+      await _endPlayer.playerStateStream.firstWhere(
+        (s) => s.processingState == ProcessingState.completed,
+      ).timeout(const Duration(seconds: 10));
+
+      debugPrint('✅ End sound completed');
+    } catch (e) {
+      debugPrint('⚠️ End sound error: $e');
+    }
+  }
+
+  Future<void> _startTimer() async {
+    if (_isRunning) return;
+
+    if (!mounted) return;
+    setState(() {
+      _isRunning = true;
+      _startTime = _startTime ?? DateTime.now();
+      if (_targetSeconds > 0 && _seconds == 0) {
+        _seconds = _targetSeconds;
+      }
+    });
+
+    if (!_hasStarted) {
+      // Very first start — play the start sound and begin the timer
+      // only once the audio is confirmed playing (keeps them in sync).
+      _hasStarted = true;
+      await _playStartSoundAndBeginTimer();
+    } else {
+      // Resume after pause — resume the start-sound player if it was paused
+      if (_startPlayer.processingState != ProcessingState.idle &&
+          _startPlayer.processingState != ProcessingState.completed &&
+          !_startPlayer.playing) {
+        _startPlayer.play();
+      }
+      _beginTimerTick();
+    }
+  }
+
   void _pauseTimer() {
     if (!_isRunning) return;
-    
-    setState(() {
-      _isRunning = false;
-    });
-    
+
     _timer?.cancel();
-    
-    // Pause the audio if it's playing
-    if (_audioPlayer.playing) {
-      _audioPlayer.pause();
-    }
+    if (mounted) setState(() => _isRunning = false);
+
+    // Pause the start-sound if it's still playing
+    if (_startPlayer.playing) _startPlayer.pause();
   }
 
   Future<void> _completeTimer() async {
     _timer?.cancel();
-    
-    setState(() {
-      _isRunning = false;
-    });
-    
+    if (_startPlayer.playing) _startPlayer.pause();
+    if (mounted) setState(() => _isRunning = false);
+
     final endTime = DateTime.now();
-    final actualDuration = _targetSeconds > 0 ? _targetSeconds : _seconds;
-    final startTime = _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
-    
-    // Play end sound and wait for it to complete
+    final actualDuration =
+        _targetSeconds > 0 ? _targetSeconds : _seconds;
+    final startTime =
+        _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
+
+    // Play end sound — already pre-buffered
     await _playEndSound();
-    
-    // Now show the dialog after sound completes
+
     if (!mounted) return;
     
     // Auto-save for logged-in users
@@ -428,21 +428,21 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _stopTimer() async {
     if (_seconds == 0 && _targetSeconds == 0) return;
-    
-    // Stop timer immediately
+
     _timer?.cancel();
-    
-    setState(() {
-      _isRunning = false;
-    });
-    
+    if (_startPlayer.playing) _startPlayer.pause();
+
+    if (mounted) setState(() => _isRunning = false);
+
     final endTime = DateTime.now();
-    final actualDuration = _targetSeconds > 0 ? (_targetSeconds - _seconds) : _seconds;
-    final startTime = _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
-    
-    // Play end sound and wait for it to complete
+    final actualDuration =
+        _targetSeconds > 0 ? (_targetSeconds - _seconds) : _seconds;
+    final startTime =
+        _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
+
+    // Play end sound — it's already pre-buffered so this is instant
     await _playEndSound();
-    
+
     if (!mounted) return;
     
     // Check if user is logged in
@@ -1153,13 +1153,23 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: _isRunning ? _pauseTimer : _startTimer,
+                              onTap: _soundsLoading && !_isRunning
+                                  ? null // Disable while sounds are loading
+                                  : (_isRunning ? _pauseTimer : _startTimer),
                               customBorder: const CircleBorder(),
-                              child: Icon(
-                                _isRunning ? Icons.pause : Icons.play_arrow,
-                                size: isSmallScreen ? 38 : 44,
-                                color: Colors.white,
-                              ),
+                              child: _soundsLoading && !_isRunning
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(20),
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _isRunning ? Icons.pause : Icons.play_arrow,
+                                      size: isSmallScreen ? 38 : 44,
+                                      color: Colors.white,
+                                    ),
                             ),
                           ),
                         ),

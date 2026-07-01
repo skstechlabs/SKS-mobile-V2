@@ -176,7 +176,11 @@ class MainActivity : FlutterActivity() {
                     "setWallpaper" -> {
                         val path = call.argument<String>("path")
                         if (path == null) { result.error("INVALID_ARGUMENT", "path required", null); return@setMethodCallHandler }
-                        result.success(setWallpaper(path))
+                        // setLockScreen defaults to false — only change home screen wallpaper.
+                        // This prevents overwriting WhatsApp and other apps that read the
+                        // lock screen wallpaper from the system.
+                        val setLockScreen = call.argument<Boolean>("setLockScreen") ?: false
+                        result.success(setWallpaper(path, setLockScreen = setLockScreen))
                     }
                     "scheduleWallpaperAlarm" -> {
                         val intervalMs = call.argument<Long>("intervalMs") ?: (15 * 60 * 1000L)
@@ -444,12 +448,16 @@ class MainActivity : FlutterActivity() {
     // ── Wallpaper ──────────────────────────────────────────────────────────────
 
     /**
-     * Sets the wallpaper scaled to fit the screen without stretching.
-     * Uses FIT_CENTER: scales the image to fit within the screen dimensions
-     * while preserving aspect ratio. Black bars appear on sides/top if needed,
-     * but the image is never distorted.
+     * Sets the home screen wallpaper (and optionally the lock screen wallpaper).
+     *
+     * By default [setLockScreen] is false, so only FLAG_SYSTEM (home screen) is
+     * set. This avoids overwriting the lock screen wallpaper used by WhatsApp
+     * and other messaging apps that read it from the system.
+     *
+     * The image is scaled to fit the screen without stretching (FIT_CENTER):
+     * letterbox/pillarbox bars are black if the aspect ratio doesn't match.
      */
-    private fun setWallpaper(filePath: String): Boolean {
+    private fun setWallpaper(filePath: String, setLockScreen: Boolean = false): Boolean {
         return try {
             val file = File(filePath)
             if (!file.exists()) { println("❌ Wallpaper file not found: $filePath"); return false }
@@ -472,11 +480,9 @@ class MainActivity : FlutterActivity() {
             val scaledW: Int
             val scaledH: Int
             if (imageAspect > screenAspect) {
-                // Image is wider — fit to width, letterbox top/bottom
                 scaledW = targetW
                 scaledH = (targetW / imageAspect).toInt()
             } else {
-                // Image is taller — fit to height, pillarbox left/right
                 scaledH = targetH
                 scaledW = (targetH * imageAspect).toInt()
             }
@@ -484,27 +490,35 @@ class MainActivity : FlutterActivity() {
             val scaled = android.graphics.Bitmap.createScaledBitmap(originalBitmap, scaledW, scaledH, true)
 
             // Create canvas with screen size, black background, image centered
-            val canvas_bmp = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(canvas_bmp)
+            val canvasBmp = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(canvasBmp)
             canvas.drawColor(android.graphics.Color.BLACK)
             val left = (targetW - scaledW) / 2f
-            val top = (targetH - scaledH) / 2f
+            val top  = (targetH - scaledH) / 2f
             canvas.drawBitmap(scaled, left, top, null)
 
             println("✨ Scaled: ${scaledW}×${scaledH}, centered at (${left.toInt()},${top.toInt()})")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 val screenRect = android.graphics.Rect(0, 0, targetW, targetH)
-                wallpaperManager.setBitmap(canvas_bmp, screenRect, true,
-                    WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+                // Only FLAG_SYSTEM by default — FLAG_LOCK would overwrite the
+                // lock screen wallpaper used by WhatsApp and other apps.
+                val flags = if (setLockScreen)
+                    WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+                else
+                    WallpaperManager.FLAG_SYSTEM
+                wallpaperManager.setBitmap(canvasBmp, screenRect, true, flags)
+                println("✅ Wallpaper set (home=${true}, lockScreen=$setLockScreen)")
             } else {
-                wallpaperManager.setBitmap(canvas_bmp)
+                // Pre-N: setBitmap always sets both home and lock
+                wallpaperManager.setBitmap(canvasBmp)
+                println("✅ Wallpaper set (legacy, pre-Android 7)")
             }
 
             if (scaled != originalBitmap) originalBitmap.recycle()
             scaled.recycle()
+            canvasBmp.recycle()
 
-            println("✅ Wallpaper set — fit to screen, no stretching")
             true
         } catch (e: Exception) {
             println("❌ setWallpaper error: ${e.message}")

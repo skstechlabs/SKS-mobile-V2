@@ -82,9 +82,11 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true">
+            android:windowSoftInputMode="adjustResize">
+            <!-- NOTE: android:showWhenLocked and android:turnScreenOn were removed.
+                 Those flags caused the app to bypass the device lock screen, which
+                 is a security issue and a Play Store policy violation.
+                 The app now respects the device's standard lock screen behavior. -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>

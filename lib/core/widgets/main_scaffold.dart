@@ -173,23 +173,8 @@ class _MainScaffoldState extends State<MainScaffold> {
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Mini Audio Player — sits above the nav bar, below the bell button
-            GestureDetector(
-              onTap: () {
-                try {
-                  if (_audioService.currentSong != null) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Audio player will open here')),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  debugPrint('Error handling audio player tap: $e');
-                }
-              },
-              child: const MiniAudioPlayer(),
-            ),
+            // Mini Audio Player — sits above the nav bar
+            const MiniAudioPlayer(),
             Container(
               decoration: BoxDecoration(
                 boxShadow: [

@@ -24,7 +24,12 @@ class WallpaperService {
   static const String _prefKeyCachedWallpapers = 'wallpaper_cached_list';
   // Key used by the native receiver to read cached URLs
   static const String _prefKeyCachedUrls = 'wallpaper_cached_urls';
+  // Key that tracks when the CDN list was last refreshed
+  static const String _prefKeyListFetchedAt = 'wallpaper_list_fetched_at';
   static const Duration _rotationInterval = Duration(minutes: 15);
+  // How long to treat the fetched wallpaper list as fresh before re-checking CDN.
+  // Using 1 hour so new wallpapers added to the CDN appear within the hour.
+  static const Duration _listCacheTtl = Duration(hours: 1);
 
   Dio? _dio;
   List<Map<String, dynamic>> _wallpapers = [];
@@ -58,34 +63,30 @@ class WallpaperService {
 
   /// Initialize the wallpaper service
   Future<void> initialize() async {
-    if (_isInitializing || _isLoaded) {
-      debugPrint('ℹ️ WallpaperService already initialized or initializing');
+    if (_isInitializing) {
+      debugPrint('ℹ️ WallpaperService already initializing');
       return;
     }
 
     _isInitializing = true;
     try {
-      // Initialize Dio (using getter ensures it's created)
       final _ = _dioInstance;
-
       await _loadWallpapersFromAPI();
       debugPrint('✅ WallpaperService initialized with ${_wallpapers.length} wallpapers from CDN');
       
-      // Start auto-rotation timer if enabled
       final enabled = await isEnabled();
       if (enabled) {
         _startAutoRotation();
       }
     } catch (e) {
       debugPrint('❌ WallpaperService initialization failed: $e');
-      // Try to load from cache
       await _loadWallpapersFromCache();
     } finally {
       _isInitializing = false;
     }
   }
 
-  /// Load wallpapers from API
+  /// Load wallpapers from API and persist the fetch timestamp.
   Future<void> _loadWallpapersFromAPI() async {
     try {
       final baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
@@ -98,8 +99,12 @@ class WallpaperService {
         _wallpapers = List<Map<String, dynamic>>.from(response.data['wallpapers']);
         _isLoaded = true;
         
-        // Cache the wallpapers list
+        // Persist the list AND record when we fetched it (for TTL checks)
         await _cacheWallpapers();
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+            _prefKeyListFetchedAt, DateTime.now().toIso8601String());
         
         debugPrint('✅ Loaded ${_wallpapers.length} wallpapers from CDN');
       }
@@ -142,17 +147,35 @@ class WallpaperService {
     }
   }
 
-  /// Ensure wallpapers are loaded
+  /// Ensure wallpapers are loaded — refreshes from CDN if the cached list
+  /// is older than [_listCacheTtl] (1 hour) so new wallpapers always appear.
   Future<void> _ensureLoaded() async {
-    if (!_isLoaded || _wallpapers.isEmpty) {
-      // Initialize if not done yet
-      if (!_isInitializing) {
-        await initialize();
-      }
-      
-      // If still not loaded, try again
-      if (!_isLoaded || _wallpapers.isEmpty) {
-        await _loadWallpapersFromAPI();
+    // Check if the in-memory list has passed the TTL
+    if (_isLoaded && _wallpapers.isNotEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final fetchedAtStr = prefs.getString(_prefKeyListFetchedAt);
+        if (fetchedAtStr != null) {
+          final fetchedAt = DateTime.parse(fetchedAtStr);
+          if (DateTime.now().difference(fetchedAt) < _listCacheTtl) {
+            return; // Still fresh — use the cached list
+          }
+          debugPrint('🔄 Wallpaper list TTL expired — refreshing from CDN');
+        }
+      } catch (_) {}
+      // TTL expired or couldn't read timestamp → force refresh
+      _isLoaded = false;
+    }
+
+    if (_isInitializing) return;
+
+    try {
+      await _loadWallpapersFromAPI();
+    } catch (e) {
+      debugPrint('⚠️ CDN refresh failed, using in-memory list: $e');
+      // If we at least have something in memory, don't fail
+      if (_wallpapers.isEmpty) {
+        await _loadWallpapersFromCache();
       }
     }
   }
@@ -411,9 +434,13 @@ class WallpaperService {
     }
   }
 
-  /// Get list of all available wallpapers
-  Future<List<String>> getAvailableWallpapers() async {
+  /// Get list of all available wallpapers.
+  /// Always checks for new CDN wallpapers when called from the settings page.
+  Future<List<String>> getAvailableWallpapers({bool forceRefresh = false}) async {
     try {
+      if (forceRefresh) {
+        _isLoaded = false;
+      }
       await _ensureLoaded();
       return _wallpapers.map((w) => w['url'] as String).toList();
     } catch (e) {

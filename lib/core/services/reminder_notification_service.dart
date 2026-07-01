@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -81,13 +82,25 @@ class ReminderNotificationService {
     if (!_initialized) await initialize();
 
     try {
-      // Android 13+ requires runtime permission
+      // Android 13+ requires runtime permission for POST_NOTIFICATIONS
       final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       
       if (androidPlugin != null) {
         final granted = await androidPlugin.requestNotificationsPermission();
         debugPrint('📱 Android notification permission: ${granted ?? false}');
+
+        // Android 12+ (API 31+): Request exact alarm permission.
+        // Without this, exactAllowWhileIdle scheduling throws a PlatformException.
+        // requestExactAlarmsPermission() opens Settings on Android 12+ so the user
+        // can grant it — does nothing on older versions.
+        try {
+          await androidPlugin.requestExactAlarmsPermission();
+          debugPrint('📱 Exact alarm permission requested');
+        } catch (e) {
+          debugPrint('⚠️ Exact alarm permission request failed (non-critical): $e');
+        }
+
         return granted ?? false;
       }
 
@@ -214,18 +227,37 @@ class ReminderNotificationService {
           iOS: iosDetails,
         );
 
-        // Schedule the notification
-        await _notifications.zonedSchedule(
-          notificationId,
-          title,
-          message ?? 'Time for your spiritual practice',
-          scheduledDate,
-          details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-        );
+        // Schedule the notification — use exact alarm if available, fall back
+        // to inexact on Android 12+ when SCHEDULE_EXACT_ALARM is not granted.
+        try {
+          await _notifications.zonedSchedule(
+            notificationId,
+            title,
+            message ?? 'Time for your spiritual practice',
+            scheduledDate,
+            details,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+          );
+        } on PlatformException catch (pe) {
+          // On Android 12+ the exact alarm permission may not be granted.
+          // Fall back to an inexact (approximate) alarm — still fires, just
+          // may be a few minutes off.
+          debugPrint('⚠️ Exact alarm denied (${pe.code}), falling back to inexact: $pe');
+          await _notifications.zonedSchedule(
+            notificationId,
+            title,
+            message ?? 'Time for your spiritual practice',
+            scheduledDate,
+            details,
+            androidScheduleMode: AndroidScheduleMode.inexact,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+          );
+        }
 
         debugPrint('✅ Scheduled reminder $notificationId: $title on day $dayOfWeek at $reminderTime');
       }

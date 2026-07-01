@@ -109,6 +109,8 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
   }
 
   String _formatTime(TimeOfDay time) {
+    // Backend requires strict HH:MM format (two digits each, 24-hour)
+    // e.g. "06:00", "14:30" — NOT "6:00" or "6:00 AM"
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';

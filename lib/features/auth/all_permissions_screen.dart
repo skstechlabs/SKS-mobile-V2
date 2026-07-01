@@ -73,6 +73,12 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
       return;
     }
 
+    // Give OneSignal a brief moment to sync its permission state from the OS.
+    // The synchronous .permission getter can return false immediately after a
+    // cold start even when the user already granted permission on a prior launch.
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+
     final notification = await _oneSignal.hasPermission();
     final notifStatus = await _oneSignal.getPermissionStatus();
     final permanentlyDenied = notifStatus == OSNotificationPermission.denied;

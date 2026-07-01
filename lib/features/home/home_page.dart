@@ -16,6 +16,7 @@ import '../../core/widgets/cached_image.dart';
 
 import '../chakras/chakra_detail_page.dart';
 import '../songs/all_songs_page.dart';
+import '../audio/now_playing_screen.dart';
 import '../guru_journey/guru_journey_page.dart';
 import '../kundalini_science/kundalini_science_page.dart';
 import '../benefits/benefits_page.dart';
@@ -1679,22 +1680,39 @@ class _HomePageState extends State<HomePage>
               }
 
               if (isCurrentlyPlaying) {
-                // If playing, pause it
-                await _audioService.pause();
+                // Already playing → open the full player
+                if (mounted) {
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+                      transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                            parent: anim, curve: Curves.easeOutCubic)),
+                        child: child,
+                      ),
+                      transitionDuration: const Duration(milliseconds: 350),
+                    ),
+                  );
+                }
               } else {
-                // If not playing or different song, play it
+                // Start playback then open player
                 await _audioService.playSong(meditations, 0);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Playing "${firstMeditation.title}"'),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                      margin: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).size.height - 100,
-                        left: 10,
-                        right: 10,
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+                      transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                            parent: anim, curve: Curves.easeOutCubic)),
+                        child: child,
                       ),
+                      transitionDuration: const Duration(milliseconds: 350),
                     ),
                   );
                 }
@@ -1897,9 +1915,41 @@ class _HomePageState extends State<HomePage>
         final index = bhajans.indexWhere((b) => b.id == bhajan.id);
         if (index != -1) {
           if (isCurrentSong && _audioService.isPlaying) {
-            await _audioService.pause();
+            // Already playing this song → open the full player
+            if (mounted) {
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+                  transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                        parent: anim, curve: Curves.easeOutCubic)),
+                    child: child,
+                  ),
+                  transitionDuration: const Duration(milliseconds: 350),
+                ),
+              );
+            }
           } else {
             await _audioService.playSong(bhajans, index);
+            if (mounted) {
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+                  transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                        parent: anim, curve: Curves.easeOutCubic)),
+                    child: child,
+                  ),
+                  transitionDuration: const Duration(milliseconds: 350),
+                ),
+              );
+            }
           }
         }
       },

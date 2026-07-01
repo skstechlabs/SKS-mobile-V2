@@ -15,6 +15,7 @@ import 'core/services/notification_storage_service.dart';
 import 'core/services/localization_service.dart';
 import 'core/services/enhanced_audio_player_service.dart';
 import 'core/services/version_migration_service.dart';
+import 'core/services/secure_storage_service.dart';
 import 'core/providers/audio_provider.dart';
 import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
@@ -22,86 +23,99 @@ import 'features/auth/auth_state.dart';
 import 'core/services/connectivity_service.dart';
 import 'firebase_options.dart';
 
-void main() async {
+/// Safe wrapper: run [fn] and swallow any exception, logging with [label].
+Future<void> _safe(String label, Future<void> Function() fn) async {
   try {
-    WidgetsFlutterBinding.ensureInitialized();
+    await fn();
+    developer.log('✅ $label');
+  } catch (e, st) {
+    developer.log('❌ $label failed: $e', stackTrace: st);
+  }
+}
 
-    developer.log('========================================');
-    developer.log('🔍 CHECKING ENVIRONMENT CONFIGURATION');
-    developer.log('========================================');
+void main() async {
+  // Always guaranteed first — required before any Flutter plugin call.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  developer.log('========================================');
+  developer.log('🚀 APP STARTING');
+  developer.log('========================================');
+
+  try {
+    await _runInitialization();
+  } catch (e, st) {
+    // This should never happen because _runInitialization swallows all errors,
+    // but as an absolute last resort we still launch the app.
+    developer.log('💥 CRITICAL: initialization threw: $e', stackTrace: st);
+  }
+
+  runApp(const SpiritualApp());
+
+  // ── Deferred post-runApp work ────────────────────────────────────────────
+  // These fire after the first frame is rendered — never block startup.
+  Future.microtask(() async {
+    await _safe('AudioProvider (deferred)', () => AudioProvider().initialize());
+
+    if (!kIsWeb) {
+      await _safe('OneSignal post-runApp re-link', () async {
+        final auth = AuthState();
+        if (auth.user != null) {
+          OneSignal.login(auth.user!.uid);
+          if (OneSignal.Notifications.permission) {
+            OneSignal.User.pushSubscription.optIn();
+          }
+        }
+      });
+    }
+  });
+}
+
+/// All initialization logic lives here so that a rethrow in any step doesn't
+/// bypass `runApp()`. Every step uses `_safe()` or has its own try-catch.
+Future<void> _runInitialization() async {
+  // ── 1. Environment check (synchronous, never throws) ──────────────────────
+  try {
     EnvironmentChecker.checkEnvironment();
-
     if (!EnvironmentChecker.isConfigured()) {
-      developer.log('⚠️⚠️⚠️ WARNING: Environment not configured! ⚠️⚠️⚠️');
+      developer.log('⚠️ WARNING: Environment not fully configured');
     }
+  } catch (_) {}
 
-    // ── Version Migration: Run FIRST to handle app upgrades ──
-    // This clears stale caches that may cause issues after APK updates
-    try {
-      await VersionMigrationService.instance.initialize();
-      developer.log('✅ Version migration check complete');
-    } catch (e) {
-      developer.log('⚠️ Version migration check failed: $e');
-      // Continue anyway - app should still work
-    }
+  // ── 2. Version migration — must run before any cache is read ─────────────
+  await _safe('VersionMigration', () => VersionMigrationService.instance.initialize());
 
-    // Firebase - CRITICAL: Must succeed or app cannot function
-    try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      developer.log('✅ Firebase initialized successfully');
-    } catch (e) {
-      developer.log('❌ CRITICAL: Firebase initialization failed: $e');
-      developer.log('Stack trace: ${StackTrace.current}');
-      // Rethrow to prevent app from continuing without Firebase
-      rethrow;
-    }
+  // ── 3. Firebase — CRITICAL. Without it auth and notifications won't work,
+  //    but we still launch the app so the user sees something useful.  ────────
+  bool firebaseOk = false;
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    firebaseOk = true;
+    developer.log('✅ Firebase initialized');
+  } catch (e) {
+    developer.log('❌ Firebase FAILED: $e — app will launch without auth');
+  }
 
-    // API Service
-    try {
-      ApiService().initialize();
-      developer.log('✅ API Service initialized');
-    } catch (e) {
-      developer.log('❌ API Service init failed: $e');
-    }
+  // ── 4. SecureStorageService — must come before ApiService (token fallback) ─
+  _safe('SecureStorageService', () async => SecureStorageService().initialize());
 
-    // Run non-critical services in parallel to speed up startup
-    await Future.wait([
-      // Notification Storage
-      NotificationStorageService().initialize().then((_) {
-        developer.log('✅ Notification Storage initialized');
-      }).catchError((e) {
-        developer.log('❌ Notification Storage init failed: $e');
-      }),
+  // ── 5. ApiService — must come before Localization (lang backend sync) ──────
+  _safe('ApiService', () async => ApiService().initialize());
 
-      // Localization — must complete before UI, keep sequential below
-      Future.value(),
+  // ── 6. Parallel non-critical services ─────────────────────────────────────
+  await Future.wait([
+    _safe('NotificationStorage', () => NotificationStorageService().initialize()),
+    _safe('ConnectivityService', () => ConnectivityService().initialize()),
+  ]);
 
-      // ConnectivityService
-      ConnectivityService().initialize().then((_) {
-        developer.log('✅ ConnectivityService initialized');
-      }).catchError((e) {
-        developer.log('❌ ConnectivityService init failed: $e');
-      }),
-    ]);
+  // ── 7. Localization — must complete before runApp so tr() works ───────────
+  await _safe('LocalizationService', () => LocalizationService().initialize());
 
-    // Localization — must be ready before runApp
-    try {
-      await LocalizationService().initialize();
-      developer.log('✅ Localization initialized');
-    } catch (e) {
-      developer.log('❌ Localization init failed: $e');
-    }
+  // ── 8. AuthState — must complete before splash routing decisions ──────────
+  await _safe('AuthState', () => AuthState().initialize());
 
-    // AuthState — must be ready before runApp (used by splash logic)
-    try {
-      await AuthState().initialize();
-      developer.log('✅ AuthState initialized');
-    } catch (e) {
-      developer.log('❌ AuthState init failed: $e');
-    }
-
-    // AudioService — needed for playback background service
-    try {
+  // ── 9. AudioService — guard against warm-restart double-init ─────────────
+  await _safe('AudioService', () async {
+    if (!AudioService.running) {
       await AudioService.init(
         builder: () => MyAudioHandler(),
         config: const AudioServiceConfig(
@@ -112,142 +126,68 @@ void main() async {
           androidStopForegroundOnPause: true,
         ),
       );
-      developer.log('✅ AudioService initialized');
-    } catch (e) {
-      developer.log('❌ AudioService init failed: $e');
+    } else {
+      developer.log('ℹ️ AudioService already running');
     }
+  });
 
-    // Enhanced Audio Player Service
-    try {
-      await EnhancedAudioPlayerService().initialize();
-      developer.log('✅ Enhanced Audio Player initialized');
-    } catch (e) {
-      developer.log('❌ Enhanced Audio Player init failed: $e');
-    }
+  // ── 10. Enhanced Audio Player — re-initializes safely on warm restart ─────
+  await _safe('EnhancedAudioPlayerService',
+      () => EnhancedAudioPlayerService().initialize());
 
-    // AudioProvider — defer API network call to AFTER runApp so it
-    // does NOT block the first frame from rendering.
-    // It will initialize lazily when the audio page is first opened.
+  // ── 11. System UI ─────────────────────────────────────────────────────────
+  _safe('SystemChrome', () async {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: AppTheme.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ));
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  });
 
-    FlutterError.onError = (FlutterErrorDetails details) {
-      developer.log('Flutter Error: ${details.exception}',
-          name: 'FlutterError', error: details.exception, stackTrace: details.stack);
-    };
+  // ── 12. OneSignal ─────────────────────────────────────────────────────────
+  if (!kIsWeb && firebaseOk) {
+    await _safe('OneSignal', () async {
+      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+      OneSignal.initialize(AppEnv.oneSignalAppId);
 
-    try {
-      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        systemNavigationBarColor: AppTheme.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
-      ));
-    } catch (e) {
-      developer.log('❌ SystemChrome UI style failed: $e');
-    }
+      final svc = OneSignalService();
+      svc.setupNotificationHandlers();
+      svc.markInitialized();
 
-    try {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    } catch (e) {
-      developer.log('❌ SystemChrome orientations failed: $e');
-    }
+      final permitted = OneSignal.Notifications.permission;
+      developer.log('🔔 Notification permission on startup: $permitted');
 
-    developer.log('🚀 Starting app...');
-
-    // ── OneSignal: correct initialization order ────────────────────────────────
-    // Order per docs: initialize → requestPermission → login(uid)
-    // requestPermission MUST come before login so the FCM token is registered first.
-    if (!kIsWeb) {
-      try {
-        // Step 1: verbose logging
-        OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-
-        // Step 2: initialize with App ID (before runApp)
-        OneSignal.initialize(AppEnv.oneSignalAppId);
-        developer.log('✅ OneSignal.initialize() called');
-
-        // Step 3: register event handlers immediately after initialize
-        final oneSignalService = OneSignalService();
-        oneSignalService.setupNotificationHandlers();
-        oneSignalService.markInitialized();
-
-        // Step 4: Check if permission was already granted (WITHOUT prompting)
-        // Do NOT call requestPermission() here - we want to ask only on the permissions screen
-        // or when user clicks the bell icon
-        final permissionGranted = OneSignal.Notifications.permission;
-        developer.log('🔔 Notification permission on startup (no prompt): $permissionGranted');
-
-        // Step 5: if user is already logged in, ALWAYS link identity in OneSignal.
-        // OneSignal v5: login() is safe to call regardless of notification permission.
-        // Identity is stored and automatically associated with the push token once
-        // the user grants permission. Calling it only when permissionGranted=true
-        // was causing 0-recipient errors for users who hadn't yet allowed notifications.
-        final authState = AuthState();
-        if (authState.user != null) {
-          OneSignal.login(authState.user!.uid);
-          developer.log('✅ OneSignal.login(${authState.user!.uid}) called on startup');
-          if (permissionGranted) {
-            OneSignal.User.pushSubscription.optIn();
-            developer.log('✅ OneSignal optIn() called (permission already granted)');
-          } else {
-            developer.log('ℹ️ OneSignal identity linked; optIn() deferred until permission is granted');
-          }
-        }
-
-        // Step 6: set navigation callback (router available after runApp)
-        oneSignalService.onNavigateToNotification = (notificationId) {
-          appRouter.push('/notifications/$notificationId');
-        };
-
-        developer.log('✅ OneSignal setup complete');
-      } catch (e) {
-        developer.log('❌ OneSignal setup failed: $e');
+      final auth = AuthState();
+      if (auth.user != null) {
+        OneSignal.login(auth.user!.uid);
+        if (permitted) OneSignal.User.pushSubscription.optIn();
       }
-    }
 
-    // ── Start the app ──────────────────────────────────────────────────────────
-    runApp(const SpiritualApp());
-
-    // ── Post-runApp deferred work — does NOT block first frame ────────────────
-    Future.microtask(() async {
-      // AudioProvider — deferred network call (was blocking startup before)
-      try {
-        await AudioProvider().initialize();
-        developer.log('✅ AudioProvider initialized (deferred)');
-      } catch (e) {
-        developer.log('❌ AudioProvider init failed (deferred): $e');
-      }
+      svc.onNavigateToNotification = (id) {
+        appRouter.push('/notifications/$id');
+      };
     });
-
-    // ── Post-runApp: always re-link logged-in user identity in OneSignal ────────
-    // This covers the case where OneSignal wasn't fully ready during main() init.
-    if (!kIsWeb) {
-      Future.microtask(() async {
-        try {
-          final authState = AuthState();
-          if (authState.user != null) {
-            OneSignal.login(authState.user!.uid);
-            final hasPermission = OneSignal.Notifications.permission;
-            if (hasPermission) {
-              OneSignal.User.pushSubscription.optIn();
-            }
-            developer.log('✅ OneSignal post-runApp re-link: ${authState.user!.uid}');
-          }
-        } catch (e) {
-          developer.log('❌ OneSignal post-runApp link failed: $e');
-        }
-      });
-    }
-  } catch (e, stackTrace) {
-    developer.log('❌ CRITICAL: App initialization failed: $e');
-    developer.log('Stack trace: $stackTrace');
-    runApp(const SpiritualApp());
   }
+
+  // ── 13. Flutter error handler ─────────────────────────────────────────────
+  FlutterError.onError = (FlutterErrorDetails details) {
+    developer.log('Flutter Error: ${details.exception}',
+        name: 'FlutterError',
+        error: details.exception,
+        stackTrace: details.stack);
+  };
+
+  developer.log('✅ All initialization complete — launching app');
 }
+
+// ── App Widget ────────────────────────────────────────────────────────────────
 
 class SpiritualApp extends StatefulWidget {
   const SpiritualApp({super.key});
@@ -257,21 +197,30 @@ class SpiritualApp extends StatefulWidget {
 }
 
 class _SpiritualAppState extends State<SpiritualApp> {
-  final LocalizationService _localizationService = LocalizationService();
+  final LocalizationService _locSvc = LocalizationService();
 
   @override
   void initState() {
     super.initState();
-    _localizationService.addListener(_onLocaleChanged);
+    _locSvc.addListener(_onLocaleChanged);
+    // If translations weren't ready during main() (e.g. rootBundle wasn't
+    // ready on very first frame), retry now — the widget tree is live.
+    if (!_locSvc.isInitialized || _locSvc.currentLocale.languageCode == 'en') {
+      _locSvc.initialize().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
   void dispose() {
-    _localizationService.removeListener(_onLocaleChanged);
+    _locSvc.removeListener(_onLocaleChanged);
     super.dispose();
   }
 
-  void _onLocaleChanged() => setState(() {});
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,21 +228,19 @@ class _SpiritualAppState extends State<SpiritualApp> {
       title: 'SKS',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      locale: _localizationService.currentLocale,
+      locale: _locSvc.currentLocale,
       supportedLocales: LocalizationService.supportedLocales,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      // Removed ValueKey — it forced full widget tree disposal on language change,
-      // wiping all page state. The setState() in _onLocaleChanged is sufficient
-      // to propagate the new locale to all context.tr() calls.
       routerConfig: appRouter,
       showPerformanceOverlay: false,
       checkerboardRasterCacheImages: false,
       checkerboardOffscreenLayers: false,
       builder: (context, child) {
+        // In debug mode show a readable error widget instead of red screen
         if (kDebugMode) {
           ErrorWidget.builder = (FlutterErrorDetails details) {
             developer.log('Widget Error: ${details.exception}');
@@ -306,16 +253,18 @@ class _SpiritualAppState extends State<SpiritualApp> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, color: AppTheme.saffron, size: 60),
+                        const Icon(Icons.error_outline,
+                            color: AppTheme.saffron, size: 60),
                         const SizedBox(height: 20),
                         const Text('Something went wrong',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
-                        const SizedBox(height: 10),
-                        const Text('Please restart the app',
-                            style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary)),
                         const SizedBox(height: 10),
                         Text('${details.exception}',
-                            style: const TextStyle(fontSize: 12, color: Colors.red),
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.red),
                             textAlign: TextAlign.center),
                       ],
                     ),

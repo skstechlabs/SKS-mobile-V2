@@ -25,6 +25,7 @@ import '../features/learnings/class_days_list_screen.dart';
 import '../features/learnings/day_video_screen.dart';
 import '../features/settings/ringtone_settings_page.dart';
 import '../features/settings/wallpaper_settings_page.dart';
+import '../features/audio/now_playing_screen.dart';
 import 'services/localization_service.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
@@ -248,6 +249,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/language',
       builder: (context, state) => const LanguageSelectionScreen(isFromSettings: true),
+    ),
+    GoRoute(
+      path: '/now-playing',
+      builder: (context, state) => const NowPlayingScreen(),
     ),
     // Classes video streaming routes
     GoRoute(

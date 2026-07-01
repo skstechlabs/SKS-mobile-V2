@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 import '../constants/app_env.dart';
 import 'data_cache_service.dart';
+import 'secure_storage_service.dart';
 
 // Type alias for MediaType to avoid conflicts
 typedef DioMediaType = MediaType;
@@ -16,7 +17,19 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  late final Dio _dio;
+  Dio? _dio;
+  bool _initialized = false;
+
+  /// Returns the initialized Dio instance, auto-initializing if needed.
+  /// This prevents NullPointerException if any API call is made before
+  /// explicit initialize() call (e.g. on warm restart).
+  Dio get _client {
+    if (_dio == null) {
+      debugPrint('⚠️ ApiService._client accessed before initialize() — auto-initializing');
+      initialize();
+    }
+    return _dio!;
+  }
   
   /// Helper to invalidate cache after reminder mutations
   void _invalidateRemindersCache() {
@@ -25,6 +38,13 @@ class ApiService {
   }
 
   void initialize() {
+    // Guard against re-initialization (e.g. warm restart where the singleton
+    // survives but Flutter engine is recreated). Using a nullable _dio instead
+    // of late final avoids LateInitializationError on second call.
+    if (_initialized && _dio != null) {
+      debugPrint('ℹ️ ApiService already initialized — skipping');
+      return;
+    }
     // Use base URL as-is, don't modify it
     String baseUrl = AppEnv.apiBaseUrl.isNotEmpty 
         ? AppEnv.apiBaseUrl 
@@ -52,7 +72,7 @@ class ApiService {
     // Only for mobile/desktop platforms (not web)
     // ══════════════════════════════════════════════════════════════════
     if (!kIsWeb) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         
         // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
@@ -87,7 +107,7 @@ class ApiService {
     }
 
     // Add interceptor for logging
-    _dio.interceptors.add(LogInterceptor(
+    _dio!.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
       error: true,
@@ -95,7 +115,7 @@ class ApiService {
     ));
 
     // Add retry interceptor for network failures with exponential backoff
-    _dio.interceptors.add(
+    _dio!.interceptors.add(
       InterceptorsWrapper(
         onError: (error, handler) async {
           // Check if we should retry
@@ -117,7 +137,7 @@ class ApiService {
                 error.requestOptions.extra['retryCount'] = retryCount + 1;
                 
                 // Retry the request
-                final response = await _dio.fetch(error.requestOptions);
+                final response = await _dio!.fetch(error.requestOptions);
                 return handler.resolve(response);
               } catch (e) {
                 debugPrint('❌ Retry failed: $e');
@@ -156,7 +176,7 @@ class ApiService {
                 error.requestOptions.headers['Host'] = 'app.sivakundalini.org';
                 
                 debugPrint('🔄 Retrying with IP address...');
-                final response = await _dio.fetch(error.requestOptions);
+                final response = await _dio!.fetch(error.requestOptions);
                 debugPrint('✅ IP fallback succeeded!');
                 return handler.resolve(response);
               } catch (e) {
@@ -169,6 +189,8 @@ class ApiService {
         },
       ),
     );
+    _initialized = true;
+    debugPrint('✅ ApiService initialized with base URL: $baseUrl');
   }
 
   bool _shouldRetry(DioException error) {
@@ -184,36 +206,94 @@ class ApiService {
   }
 
   Future<String?> _getIdToken() async {
+    // 1. Try Firebase ID token first (Google sign-in users)
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
-      
-      try {
-        // First try cached token
-        final cachedToken = await user.getIdToken(false);
-        if (cachedToken != null && cachedToken.isNotEmpty) {
-          return cachedToken;
+      if (user != null) {
+        try {
+          final cachedToken = await user.getIdToken(false);
+          if (cachedToken != null && cachedToken.isNotEmpty) {
+            return cachedToken;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Cached Firebase token failed: $e, trying force refresh');
         }
-      } catch (e) {
-        debugPrint('⚠️ Cached token failed: $e, trying force refresh');
-      }
-      
-      // If cached token fails, force refresh
-      try {
-        final freshToken = await user.getIdToken(true);
-        if (freshToken != null && freshToken.isNotEmpty) {
-          return freshToken;
+        try {
+          final freshToken = await user.getIdToken(true);
+          if (freshToken != null && freshToken.isNotEmpty) {
+            return freshToken;
+          }
+        } catch (e) {
+          debugPrint('❌ Firebase getIdToken force refresh failed: $e');
         }
-      } catch (e) {
-        debugPrint('❌ getIdToken force refresh failed: $e');
       }
-      
-      return null;
     } catch (e) {
-      // Firebase not initialized or other error
-      debugPrint('⚠️ _getIdToken error (Firebase may not be ready): $e');
-      return null;
+      debugPrint('⚠️ _getIdToken Firebase error: $e');
     }
+
+    // 2. Fallback: use stored JWT access token (phone/OTP users or when Firebase
+    //    session is not available). The backend's verifyJwtToken middleware accepts
+    //    both Firebase tokens AND JWT tokens, so this works transparently.
+    try {
+      final storage = SecureStorageService();
+      storage.initialize();
+
+      // Check if access token is still valid
+      final isExpired = await storage.isTokenExpired();
+      if (!isExpired) {
+        final jwt = await storage.getAccessToken();
+        if (jwt != null && jwt.isNotEmpty) {
+          debugPrint('ℹ️ Using stored JWT access token (phone user)');
+          return jwt;
+        }
+      }
+
+      // Access token expired — try to refresh using the refresh token
+      final refreshToken = await storage.getRefreshToken();
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        debugPrint('🔄 JWT access token expired, refreshing...');
+        final refreshed = await _refreshJwtToken(refreshToken);
+        if (refreshed != null) {
+          debugPrint('✅ JWT token refreshed successfully');
+          return refreshed;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ JWT fallback token retrieval failed: $e');
+    }
+
+    debugPrint('❌ _getIdToken: no valid token available');
+    return null;
+  }
+
+  /// Refresh JWT access token using a stored refresh token.
+  /// Returns the new access token on success, null on failure.
+  Future<String?> _refreshJwtToken(String refreshToken) async {
+    try {
+      final response = await _client.post(
+        '/api/auth/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        final newAccessToken = data['accessToken'] as String?;
+        final newRefreshToken = data['refreshToken'] as String?;
+        final expiresIn = data['expiresIn'] as int? ?? 3600;
+        if (newAccessToken != null && newRefreshToken != null) {
+          final storage = SecureStorageService();
+          storage.initialize();
+          await storage.saveTokenPair(
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+            expiresIn: expiresIn,
+          );
+          return newAccessToken;
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ JWT token refresh failed: $e');
+    }
+    return null;
   }
 
   /// Force-refresh the Firebase ID token. Use ONLY for the login call where
@@ -260,7 +340,7 @@ class ApiService {
         return {'success': false, 'message': 'Firebase authentication failed. Please try again.'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/auth/login/google',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
         data: {
@@ -271,7 +351,10 @@ class ApiService {
         },
       );
 
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      // Persist the JWT token pair so phone-route fallback works on future API calls
+      await _saveTokenPairFromResponse(data);
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }
@@ -282,13 +365,44 @@ class ApiService {
   // Backend verifies with MSG91 and creates/returns the user.
   Future<Map<String, dynamic>> loginWithPhone(String msg91AccessToken) async {
     try {
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/auth/login/phone',
         data: {'access_token': msg91AccessToken},
       );
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      // Persist the JWT token pair — phone users have no Firebase token, so
+      // _getIdToken() will use this JWT for all subsequent authenticated calls.
+      await _saveTokenPairFromResponse(data);
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
+    }
+  }
+
+  /// Extract and persist JWT tokens from a login response.
+  /// Both Google and phone login responses include `accessToken`, `refreshToken`,
+  /// `expiresIn` when successful. Silently ignores missing or malformed tokens.
+  Future<void> _saveTokenPairFromResponse(Map<String, dynamic> data) async {
+    if (data['success'] != true) return;
+    try {
+      final accessToken = data['accessToken'] as String?;
+      final refreshToken = data['refreshToken'] as String?;
+      final expiresIn = data['expiresIn'] as int? ?? 3600;
+      if (accessToken != null &&
+          accessToken.isNotEmpty &&
+          refreshToken != null &&
+          refreshToken.isNotEmpty) {
+        final storage = SecureStorageService();
+        storage.initialize();
+        await storage.saveTokenPair(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiresIn: expiresIn,
+        );
+        debugPrint('✅ JWT token pair saved for future authenticated calls');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not save JWT token pair: $e');
     }
   }
 
@@ -334,7 +448,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/user/profile',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -373,7 +487,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/user/profile',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -392,7 +506,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.patch(
+      final response = await _client.patch(
         '/api/user/profile',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: updates,
@@ -416,7 +530,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/user/permissions',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -440,7 +554,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/auth/logout',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -459,7 +573,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/auth/verify',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -487,7 +601,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/reminders',
         options: Options(
           headers: {
@@ -523,7 +637,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/reminders',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -563,7 +677,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.put(
+      final response = await _client.put(
         '/api/reminders/$id',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -593,7 +707,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.delete(
+      final response = await _client.delete(
         '/api/reminders/$id',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -616,7 +730,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.patch(
+      final response = await _client.patch(
         '/api/reminders/$id/toggle',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -643,7 +757,7 @@ class ApiService {
     }
 
     try {
-      final response = await _dio.get('/api/events');
+      final response = await _client.get('/api/events');
 
       final data = response.data as Map<String, dynamic>;
       
@@ -666,7 +780,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/events/$eventId/register',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -689,7 +803,7 @@ class ApiService {
     }
 
     try {
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/gatherings',
         options: Options(
           headers: forceRefresh ? {
@@ -729,7 +843,7 @@ class ApiService {
       debugPrint('   End: $endTime');
       debugPrint('   Duration: $durationSeconds seconds');
       
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/meditation/sessions',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -775,7 +889,7 @@ class ApiService {
         if (endDate != null) 'end_date': endDate,
       };
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/meditation/sessions',
         queryParameters: queryParams,
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
@@ -797,7 +911,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/meditation/stats',
         queryParameters: {'period': period},
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
@@ -817,7 +931,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/meditation/streak',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -836,7 +950,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.delete(
+      final response = await _client.delete(
         '/api/meditation/sessions/$sessionId',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -858,7 +972,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         path,
         queryParameters: queryParameters,
         options: Options(
@@ -904,7 +1018,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         path,
         data: data,
         options: Options(
@@ -1053,7 +1167,7 @@ class ApiService {
   // ── 21. GET /api/profiles/config - Get system configuration ───────────────
   Future<Map<String, dynamic>> getProfilesConfig() async {
     try {
-      final response = await _dio.get('/api/profiles/config');
+      final response = await _client.get('/api/profiles/config');
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       return _handleError(e);
@@ -1068,7 +1182,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/profiles',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1092,7 +1206,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/profiles',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -1123,7 +1237,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.put(
+      final response = await _client.put(
         '/api/profiles/$profileUid',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
@@ -1148,7 +1262,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.delete(
+      final response = await _client.delete(
         '/api/profiles/$profileUid',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1167,7 +1281,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/profiles/$profileUid/switch',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1186,7 +1300,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/profiles/sessions',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1205,7 +1319,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.delete(
+      final response = await _client.delete(
         '/api/profiles/sessions/$sessionId',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1237,7 +1351,7 @@ class ApiService {
         ),
       });
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/user/upload-profile-photo',
         data: formData,
         options: Options(
@@ -1262,7 +1376,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.delete(
+      final response = await _client.delete(
         '/api/user/profile-photo',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1285,7 +1399,7 @@ class ApiService {
     }
 
     try {
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/quotes',
         options: Options(
           headers: forceRefresh ? {
@@ -1312,7 +1426,7 @@ class ApiService {
   // Backend verifies with MSG91 and returns { success, mobile }.
   Future<Map<String, dynamic>> verifyMsg91Token(String accessToken) async {
     try {
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/otp/verify',
         data: {'access_token': accessToken},
       );
@@ -1330,7 +1444,7 @@ class ApiService {
       if (idToken == null) {
         return {'success': false, 'message': 'Not authenticated'};
       }
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/notifications/push-status',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
@@ -1352,7 +1466,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.post(
+      final response = await _client.post(
         '/api/classes-v2/user/language',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {'language': languageCode},
@@ -1372,7 +1486,7 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final response = await _dio.get(
+      final response = await _client.get(
         '/api/classes-v2/user/language',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );

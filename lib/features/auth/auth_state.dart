@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'user_model.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/secure_storage_service.dart';
 
 class AuthState extends ChangeNotifier {
   static final AuthState _instance = AuthState._internal();
@@ -25,7 +26,10 @@ class AuthState extends ChangeNotifier {
 
   /// Initialize auth state from cache
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    // Allow re-initialization if we are marked initialized but have no user —
+    // this can happen on a hot restart where the singleton survives but
+    // SharedPreferences may not have been re-read yet.
+    if (_isInitialized && _user != null) return;
     
     try {
       debugPrint('🔐 Initializing AuthState from cache...');
@@ -101,6 +105,16 @@ class AuthState extends ChangeNotifier {
       debugPrint('✅ User cache cleared');
     } catch (e) {
       debugPrint('❌ Error clearing user cache: $e');
+    }
+
+    // Clear JWT tokens so they can't be reused after logout
+    try {
+      final storage = SecureStorageService();
+      storage.initialize();
+      await storage.clearAll();
+      debugPrint('✅ JWT tokens cleared on logout');
+    } catch (e) {
+      debugPrint('⚠️ Error clearing JWT tokens: $e');
     }
     
     notifyListeners();

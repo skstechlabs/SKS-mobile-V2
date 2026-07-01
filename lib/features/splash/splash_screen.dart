@@ -375,9 +375,11 @@ class _SplashScreenState extends State<SplashScreen>
   Future<bool> _checkNotificationPermission() async {
     if (kIsWeb) return true;
     try {
-      // Always check live OS permission state first — detects if user revoked
-      // permission in system Settings since last launch.
-      await Future.delayed(const Duration(milliseconds: 200)); // Give OneSignal time to sync
+      // Give OneSignal enough time to sync its permission state from the OS.
+      // On some devices/OS versions the synchronous .permission getter returns
+      // false immediately after a cold start even when the user already granted
+      // it — a short delay lets the SDK sync the real state.
+      await Future.delayed(const Duration(milliseconds: 500));
       final live = OneSignal.Notifications.permission;
 
       final prefs = await SharedPreferences.getInstance();

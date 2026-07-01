@@ -102,8 +102,9 @@ class WallpaperRotationReceiver : BroadcastReceiver() {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             val rect = android.graphics.Rect(0, 0, targetW, targetH)
-                            wm.setBitmap(canvas_bmp, rect, true,
-                                WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+                            // Only FLAG_SYSTEM — do NOT set FLAG_LOCK so that other apps
+                            // (e.g. WhatsApp) that read the lock screen wallpaper are unaffected.
+                            wm.setBitmap(canvas_bmp, rect, true, WallpaperManager.FLAG_SYSTEM)
                         } else {
                             wm.setBitmap(canvas_bmp)
                         }

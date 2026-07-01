@@ -32,7 +32,11 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     try {
       final enabled = await _wallpaperService.isEnabled();
       final info = await _wallpaperService.getCurrentInfo();
-      final wallpapers = await _wallpaperService.getAvailableWallpapers();
+      // Always force-refresh the wallpaper list when the page loads so that
+      // any new wallpapers added to the CDN appear immediately.
+      final wallpapers = await _wallpaperService.getAvailableWallpapers(
+        forceRefresh: true,
+      );
 
       if (mounted) {
         setState(() {
@@ -214,8 +218,12 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
+          : RefreshIndicator(
+              onRefresh: _loadStatus,
+              child: SingleChildScrollView(
+                // Ensure the scroll view is always scrollable so pull-to-refresh works
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header with toggle
@@ -416,6 +424,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                 ],
               ),
             ),
+          ),
     );
   }
 

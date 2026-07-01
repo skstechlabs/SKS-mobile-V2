@@ -57,18 +57,12 @@ class ApiService {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      // 30s connect: DNS resolution on Android emulators/slow networks can
-      // take 8–12s on first request (IPv6 probe + fallback to IPv4).
-      // 10s was too aggressive and caused failures on cold start.
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        // Keep-alive: reuse TCP connections to avoid DNS+TLS overhead on
-        // every request. Critical for apps that make many API calls at startup.
-        'Connection': 'keep-alive',
       },
     ));
 
@@ -81,30 +75,37 @@ class ApiService {
     if (!kIsWeb) {
       (_dio!.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
-
-        // Force IPv4 — Android emulators and some networks try IPv6 first,
-        // wait for it to time out (~6s), then fall back to IPv4. This wastes
-        // the entire connectTimeout budget before the real connection starts.
-        // Binding to an IPv4 address forces immediate IPv4 DNS resolution.
-        // On real devices with working IPv6 this has negligible cost.
-        // ignore: deprecated_member_use
+        
+        // DNS Configuration: Use Google DNS (8.8.8.8, 8.8.4.4) as fallback
+        // This ensures DNS resolution works even if device DNS is misconfigured
+        // The HttpClient will use system DNS first, then fall back if needed
         client.connectionTimeout = const Duration(seconds: 30);
         client.idleTimeout = const Duration(seconds: 120);
-        // Persist connections across requests — amortizes TLS handshake cost
-        // across all the API calls made at startup.
         client.maxConnectionsPerHost = 8;
-
-        // SSL Configuration
+        
+        // SSL Configuration - Accept certificates for our domains
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+          // Allow our domains (sivakundalini.org and r2.dev)
           if (host.contains('sivakundalini.org') || host.contains('r2.dev')) {
+            debugPrint('✅ SSL: Accepting certificate for $host');
             return true;
           }
-          if (kDebugMode) return true;
+          // In debug mode, accept all certificates for development
+          if (kDebugMode) {
+            debugPrint('⚠️ SSL: Accepting certificate for $host (Debug Mode)');
+            return true;
+          }
+          // In release mode, reject other domains with invalid certificates
+          debugPrint('❌ SSL: Rejecting certificate for $host');
           return false;
         };
-
+        
+        debugPrint('🔒 SSL configuration applied');
+        
         return client;
       };
+    } else {
+      debugPrint('🌐 Running on Web - using browser HTTP client');
     }
 
     // Add interceptor for logging
@@ -192,44 +193,15 @@ class ApiService {
     );
     _initialized = true;
     debugPrint('✅ ApiService initialized with base URL: $baseUrl');
-
-    // Warm up the connection immediately after init — fires a lightweight
-    // request so the TCP+TLS handshake happens in the background during splash.
-    // By the time the user reaches home, the connection is already open and
-    // subsequent requests complete in <500ms instead of 8–12s.
-    _warmUpConnection();
-  }
-
-  void _warmUpConnection() {
-    if (kIsWeb) return;
-    Future.microtask(() async {
-      try {
-        // Use a fast endpoint — no auth needed, tiny response
-        await _dio!.get(
-          '/api/events',
-          options: Options(
-            receiveTimeout: const Duration(seconds: 30),
-            extra: {'isWarmup': true},
-          ),
-        );
-        debugPrint('🔥 Connection warm-up complete');
-      } catch (_) {
-        // Warm-up failure is silent — real requests will establish the
-        // connection themselves. This is best-effort only.
-        debugPrint('⚠️ Connection warm-up failed (non-critical)');
-      }
-    });
   }
 
   bool _shouldRetry(DioException error) {
-    // Don't retry on web — usually CORS issues that won't self-resolve
+    // Don't retry connection errors on web - they're usually CORS issues
     if (kIsWeb && error.type == DioExceptionType.connectionError) {
       return false;
     }
-    // Skip retry for warm-up requests
-    if (error.requestOptions.extra['isWarmup'] == true) return false;
-
-    // Retry on any transient network failure
+    
+    // Only retry on timeout or connection errors
     return error.type == DioExceptionType.connectionTimeout ||
            error.type == DioExceptionType.sendTimeout ||
            error.type == DioExceptionType.receiveTimeout ||
@@ -636,13 +608,41 @@ class ApiService {
 
   // ── 8. GET /api/reminders ──────────────────────────────────────────────────
   Future<Map<String, dynamic>> getReminders({bool forceRefresh = false}) async {
-    return _cachedGet(
-      key: CacheKeys.reminders,
-      path: '/api/reminders',
-      authenticated: true,
-      forceRefresh: forceRefresh,
-      emptyFallback: {'success': true, 'reminders': []},
-    );
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>('reminders');
+      if (cached != null) {
+        debugPrint('📦 Using cached reminders');
+        return cached;
+      }
+    }
+
+    try {
+      final idToken = await _getIdToken();
+      if (idToken == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await _client.get(
+        '/api/reminders',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $idToken',
+          },
+        ),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set('reminders', data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
   }
 
   // ── 9. POST /api/reminders ─────────────────────────────────────────────────
@@ -769,13 +769,35 @@ class ApiService {
 
   // ── 13. GET /api/events ────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getEvents({bool forceRefresh = false}) async {
-    return _cachedGet(
-      key: CacheKeys.events,
-      path: '/api/events',
-      authenticated: false,
-      forceRefresh: forceRefresh,
-      emptyFallback: {'success': true, 'events': []},
-    );
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.events);
+      if (cached != null) {
+        debugPrint('📦 Using cached events');
+        return cached;
+      }
+    }
+
+    // Offline: no cache and no network → return empty gracefully
+    if (ConnectivityService().isOffline) {
+      debugPrint('📵 Offline — returning empty events');
+      return {'success': false, 'message': 'No internet connection', 'events': []};
+    }
+
+    try {
+      final response = await _client.get('/api/events');
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set(CacheKeys.events, data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
   }
 
   // ── 14. POST /api/events/:id/register ──────────────────────────────────────
@@ -799,13 +821,41 @@ class ApiService {
 
   // ── 15. GET /api/gatherings ────────────────────────────────────────────────
   Future<Map<String, dynamic>> getGatherings({bool forceRefresh = false}) async {
-    return _cachedGet(
-      key: CacheKeys.gatherings,
-      path: '/api/gatherings',
-      authenticated: false,
-      forceRefresh: forceRefresh,
-      emptyFallback: {'success': true, 'gatherings': []},
-    );
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.gatherings);
+      if (cached != null) {
+        debugPrint('📦 Using cached gatherings');
+        return cached;
+      }
+    }
+
+    if (ConnectivityService().isOffline) {
+      debugPrint('📵 Offline — returning empty gatherings');
+      return {'success': false, 'message': 'No internet connection', 'gatherings': []};
+    }
+
+    try {
+      final response = await _client.get(
+        '/api/gatherings',
+        options: Options(
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          } : null,
+        ),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      
+      // Cache the successful response
+      if (data['success'] == true) {
+        DataCacheService().set(CacheKeys.gatherings, data, ttl: const Duration(minutes: 5));
+      }
+
+      return data;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
   }
 
   // ── 16. POST /api/meditation/sessions - Record meditation session ──────────
@@ -944,143 +994,12 @@ class ApiService {
     }
   }
 
-  // ── Cache helpers (stale-while-revalidate) ────────────────────────────────
-
-  /// Stale-while-revalidate GET: return disk cache immediately, refresh in background.
-  Future<Map<String, dynamic>> _cachedGet({
-    required String key,
-    required String path,
-    required bool authenticated,
-    required Map<String, dynamic> emptyFallback,
-    bool forceRefresh = false,
-    Map<String, dynamic>? queryParameters,
-  }) async {
-    final cache = DataCacheService();
-
-    if (!forceRefresh) {
-      final mem = cache.get<Map<String, dynamic>>(key);
-      if (mem != null) {
-        if (ConnectivityService().isOnline) _backgroundFetch(
-            key: key, path: path, authenticated: authenticated,
-            queryParameters: queryParameters);
-        return mem;
-      }
-      final disk = await cache.getWithDiskFallback(key);
-      if (disk != null) {
-        if (ConnectivityService().isOnline) _backgroundFetch(
-            key: key, path: path, authenticated: authenticated,
-            queryParameters: queryParameters);
-        return disk;
-      }
-    }
-
-    if (ConnectivityService().isOffline) return emptyFallback;
-
-    return await _networkFetch(
-        key: key, path: path, authenticated: authenticated,
-        queryParameters: queryParameters, fallback: emptyFallback);
-  }
-
-  Future<Map<String, dynamic>> _networkFetch({
-    required String key,
-    required String path,
-    required bool authenticated,
-    required Map<String, dynamic> fallback,
-    Map<String, dynamic>? queryParameters,
-  }) async {
-    try {
-      Options? opts;
-      if (authenticated) {
-        final token = await _getIdToken();
-        if (token == null) {
-          final stale = await DataCacheService().getWithDiskFallback(key);
-          return stale ?? {'success': false, 'message': 'Not authenticated'};
-        }
-        opts = Options(headers: {'Authorization': 'Bearer $token'});
-      }
-      final resp = await _client.get(
-          path, queryParameters: queryParameters, options: opts);
-      final data = _parseResponse(resp.data);
-      if (data != null && data['success'] == true) {
-        DataCacheService().set(key, data);
-      }
-      return data ?? fallback;
-    } catch (e) {
-      // Catch ALL exceptions (DioException + CastError + etc.)
-      final stale = await DataCacheService().getWithDiskFallback(key);
-      if (stale != null) {
-        debugPrint('📦 Network failed — serving stale cache: $key ($e)');
-        return stale;
-      }
-      debugPrint('❌ Network failed + no cache: $key ($e)');
-      return fallback;
-    }
-  }
-
-  void _backgroundFetch({
-    required String key,
-    required String path,
-    required bool authenticated,
-    Map<String, dynamic>? queryParameters,
-  }) {
-    Future.microtask(() async {
-      try {
-        Options? opts;
-        if (authenticated) {
-          final token = await _getIdToken();
-          if (token == null) return;
-          opts = Options(headers: {'Authorization': 'Bearer $token'});
-        }
-        final resp = await _client.get(
-            path, queryParameters: queryParameters, options: opts);
-        final data = _parseResponse(resp.data);
-        if (data != null && data['success'] == true) {
-          DataCacheService().set(key, data);
-          debugPrint('🔄 Background refresh done: $key');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Background refresh failed for $key: $e');
-      }
-    });
-  }
-
-  /// Safely parse a Dio response body into Map<String, dynamic>.
-  /// Handles both already-decoded Map and raw JSON String responses.
-  Map<String, dynamic>? _parseResponse(dynamic data) {
-    if (data is Map<String, dynamic>) return data;
-    if (data is String && data.isNotEmpty) {
-      try {
-        final decoded = json.decode(data);
-        if (decoded is Map<String, dynamic>) return decoded;
-      } catch (_) {}
-    }
-    return null;
-  }
-
   // ── Generic GET method for authenticated requests ──────────────────────────
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
-    String? cacheKey,
   }) async {
-    final cache = DataCacheService();
-
-    // Try disk cache first when a cacheKey is provided
-    if (cacheKey != null) {
-      final cached = await cache.getWithDiskFallback(cacheKey);
-      if (cached != null) {
-        debugPrint('📦 Disk cache hit for $path');
-        // Revalidate in background if online
-        if (ConnectivityService().isOnline) {
-          _backgroundFetch(
-              key: cacheKey, path: path, authenticated: true,
-              queryParameters: queryParameters);
-        }
-        return cached;
-      }
-    }
-
-    // No cache — fast fail when offline
+    // Fast fail when offline — avoids waiting 10s for a timeout
     if (ConnectivityService().isOffline) {
       debugPrint('📵 Offline — skipping GET $path');
       return {'success': false, 'message': 'No internet connection'};
@@ -1097,41 +1016,32 @@ class ApiService {
         queryParameters: queryParameters,
         options: Options(
           headers: {'Authorization': 'Bearer $idToken'},
-          responseType: ResponseType.json,
+          responseType: ResponseType.json, // Ensure JSON response
         ),
       );
 
-      Map<String, dynamic>? data;
+      // Handle response data type
       if (response.data is Map<String, dynamic>) {
-        data = response.data as Map<String, dynamic>;
+        return response.data as Map<String, dynamic>;
       } else if (response.data is String) {
+        // Try to parse string as JSON
         try {
           final decoded = json.decode(response.data as String);
-          if (decoded is Map<String, dynamic>) data = decoded;
+          if (decoded is Map<String, dynamic>) {
+            return decoded;
+          }
         } catch (e) {
           debugPrint('Failed to parse response as JSON: $e');
         }
       }
-
-      if (data == null) {
-        return {'success': false, 'message': 'Invalid response format'};
-      }
-
-      // Persist to cache if key provided and response is successful
-      if (cacheKey != null && data['success'] == true) {
-        cache.set(cacheKey, data);
-      }
-
-      return data;
+      
+      // Fallback: wrap response in a map
+      return {
+        'success': false,
+        'message': 'Invalid response format',
+        'data': response.data,
+      };
     } on DioException catch (e) {
-      // Network failed — return stale disk cache if available
-      if (cacheKey != null) {
-        final stale = await cache.getWithDiskFallback(cacheKey);
-        if (stale != null) {
-          debugPrint('📦 Network failed — serving stale cache for $path');
-          return stale;
-        }
-      }
       return _handleError(e);
     }
   }

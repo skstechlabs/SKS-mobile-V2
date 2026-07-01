@@ -234,14 +234,17 @@ class WallpaperService {
     _stopAutoRotation();
     debugPrint('🔄 Starting wallpaper auto-rotation (every 15 minutes)');
 
-    // Schedule native alarm — works even when app is in background/killed
+    // Schedule native alarm — the receiver handles all Android version
+    // differences, permission checks, and rescheduling after each rotation.
     if (!kIsWeb) {
       platform.invokeMethod('scheduleWallpaperAlarm', {
         'intervalMs': _rotationInterval.inMilliseconds,
       }).catchError((e) => debugPrint('⚠️ scheduleWallpaperAlarm error: $e'));
     }
 
-    // Also keep a Dart timer as backup for foreground rotation
+    // Dart timer as a foreground backup (fires while app is open).
+    // This handles the case where AlarmManager wakes up inexactly — the
+    // Dart timer ensures the wallpaper changes precisely at 15 min in-app.
     _rotationTimer = Timer.periodic(_rotationInterval, (timer) async {
       try {
         final enabled = await isEnabled();

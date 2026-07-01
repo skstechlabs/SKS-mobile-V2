@@ -13,31 +13,112 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import java.io.File
 import java.net.URL
 
 /**
  * BroadcastReceiver that fires every 15 minutes (via AlarmManager) to rotate
- * the wallpaper. This works even when the app is in the background or killed.
+ * the home-screen wallpaper. Works even when the app is in the background or killed.
+ *
+ * Also handles BOOT_COMPLETED so the rotation survives device reboots.
  *
  * SharedPreferences keys must match WallpaperService in Dart:
- *   wallpaper_rotation_enabled
- *   wallpaper_current_index
- *   wallpaper_last_update
- *   wallpaper_cached_list   (JSON array of URL strings)
+ *   flutter.wallpaper_rotation_enabled   → Boolean
+ *   flutter.wallpaper_current_index      → Int
+ *   flutter.wallpaper_last_update        → String (epoch ms)
+ *   flutter.wallpaper_cached_urls        → JSON array of URL strings
  */
 class WallpaperRotationReceiver : BroadcastReceiver() {
 
     companion object {
-        private const val PREFS_NAME = "FlutterSharedPreferences"
-        private const val KEY_ENABLED = "flutter.wallpaper_rotation_enabled"
-        private const val KEY_INDEX = "flutter.wallpaper_current_index"
+        private const val PREFS_NAME      = "FlutterSharedPreferences"
+        private const val KEY_ENABLED     = "flutter.wallpaper_rotation_enabled"
+        private const val KEY_INDEX       = "flutter.wallpaper_current_index"
         private const val KEY_LAST_UPDATE = "flutter.wallpaper_last_update"
         private const val KEY_CACHED_URLS = "flutter.wallpaper_cached_urls"
-        private const val INTERVAL_MS = 15 * 60 * 1000L // 15 minutes
+        private const val INTERVAL_MS     = 15 * 60 * 1000L   // 15 minutes
+        private const val REQUEST_CODE    = 1001               // unique request code
+
+        /** Schedule (or reschedule) the next wallpaper rotation alarm. */
+        fun schedule(context: Context) {
+            val pi = getPendingIntent(context)
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.cancel(pi) // always cancel first to avoid duplicates
+
+            val triggerAt = System.currentTimeMillis() + INTERVAL_MS
+
+            try {
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                        // Android 12+ (API 31): USE_EXACT_ALARM is declared in manifest
+                        // which grants exact alarms without user interaction.
+                        // canScheduleExactAlarms() guards against the rare case where it
+                        // was revoked by the user in Settings.
+                        if (am.canScheduleExactAlarms()) {
+                            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                            println("✅ Exact wallpaper alarm scheduled (Android 12+)")
+                        } else {
+                            // Fallback: inexact but still fires within a reasonable window
+                            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                            println("✅ Inexact wallpaper alarm scheduled (exact alarm not granted)")
+                        }
+                    }
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                        // Android 6–11: setExactAndAllowWhileIdle works without special permission
+                        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                        println("✅ Exact wallpaper alarm scheduled (Android 6–11)")
+                    }
+                    else -> {
+                        // Android 5 and below
+                        am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                        println("✅ Exact wallpaper alarm scheduled (pre-Android 6)")
+                    }
+                }
+            } catch (e: SecurityException) {
+                // Last resort: inexact alarm — better than nothing
+                println("⚠️ Exact alarm denied, falling back to inexact: ${e.message}")
+                try {
+                    am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                } catch (e2: Exception) {
+                    println("❌ Could not schedule any alarm: ${e2.message}")
+                }
+            }
+        }
+
+        /** Cancel any scheduled wallpaper rotation alarm. */
+        fun cancel(context: Context) {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.cancel(getPendingIntent(context))
+            println("✅ Wallpaper alarm cancelled")
+        }
+
+        private fun getPendingIntent(context: Context): PendingIntent {
+            val intent = Intent(context, WallpaperRotationReceiver::class.java)
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            else
+                PendingIntent.FLAG_UPDATE_CURRENT
+            return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags)
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action
+
+        // On device reboot: reschedule the alarm if rotation is enabled.
+        // Do NOT try to set wallpaper here — we have no network yet on boot.
+        if (action == Intent.ACTION_BOOT_COMPLETED ||
+            action == "android.intent.action.QUICKBOOT_POWERON" ||
+            action == "com.htc.intent.action.QUICKBOOT_POWERON") {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val enabled = prefs.getBoolean(KEY_ENABLED, false)
+            if (enabled) {
+                schedule(context)
+                println("✅ WallpaperRotationReceiver: rescheduled after boot")
+            }
+            return
+        }
+
+        // Regular 15-minute alarm
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val enabled = prefs.getBoolean(KEY_ENABLED, false)
 
@@ -48,31 +129,44 @@ class WallpaperRotationReceiver : BroadcastReceiver() {
 
         println("⏰ WallpaperRotationReceiver: rotating wallpaper")
 
-        // Run network + wallpaper work on IO thread
+        // goAsync() lets us do async work in a BroadcastReceiver safely
+        val pendingResult = goAsync()
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val urlsJson = prefs.getString(KEY_CACHED_URLS, null)
                 if (urlsJson.isNullOrEmpty()) {
-                    println("⚠️ No cached wallpaper URLs")
+                    println("⚠️ No cached wallpaper URLs — cannot rotate")
                     return@launch
                 }
 
                 val urls = JSONArray(urlsJson)
-                if (urls.length() == 0) return@launch
+                if (urls.length() == 0) {
+                    println("⚠️ Wallpaper URL list is empty")
+                    return@launch
+                }
 
                 val currentIndex = prefs.getInt(KEY_INDEX, 0)
                 val nextIndex = currentIndex % urls.length()
                 val imageUrl = urls.getString(nextIndex)
 
-                println("🖼️ Setting wallpaper $nextIndex: $imageUrl")
+                println("🖼️ Downloading wallpaper $nextIndex / ${urls.length()}: $imageUrl")
 
-                // Download image
-                val bytes = URL(imageUrl).readBytes()
+                // Download image on IO thread
+                val bytes = try {
+                    URL(imageUrl).openConnection().apply {
+                        connectTimeout = 15_000
+                        readTimeout = 30_000
+                    }.getInputStream().readBytes()
+                } catch (e: Exception) {
+                    println("❌ Download failed: ${e.message}")
+                    return@launch
+                }
+
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     ?: run { println("❌ Failed to decode image"); return@launch }
 
-                // Scale and set wallpaper
-                val wm = WallpaperManager.getInstance(context)
+                // Scale to screen size (FIT_CENTER with black letterbox)
                 val dm = context.resources.displayMetrics
                 val targetW = dm.widthPixels
                 val targetH = dm.heightPixels
@@ -84,71 +178,55 @@ class WallpaperRotationReceiver : BroadcastReceiver() {
                 val scaledH: Int
                 if (imageAspect > screenAspect) {
                     scaledW = targetW
-                    scaledH = (targetW / imageAspect).toInt()
+                    scaledH = (targetW / imageAspect).toInt().coerceAtLeast(1)
                 } else {
                     scaledH = targetH
-                    scaledW = (targetH * imageAspect).toInt()
+                    scaledW = (targetH * imageAspect).toInt().coerceAtLeast(1)
                 }
 
                 val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, scaledW, scaledH, true)
-                val canvas_bmp = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(canvas_bmp)
+                val canvasBmp = android.graphics.Bitmap.createBitmap(
+                    targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(canvasBmp)
                 canvas.drawColor(android.graphics.Color.BLACK)
                 val left = (targetW - scaledW) / 2f
-                val top = (targetH - scaledH) / 2f
+                val top  = (targetH - scaledH) / 2f
                 canvas.drawBitmap(scaled, left, top, null)
 
-                withContext(Dispatchers.Main) {
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            val rect = android.graphics.Rect(0, 0, targetW, targetH)
-                            // Only FLAG_SYSTEM — do NOT set FLAG_LOCK so that other apps
-                            // (e.g. WhatsApp) that read the lock screen wallpaper are unaffected.
-                            wm.setBitmap(canvas_bmp, rect, true, WallpaperManager.FLAG_SYSTEM)
-                        } else {
-                            wm.setBitmap(canvas_bmp)
-                        }
-
-                        // Update prefs
-                        prefs.edit()
-                            .putInt(KEY_INDEX, nextIndex + 1)
-                            .putString(KEY_LAST_UPDATE, System.currentTimeMillis().toString())
-                            .apply()
-
-                        println("✅ Wallpaper rotated to index $nextIndex")
-                    } catch (e: Exception) {
-                        println("❌ setWallpaper error: ${e.message}")
+                // Set wallpaper — can be called from any thread (WallpaperManager is thread-safe)
+                try {
+                    val wm = WallpaperManager.getInstance(context)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        val rect = android.graphics.Rect(0, 0, targetW, targetH)
+                        // FLAG_SYSTEM only — don't touch lock screen wallpaper
+                        wm.setBitmap(canvasBmp, rect, true, WallpaperManager.FLAG_SYSTEM)
+                    } else {
+                        wm.setBitmap(canvasBmp)
                     }
-                }
 
-                bitmap.recycle()
-                scaled.recycle()
+                    // Persist updated index and timestamp
+                    prefs.edit()
+                        .putInt(KEY_INDEX, nextIndex + 1)
+                        .putString(KEY_LAST_UPDATE, System.currentTimeMillis().toString())
+                        .apply()
+
+                    println("✅ Wallpaper rotated to index $nextIndex")
+                } catch (e: Exception) {
+                    println("❌ setWallpaper error: ${e.message}")
+                } finally {
+                    bitmap.recycle()
+                    if (scaled != bitmap) scaled.recycle()
+                    canvasBmp.recycle()
+                }
 
             } catch (e: Exception) {
                 println("❌ WallpaperRotationReceiver error: ${e.message}")
             } finally {
-                // Reschedule next alarm
-                reschedule(context)
+                // Always reschedule the next alarm, even on error
+                schedule(context)
+                // Release the BroadcastReceiver so the system can reclaim resources
+                pendingResult.finish()
             }
         }
-    }
-
-    private fun reschedule(context: Context) {
-        val intent = Intent(context, WallpaperRotationReceiver::class.java)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        else
-            PendingIntent.FLAG_UPDATE_CURRENT
-        val pi = PendingIntent.getBroadcast(context, 0, intent, flags)
-
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val triggerAt = System.currentTimeMillis() + INTERVAL_MS
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        } else {
-            am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        }
-        println("🔄 Next wallpaper rotation scheduled in 15 minutes")
     }
 }

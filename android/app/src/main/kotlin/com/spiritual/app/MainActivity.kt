@@ -3,9 +3,7 @@ package com.spiritual.app
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.WallpaperManager
-import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -194,37 +192,6 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
-    }
-
-    // ── Wallpaper AlarmManager ─────────────────────────────────────────────────
-
-    private fun getWallpaperPendingIntent(): PendingIntent {
-        val intent = Intent(this, WallpaperRotationReceiver::class.java)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        else
-            PendingIntent.FLAG_UPDATE_CURRENT
-        return PendingIntent.getBroadcast(this, 0, intent, flags)
-    }
-
-    private fun scheduleWallpaperAlarm(intervalMs: Long) {
-        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = getWallpaperPendingIntent()
-        am.cancel(pi) // cancel any existing alarm first
-
-        val triggerAt = System.currentTimeMillis() + intervalMs
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        } else {
-            am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        }
-        println("✅ Wallpaper alarm scheduled in ${intervalMs / 60000} minutes")
-    }
-
-    private fun cancelWallpaperAlarm() {
-        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.cancel(getWallpaperPendingIntent())
-        println("✅ Wallpaper alarm cancelled")
     }
 
     // ── Ringtone / system sound ────────────────────────────────────────────────

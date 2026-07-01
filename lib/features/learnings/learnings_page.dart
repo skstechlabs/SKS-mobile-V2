@@ -6,6 +6,7 @@ import '../../core/widgets/offline_banner.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/localization_service.dart';
+import '../auth/auth_state.dart';
 
 class LearningsPage extends StatefulWidget {
   const LearningsPage({super.key});
@@ -77,12 +78,26 @@ class _LearningsPageState extends State<LearningsPage> {
         debugPrint('❌ API returned success=false: $errorMsg');
         if (!mounted) return;
 
-        // Token expired / session invalid — send to login
+        // Token expired / session invalid — only redirect to login if
+        // we have NO cached user at all. If the user is cached, they are
+        // legitimately logged in — the token failure is a network issue,
+        // not an authentication issue.
         if (errorMsg.toLowerCase().contains('not authenticated') ||
             errorMsg.toLowerCase().contains('unauthorized') ||
             errorMsg.toLowerCase().contains('token')) {
-          debugPrint('🔐 Session expired — redirecting to login');
-          if (mounted) context.go('/login');
+          final hasCachedUser = AuthState().user != null;
+          if (!hasCachedUser) {
+            debugPrint('🔐 Session expired + no cached user — redirecting to login');
+            if (mounted) context.go('/login');
+            return;
+          }
+          // User is cached — token issue is transient, just show empty state
+          debugPrint('⚠️ Token failed but user is cached — showing empty state');
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _errorMessage = null;
+          });
           return;
         }
 

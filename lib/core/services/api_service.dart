@@ -260,32 +260,42 @@ class ApiService {
   }
 
   /// Read the stored JWT access token, refreshing it if expired.
-  /// Returns null only if no token exists and refresh also fails.
+  /// Returns the token even if expired when offline — the server will
+  /// validate it and may still accept it within a grace period.
   Future<String?> _getStoredJwt() async {
     try {
       final storage = SecureStorageService();
       storage.initialize();
 
-      final isExpired = await storage.isTokenExpired();
-      if (!isExpired) {
-        final jwt = await storage.getAccessToken();
-        if (jwt != null && jwt.isNotEmpty) {
-          debugPrint('ℹ️ Using stored JWT access token');
+      final jwt = await storage.getAccessToken();
+
+      // If we have a token, try it regardless of expiry when offline
+      // The server is the ultimate judge — an "expired" local token may
+      // still be valid on the server (clock drift, grace periods).
+      if (jwt != null && jwt.isNotEmpty) {
+        final isExpired = await storage.isTokenExpired();
+        if (!isExpired) {
+          debugPrint('ℹ️ Using stored JWT access token (valid)');
           return jwt;
         }
-      }
 
-      // Token expired — try refresh (needs network)
-      if (ConnectivityService().isOnline) {
-        final refreshToken = await storage.getRefreshToken();
-        if (refreshToken != null && refreshToken.isNotEmpty) {
-          debugPrint('🔄 JWT access token expired, refreshing...');
-          final refreshed = await _refreshJwtToken(refreshToken);
-          if (refreshed != null) {
-            debugPrint('✅ JWT token refreshed successfully');
-            return refreshed;
+        // Token expired locally — try to refresh if online
+        if (ConnectivityService().isOnline) {
+          final refreshToken = await storage.getRefreshToken();
+          if (refreshToken != null && refreshToken.isNotEmpty) {
+            debugPrint('🔄 JWT access token expired, refreshing...');
+            final refreshed = await _refreshJwtToken(refreshToken);
+            if (refreshed != null) {
+              debugPrint('✅ JWT token refreshed successfully');
+              return refreshed;
+            }
           }
         }
+
+        // Can't refresh (offline or refresh failed) — use the expired token
+        // as a last resort. Some backends accept tokens within a grace window.
+        debugPrint('⚠️ Using expired JWT as last resort (offline or refresh failed)');
+        return jwt;
       }
     } catch (e) {
       debugPrint('⚠️ JWT fallback token retrieval failed: $e');

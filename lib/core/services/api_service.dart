@@ -606,41 +606,13 @@ class ApiService {
 
   // ── 8. GET /api/reminders ──────────────────────────────────────────────────
   Future<Map<String, dynamic>> getReminders({bool forceRefresh = false}) async {
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
-      final cached = DataCacheService().get<Map<String, dynamic>>('reminders');
-      if (cached != null) {
-        debugPrint('📦 Using cached reminders');
-        return cached;
-      }
-    }
-
-    try {
-      final idToken = await _getIdToken();
-      if (idToken == null) {
-        return {'success': false, 'message': 'Not authenticated'};
-      }
-
-      final response = await _client.get(
-        '/api/reminders',
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $idToken',
-          },
-        ),
-      );
-
-      final data = response.data as Map<String, dynamic>;
-      
-      // Cache the successful response
-      if (data['success'] == true) {
-        DataCacheService().set('reminders', data, ttl: const Duration(minutes: 5));
-      }
-
-      return data;
-    } on DioException catch (e) {
-      return _handleError(e);
-    }
+    return _cachedGet(
+      key: CacheKeys.reminders,
+      path: '/api/reminders',
+      authenticated: true,
+      forceRefresh: forceRefresh,
+      emptyFallback: {'success': true, 'reminders': []},
+    );
   }
 
   // ── 9. POST /api/reminders ─────────────────────────────────────────────────
@@ -767,35 +739,13 @@ class ApiService {
 
   // ── 13. GET /api/events ────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getEvents({bool forceRefresh = false}) async {
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
-      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.events);
-      if (cached != null) {
-        debugPrint('📦 Using cached events');
-        return cached;
-      }
-    }
-
-    // Offline: no cache and no network → return empty gracefully
-    if (ConnectivityService().isOffline) {
-      debugPrint('📵 Offline — returning empty events');
-      return {'success': false, 'message': 'No internet connection', 'events': []};
-    }
-
-    try {
-      final response = await _client.get('/api/events');
-
-      final data = response.data as Map<String, dynamic>;
-      
-      // Cache the successful response
-      if (data['success'] == true) {
-        DataCacheService().set(CacheKeys.events, data, ttl: const Duration(minutes: 5));
-      }
-
-      return data;
-    } on DioException catch (e) {
-      return _handleError(e);
-    }
+    return _cachedGet(
+      key: CacheKeys.events,
+      path: '/api/events',
+      authenticated: false,
+      forceRefresh: forceRefresh,
+      emptyFallback: {'success': true, 'events': []},
+    );
   }
 
   // ── 14. POST /api/events/:id/register ──────────────────────────────────────
@@ -819,41 +769,13 @@ class ApiService {
 
   // ── 15. GET /api/gatherings ────────────────────────────────────────────────
   Future<Map<String, dynamic>> getGatherings({bool forceRefresh = false}) async {
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
-      final cached = DataCacheService().get<Map<String, dynamic>>(CacheKeys.gatherings);
-      if (cached != null) {
-        debugPrint('📦 Using cached gatherings');
-        return cached;
-      }
-    }
-
-    if (ConnectivityService().isOffline) {
-      debugPrint('📵 Offline — returning empty gatherings');
-      return {'success': false, 'message': 'No internet connection', 'gatherings': []};
-    }
-
-    try {
-      final response = await _client.get(
-        '/api/gatherings',
-        options: Options(
-          headers: forceRefresh ? {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          } : null,
-        ),
-      );
-
-      final data = response.data as Map<String, dynamic>;
-      
-      // Cache the successful response
-      if (data['success'] == true) {
-        DataCacheService().set(CacheKeys.gatherings, data, ttl: const Duration(minutes: 5));
-      }
-
-      return data;
-    } on DioException catch (e) {
-      return _handleError(e);
-    }
+    return _cachedGet(
+      key: CacheKeys.gatherings,
+      path: '/api/gatherings',
+      authenticated: false,
+      forceRefresh: forceRefresh,
+      emptyFallback: {'success': true, 'gatherings': []},
+    );
   }
 
   // ── 16. POST /api/meditation/sessions - Record meditation session ──────────
@@ -992,12 +914,127 @@ class ApiService {
     }
   }
 
+  // ── Cache helpers (stale-while-revalidate) ────────────────────────────────
+
+  /// Stale-while-revalidate GET: return disk cache immediately, refresh in background.
+  Future<Map<String, dynamic>> _cachedGet({
+    required String key,
+    required String path,
+    required bool authenticated,
+    required Map<String, dynamic> emptyFallback,
+    bool forceRefresh = false,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final cache = DataCacheService();
+
+    if (!forceRefresh) {
+      final mem = cache.get<Map<String, dynamic>>(key);
+      if (mem != null) {
+        if (ConnectivityService().isOnline) _backgroundFetch(
+            key: key, path: path, authenticated: authenticated,
+            queryParameters: queryParameters);
+        return mem;
+      }
+      final disk = await cache.getWithDiskFallback(key);
+      if (disk != null) {
+        if (ConnectivityService().isOnline) _backgroundFetch(
+            key: key, path: path, authenticated: authenticated,
+            queryParameters: queryParameters);
+        return disk;
+      }
+    }
+
+    if (ConnectivityService().isOffline) return emptyFallback;
+
+    return await _networkFetch(
+        key: key, path: path, authenticated: authenticated,
+        queryParameters: queryParameters, fallback: emptyFallback);
+  }
+
+  Future<Map<String, dynamic>> _networkFetch({
+    required String key,
+    required String path,
+    required bool authenticated,
+    required Map<String, dynamic> fallback,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      Options? opts;
+      if (authenticated) {
+        final token = await _getIdToken();
+        if (token == null) {
+          final stale = await DataCacheService().getWithDiskFallback(key);
+          return stale ?? {'success': false, 'message': 'Not authenticated'};
+        }
+        opts = Options(headers: {'Authorization': 'Bearer $token'});
+      }
+      final resp = await _client.get(
+          path, queryParameters: queryParameters, options: opts);
+      final data = resp.data as Map<String, dynamic>;
+      if (data['success'] == true) DataCacheService().set(key, data);
+      return data;
+    } on DioException catch (_) {
+      final stale = await DataCacheService().getWithDiskFallback(key);
+      if (stale != null) {
+        debugPrint('📦 Network failed — serving stale cache: $key');
+        return stale;
+      }
+      debugPrint('❌ Network failed + no cache: $key');
+      return fallback;
+    }
+  }
+
+  void _backgroundFetch({
+    required String key,
+    required String path,
+    required bool authenticated,
+    Map<String, dynamic>? queryParameters,
+  }) {
+    Future.microtask(() async {
+      try {
+        Options? opts;
+        if (authenticated) {
+          final token = await _getIdToken();
+          if (token == null) return;
+          opts = Options(headers: {'Authorization': 'Bearer $token'});
+        }
+        final resp = await _client.get(
+            path, queryParameters: queryParameters, options: opts);
+        final data = resp.data as Map<String, dynamic>;
+        if (data['success'] == true) {
+          DataCacheService().set(key, data);
+          debugPrint('🔄 Background refresh done: $key');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Background refresh failed for $key: $e');
+      }
+    });
+  }
+
   // ── Generic GET method for authenticated requests ──────────────────────────
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
+    String? cacheKey,
   }) async {
-    // Fast fail when offline — avoids waiting 10s for a timeout
+    final cache = DataCacheService();
+
+    // Try disk cache first when a cacheKey is provided
+    if (cacheKey != null) {
+      final cached = await cache.getWithDiskFallback(cacheKey);
+      if (cached != null) {
+        debugPrint('📦 Disk cache hit for $path');
+        // Revalidate in background if online
+        if (ConnectivityService().isOnline) {
+          _backgroundFetch(
+              key: cacheKey, path: path, authenticated: true,
+              queryParameters: queryParameters);
+        }
+        return cached;
+      }
+    }
+
+    // No cache — fast fail when offline
     if (ConnectivityService().isOffline) {
       debugPrint('📵 Offline — skipping GET $path');
       return {'success': false, 'message': 'No internet connection'};
@@ -1014,32 +1051,41 @@ class ApiService {
         queryParameters: queryParameters,
         options: Options(
           headers: {'Authorization': 'Bearer $idToken'},
-          responseType: ResponseType.json, // Ensure JSON response
+          responseType: ResponseType.json,
         ),
       );
 
-      // Handle response data type
+      Map<String, dynamic>? data;
       if (response.data is Map<String, dynamic>) {
-        return response.data as Map<String, dynamic>;
+        data = response.data as Map<String, dynamic>;
       } else if (response.data is String) {
-        // Try to parse string as JSON
         try {
           final decoded = json.decode(response.data as String);
-          if (decoded is Map<String, dynamic>) {
-            return decoded;
-          }
+          if (decoded is Map<String, dynamic>) data = decoded;
         } catch (e) {
           debugPrint('Failed to parse response as JSON: $e');
         }
       }
-      
-      // Fallback: wrap response in a map
-      return {
-        'success': false,
-        'message': 'Invalid response format',
-        'data': response.data,
-      };
+
+      if (data == null) {
+        return {'success': false, 'message': 'Invalid response format'};
+      }
+
+      // Persist to cache if key provided and response is successful
+      if (cacheKey != null && data['success'] == true) {
+        cache.set(cacheKey, data);
+      }
+
+      return data;
     } on DioException catch (e) {
+      // Network failed — return stale disk cache if available
+      if (cacheKey != null) {
+        final stale = await cache.getWithDiskFallback(cacheKey);
+        if (stale != null) {
+          debugPrint('📦 Network failed — serving stale cache for $path');
+          return stale;
+        }
+      }
       return _handleError(e);
     }
   }

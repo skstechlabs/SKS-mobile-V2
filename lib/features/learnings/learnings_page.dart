@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
 import '../../core/widgets/offline_banner.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/data_cache_service.dart';
 import '../../core/services/connectivity_service.dart';
 import '../../core/services/localization_service.dart';
 
@@ -36,7 +37,10 @@ class _LearningsPageState extends State<LearningsPage> {
 
     try {
       debugPrint('🔍 Loading level access from API...');
-      final response = await _apiService.get('/api/level-progression/access');
+      final response = await _apiService.get(
+        '/api/level-progression/access',
+        cacheKey: CacheKeys.levelAccess,
+      );
       
       debugPrint('📦 API Response: $response');
       
@@ -78,11 +82,25 @@ class _LearningsPageState extends State<LearningsPage> {
         if (!mounted) return;
 
         // Token expired / session invalid — send to login
+        // But only if we have no cached data to show
         if (errorMsg.toLowerCase().contains('not authenticated') ||
             errorMsg.toLowerCase().contains('unauthorized') ||
             errorMsg.toLowerCase().contains('token')) {
-          debugPrint('🔐 Session expired — redirecting to login');
-          context.go('/login');
+          // Check if we have any stale cached data before redirecting
+          final hasCachedData =
+              await DataCacheService().hasDisk(CacheKeys.levelAccess);
+          if (!hasCachedData) {
+            debugPrint('🔐 Session expired + no cache — redirecting to login');
+            if (mounted) context.go('/login');
+            return;
+          }
+          // We have stale data — don't redirect, just show what we have
+          debugPrint('⚠️ Session expired but cache exists — showing stale data');
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _errorMessage = null; // don't show error, cache loaded above
+          });
           return;
         }
 

@@ -28,6 +28,7 @@ class _LearningsPageState extends State<LearningsPage> {
   }
 
   Future<void> _loadLevelAccess() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -62,6 +63,7 @@ class _LearningsPageState extends State<LearningsPage> {
         
         debugPrint('✅ Parsed Level Access: $parsedAccess');
         
+        if (!mounted) return;
         setState(() {
           _levelAccess = parsedAccess;
           _meditationTest = response['meditationTest'] as Map<String, dynamic>?;
@@ -73,6 +75,7 @@ class _LearningsPageState extends State<LearningsPage> {
       } else {
         final errorMsg = response['message'] ?? 'Failed to load classes';
         debugPrint('❌ API returned success=false: $errorMsg');
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _errorMessage = errorMsg;
@@ -81,6 +84,7 @@ class _LearningsPageState extends State<LearningsPage> {
     } catch (e, stackTrace) {
       debugPrint('❌ Error loading level access: $e');
       debugPrint('Stack trace: $stackTrace');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Unable to load classes. Please check your connection.';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/enhanced_audio_player_service.dart';
+import '../services/now_playing_state.dart';
 import '../theme/app_theme.dart';
 import '../../features/audio/now_playing_screen.dart';
 
@@ -13,20 +14,20 @@ class MiniAudioPlayer extends StatefulWidget {
 class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final EnhancedAudioPlayerService _service = EnhancedAudioPlayerService();
 
-  // Track whether the full-screen player is currently open so we can hide
-  // the mini player (avoids showing two sets of controls simultaneously).
-  bool _playerOpen = false;
-
   @override
   void initState() {
     super.initState();
     _service.initialize();
     _service.addListener(_onAudioStateChanged);
+    // Listen to the global notifier so we rebuild when NowPlayingScreen
+    // opens or closes — regardless of who pushed it.
+    nowPlayingVisible.addListener(_onPlayerVisibilityChanged);
   }
 
   @override
   void dispose() {
     _service.removeListener(_onAudioStateChanged);
+    nowPlayingVisible.removeListener(_onPlayerVisibilityChanged);
     super.dispose();
   }
 
@@ -34,10 +35,14 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _openPlayer() async {
-    if (_playerOpen) return;
-    setState(() => _playerOpen = true);
-    await Navigator.of(context).push(
+  void _onPlayerVisibilityChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _openPlayer() {
+    // Guard: never push NowPlayingScreen if it's already open
+    if (nowPlayingVisible.value) return;
+    Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => const NowPlayingScreen(),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
@@ -50,22 +55,24 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         transitionDuration: const Duration(milliseconds: 350),
       ),
     );
-    // When NowPlayingScreen is popped, show the mini player again
-    if (mounted) setState(() => _playerOpen = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final song = _service.currentSong;
 
-    // Hide mini player when there's no song or the full player is open
-    if (song == null || _playerOpen) return const SizedBox.shrink();
+    // Hide when:
+    //  - no song loaded
+    //  - full-screen NowPlayingScreen is open (avoids duplicate controls)
+    if (song == null || nowPlayingVisible.value) {
+      return const SizedBox.shrink();
+    }
 
     final String title = song.title;
     final String artist = song.artist ?? song.description ?? 'Divine Chants';
 
     // Fixed 64px — no SafeArea so it doesn't add bottom inset inside the
-    // bottomNavigationBar Column (the BottomNavigationBar already handles that).
+    // bottomNavigationBar Column (BottomNavigationBar handles that already).
     return GestureDetector(
       onTap: _openPlayer,
       child: Container(

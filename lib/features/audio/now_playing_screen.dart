@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/models/audio_model.dart';
 import '../../core/services/enhanced_audio_player_service.dart';
+import '../../core/services/now_playing_state.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Full-screen Spotify-style Now Playing screen.
@@ -24,6 +25,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   @override
   void initState() {
     super.initState();
+    // Signal globally that the full-screen player is now visible.
+    // MiniAudioPlayer observes this and hides itself to avoid duplicate controls.
+    nowPlayingVisible.value = true;
+
     _service.addListener(_onStateChanged);
 
     _artController = AnimationController(
@@ -39,6 +44,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
   @override
   void dispose() {
+    // Signal that the full-screen player is gone — show mini player again.
+    nowPlayingVisible.value = false;
     _service.removeListener(_onStateChanged);
     _artController.dispose();
     super.dispose();

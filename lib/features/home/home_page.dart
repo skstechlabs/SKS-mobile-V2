@@ -66,6 +66,7 @@ class _HomePageState extends State<HomePage>
     )..repeat(reverse: true);
     _audioService.initialize();
     _audioService.addListener(_onAudioStateChanged);
+    _audioProvider.addListener(_onAudioProviderChanged);
 
     // Quote rotation is now handled by _QuoteRotatorWidget — no timer here.
     
@@ -264,11 +265,17 @@ class _HomePageState extends State<HomePage>
     // HomePage only needs to rebuild if audio affects a visible home element.
   }
 
+  void _onAudioProviderChanged() {
+    // Rebuild when audio data loads (bhajans/meditations appear)
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _glowController.dispose();
     _audioService.removeListener(_onAudioStateChanged);
+    _audioProvider.removeListener(_onAudioProviderChanged);
     LocalizationService().removeListener(_onLanguageChanged);
     super.dispose();
   }

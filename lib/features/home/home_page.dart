@@ -14,13 +14,7 @@ import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
 import '../../core/widgets/cached_image.dart';
 
-import '../chakras/chakra_detail_page.dart';
-import '../songs/all_songs_page.dart';
 import '../audio/now_playing_screen.dart';
-import '../guru_journey/guru_journey_page.dart';
-import '../kundalini_science/kundalini_science_page.dart';
-import '../benefits/benefits_page.dart';
-import '../video/youtube_player.dart';
 
 /// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
@@ -1849,12 +1843,7 @@ class _HomePageState extends State<HomePage>
           SizedBox(height: 12),
           OutlinedButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AllSongsPage(),
-                ),
-              );
+              context.push('/all-songs');
             },
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: AppTheme.primary, width: 2),
@@ -2055,12 +2044,7 @@ class _HomePageState extends State<HomePage>
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: GestureDetector(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GuruJourneyPage(),
-            ),
-          );
+          context.push('/guru-journey');
         },
         child: Container(
           height: 200,
@@ -2153,12 +2137,7 @@ class _HomePageState extends State<HomePage>
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: GestureDetector(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => KundaliniSciencePage(),
-            ),
-          );
+          context.push('/kundalini-science');
         },
         child: Container(
           height: 200,
@@ -2251,12 +2230,7 @@ class _HomePageState extends State<HomePage>
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: GestureDetector(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => BenefitsPage(),
-            ),
-          );
+          context.push('/benefits');
         },
         child: Container(
           height: 200,
@@ -2349,12 +2323,7 @@ class _HomePageState extends State<HomePage>
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: GestureDetector(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChakraDetailPage(initialIndex: 0),
-            ),
-          );
+          context.push('/chakras', extra: {'initialIndex': 0});
         },
         child: Container(
           height: 200,
@@ -2495,15 +2464,10 @@ class _HomePageState extends State<HomePage>
                       String? videoId = _extractYouTubeVideoId(videoUrl);
                       
                       if (videoId != null) {
-                        // Play YouTube video in-app
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => YouTubeVideoPlayer(
-                              videoId: videoId,
-                              title: title,
-                            ),
-                          ),
+                        // Play YouTube video in-app via go_router
+                        context.push(
+                          '/youtube-player',
+                          extra: {'videoId': videoId, 'title': title},
                         );
                       } else {
                         // Fallback to external browser if video ID extraction fails

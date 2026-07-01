@@ -26,6 +26,12 @@ import '../features/learnings/day_video_screen.dart';
 import '../features/settings/ringtone_settings_page.dart';
 import '../features/settings/wallpaper_settings_page.dart';
 import '../features/audio/now_playing_screen.dart';
+import '../features/songs/all_songs_page.dart';
+import '../features/guru_journey/guru_journey_page.dart';
+import '../features/kundalini_science/kundalini_science_page.dart';
+import '../features/benefits/benefits_page.dart';
+import '../features/chakras/chakra_detail_page.dart';
+import '../features/video/youtube_player.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
@@ -180,6 +186,40 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/guruji-connect',
       builder: (context, state) => const GurujiConnectPage(),
+    ),
+    GoRoute(
+      path: '/guru-journey',
+      builder: (context, state) => const GuruJourneyPage(),
+    ),
+    GoRoute(
+      path: '/kundalini-science',
+      builder: (context, state) => const KundaliniSciencePage(),
+    ),
+    GoRoute(
+      path: '/benefits',
+      builder: (context, state) => const BenefitsPage(),
+    ),
+    GoRoute(
+      path: '/chakras',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        final initialIndex = extra?['initialIndex'] as int? ?? 0;
+        return ChakraDetailPage(initialIndex: initialIndex);
+      },
+    ),
+    GoRoute(
+      path: '/all-songs',
+      builder: (context, state) => const AllSongsPage(),
+    ),
+    GoRoute(
+      path: '/youtube-player',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return YouTubeVideoPlayer(
+          videoId: extra?['videoId'] as String? ?? '',
+          title: extra?['title'] as String? ?? '',
+        );
+      },
     ),
     GoRoute(
       path: '/notifications',

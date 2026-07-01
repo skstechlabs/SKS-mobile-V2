@@ -76,6 +76,16 @@ class _LearningsPageState extends State<LearningsPage> {
         final errorMsg = response['message'] ?? 'Failed to load classes';
         debugPrint('❌ API returned success=false: $errorMsg');
         if (!mounted) return;
+
+        // Token expired / session invalid — send to login
+        if (errorMsg.toLowerCase().contains('not authenticated') ||
+            errorMsg.toLowerCase().contains('unauthorized') ||
+            errorMsg.toLowerCase().contains('token')) {
+          debugPrint('🔐 Session expired — redirecting to login');
+          context.go('/login');
+          return;
+        }
+
         setState(() {
           _isLoading = false;
           _errorMessage = errorMsg;

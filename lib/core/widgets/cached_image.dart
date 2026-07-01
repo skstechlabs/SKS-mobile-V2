@@ -43,8 +43,15 @@ class _CachedImageState extends State<CachedImage> {
   // Increment key to force CachedNetworkImage to reload on retry
   int _imageKey = 0;
 
-  void _onError() {
-    if (_retryCount < _maxRetries && mounted) {
+  void _onError(dynamic error) {
+    // Don't retry on DNS / socket errors — they won't self-recover with retries
+    final errorStr = error?.toString() ?? '';
+    final isDnsError = errorStr.contains('Failed host lookup') ||
+        errorStr.contains('No address associated with hostname') ||
+        errorStr.contains('SocketException') ||
+        errorStr.contains('errno = 7');
+
+    if (!isDnsError && _retryCount < _maxRetries && mounted) {
       Future.delayed(Duration(milliseconds: 500 * (_retryCount + 1)), () {
         if (mounted) {
           setState(() {
@@ -53,6 +60,9 @@ class _CachedImageState extends State<CachedImage> {
           });
         }
       });
+    } else if (isDnsError && mounted) {
+      // Mark as exhausted so we immediately show the error widget
+      setState(() => _retryCount = _maxRetries);
     }
   }
 
@@ -93,7 +103,7 @@ class _CachedImageState extends State<CachedImage> {
         },
         errorWidget: (context, url, error) {
           debugPrint('❌ Image load error (attempt $_retryCount): $url — $error');
-          _onError();
+          _onError(error);
           return _retryCount < _maxRetries
               ? _buildDefaultPlaceholder() // show spinner while retrying
               : (widget.errorWidget ?? _buildErrorWidget());

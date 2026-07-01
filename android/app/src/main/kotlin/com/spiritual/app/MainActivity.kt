@@ -181,12 +181,13 @@ class MainActivity : FlutterActivity() {
                         result.success(setWallpaper(path, setLockScreen = setLockScreen))
                     }
                     "scheduleWallpaperAlarm" -> {
-                        val intervalMs = call.argument<Long>("intervalMs") ?: (15 * 60 * 1000L)
-                        scheduleWallpaperAlarm(intervalMs)
+                        // intervalMs param kept for API compat but ignored —
+                        // the interval is fixed at 15 min inside the receiver.
+                        WallpaperRotationReceiver.schedule(this)
                         result.success(true)
                     }
                     "cancelWallpaperAlarm" -> {
-                        cancelWallpaperAlarm()
+                        WallpaperRotationReceiver.cancel(this)
                         result.success(true)
                     }
                     else -> result.notImplemented()

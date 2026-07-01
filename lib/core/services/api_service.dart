@@ -1000,16 +1000,19 @@ class ApiService {
       }
       final resp = await _client.get(
           path, queryParameters: queryParameters, options: opts);
-      final data = resp.data as Map<String, dynamic>;
-      if (data['success'] == true) DataCacheService().set(key, data);
-      return data;
-    } on DioException catch (_) {
+      final data = _parseResponse(resp.data);
+      if (data != null && data['success'] == true) {
+        DataCacheService().set(key, data);
+      }
+      return data ?? fallback;
+    } catch (e) {
+      // Catch ALL exceptions (DioException + CastError + etc.)
       final stale = await DataCacheService().getWithDiskFallback(key);
       if (stale != null) {
-        debugPrint('📦 Network failed — serving stale cache: $key');
+        debugPrint('📦 Network failed — serving stale cache: $key ($e)');
         return stale;
       }
-      debugPrint('❌ Network failed + no cache: $key');
+      debugPrint('❌ Network failed + no cache: $key ($e)');
       return fallback;
     }
   }
@@ -1030,8 +1033,8 @@ class ApiService {
         }
         final resp = await _client.get(
             path, queryParameters: queryParameters, options: opts);
-        final data = resp.data as Map<String, dynamic>;
-        if (data['success'] == true) {
+        final data = _parseResponse(resp.data);
+        if (data != null && data['success'] == true) {
           DataCacheService().set(key, data);
           debugPrint('🔄 Background refresh done: $key');
         }
@@ -1039,6 +1042,19 @@ class ApiService {
         debugPrint('⚠️ Background refresh failed for $key: $e');
       }
     });
+  }
+
+  /// Safely parse a Dio response body into Map<String, dynamic>.
+  /// Handles both already-decoded Map and raw JSON String responses.
+  Map<String, dynamic>? _parseResponse(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is String && data.isNotEmpty) {
+      try {
+        final decoded = json.decode(data);
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {}
+    }
+    return null;
   }
 
   // ── Generic GET method for authenticated requests ──────────────────────────

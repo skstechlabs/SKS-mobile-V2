@@ -156,45 +156,46 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   ),
                 ),
 
-                const Spacer(flex: 2),
-
-                // ── Album art ────────────────────────────────────────────
-                ScaleTransition(
-                  scale: _artScale,
+                // ── Album art — flexible so it shrinks on small screens ──
+                Flexible(
+                  flex: 5,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 36),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              blurRadius: 40,
-                              spreadRadius: 8,
-                              offset: const Offset(0, 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 36, vertical: 12),
+                    child: ScaleTransition(
+                      scale: _artScale,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                blurRadius: 40,
+                                spreadRadius: 8,
+                                offset: const Offset(0, 16),
+                              ),
+                            ],
+                            image: DecorationImage(
+                              image: _thumb(song),
+                              fit: BoxFit.cover,
                             ),
-                          ],
-                          image: DecorationImage(
-                            image: _thumb(song),
-                            fit: BoxFit.cover,
                           ),
+                          child: song == null
+                              ? const Icon(Icons.music_note,
+                                  color: Colors.white38, size: 80)
+                              : null,
                         ),
-                        child: song == null
-                            ? const Icon(Icons.music_note,
-                                color: Colors.white38, size: 80)
-                            : null,
                       ),
                     ),
                   ),
                 ),
 
-                const Spacer(flex: 2),
-
                 // ── Song info ────────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 4),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -251,7 +252,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 12),
 
                 // ── Seek bar ─────────────────────────────────────────────
                 Padding(
@@ -316,7 +317,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // ── Playback controls ────────────────────────────────────
                 Padding(
@@ -385,12 +386,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 16),
 
-                // ── Queue / Playlist strip ───────────────────────────────
-                if (playlist.length > 1) _buildQueueStrip(playlist, idx),
+                // ── Queue / Playlist strip — flexible so it disappears if
+                //    there's not enough vertical space ────────────────────
+                if (playlist.length > 1)
+                  Flexible(
+                    flex: 2,
+                    child: _buildQueueStrip(playlist, idx),
+                  ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -402,9 +408,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   Widget _buildQueueStrip(List<AudioModel> playlist, int currentIdx) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 32, bottom: 8),
+          padding: const EdgeInsets.only(left: 32, bottom: 6),
           child: Text(
             'UP NEXT',
             style: TextStyle(
@@ -416,7 +423,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
         ),
         SizedBox(
-          height: 76,
+          height: 70,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -428,18 +435,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
               return GestureDetector(
                 onTap: () => _service.playSong(playlist, i),
                 child: Container(
-                  width: 60,
+                  width: 56,
                   margin: const EdgeInsets.only(right: 12),
                   child: Column(
                     children: [
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                           border: isCurrent
                               ? Border.all(
-                                  color: AppTheme.saffron, width: 2.5)
+                                  color: AppTheme.saffron, width: 2)
                               : null,
                           image: DecorationImage(
                             image: thumb.startsWith('http')
@@ -453,15 +460,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                         child: isCurrent
                             ? Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(8),
                                   color: Colors.black.withValues(alpha: 0.4),
                                 ),
                                 child: const Icon(Icons.graphic_eq,
-                                    color: Colors.white, size: 22),
+                                    color: Colors.white, size: 20),
                               )
                             : null,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         s.title,
                         style: TextStyle(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/enhanced_audio_player_service.dart';
-import '../models/audio_model.dart';
 import '../theme/app_theme.dart';
 import '../../features/audio/now_playing_screen.dart';
 
@@ -14,13 +13,14 @@ class MiniAudioPlayer extends StatefulWidget {
 class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final EnhancedAudioPlayerService _service = EnhancedAudioPlayerService();
 
+  // Track whether the full-screen player is currently open so we can hide
+  // the mini player (avoids showing two sets of controls simultaneously).
+  bool _playerOpen = false;
+
   @override
   void initState() {
     super.initState();
     _service.initialize();
-    // Listen only to play/pause/song-change events — NOT position updates.
-    // Position updates are handled by StreamBuilder so the progress bar
-    // always moves, even if notifyListeners() is throttled.
     _service.addListener(_onAudioStateChanged);
   }
 
@@ -34,14 +34,10 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     if (mounted) setState(() {});
   }
 
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  void _openPlayer() {
-    Navigator.of(context).push(
+  Future<void> _openPlayer() async {
+    if (_playerOpen) return;
+    setState(() => _playerOpen = true);
+    await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => const NowPlayingScreen(),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
@@ -54,45 +50,43 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         transitionDuration: const Duration(milliseconds: 350),
       ),
     );
+    // When NowPlayingScreen is popped, show the mini player again
+    if (mounted) setState(() => _playerOpen = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final song = _service.currentSong;
-    if (song == null) return const SizedBox.shrink();
 
-    final String title;
-    final String artist;
-    if (song is AudioModel) {
-      title = song.title;
-      artist = song.artist ?? song.description ?? 'Divine Chants';
-    } else {
-      final m = song as Map;
-      title = m['title'] ?? 'Unknown Title';
-      artist = m['artist'] ?? m['description'] ?? 'Divine Chants';
-    }
+    // Hide mini player when there's no song or the full player is open
+    if (song == null || _playerOpen) return const SizedBox.shrink();
 
+    final String title = song.title;
+    final String artist = song.artist ?? song.description ?? 'Divine Chants';
+
+    // Fixed 64px — no SafeArea so it doesn't add bottom inset inside the
+    // bottomNavigationBar Column (the BottomNavigationBar already handles that).
     return GestureDetector(
       onTap: _openPlayer,
-      child: SafeArea(
-        top: false,
-        child: Container(
-          height: 72,
-          decoration: BoxDecoration(
-            gradient: AppTheme.saffronGradient,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 10,
-                offset: const Offset(0, -3),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Progress bar (StreamBuilder → always live) ──
-              StreamBuilder<Duration>(
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          gradient: AppTheme.saffronGradient,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Thin progress bar (StreamBuilder → always live) ──────────
+            SizedBox(
+              height: 3,
+              child: StreamBuilder<Duration>(
                 stream: _service.player.positionStream,
                 builder: (ctx, snap) {
                   final pos = snap.data ?? Duration.zero;
@@ -101,134 +95,121 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                       ? (pos.inMilliseconds / dur.inMilliseconds)
                           .clamp(0.0, 1.0)
                       : 0.0;
-                  return SliderTheme(
-                    data: SliderTheme.of(ctx).copyWith(
-                      trackHeight: 2.5,
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 5),
-                      overlayShape:
-                          const RoundSliderOverlayShape(overlayRadius: 10),
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor:
-                          Colors.white.withValues(alpha: 0.30),
-                      thumbColor: Colors.white,
-                      overlayColor: Colors.white.withValues(alpha: 0.15),
-                    ),
-                    child: Slider(
-                      value: ratio,
-                      onChanged: (v) {
-                        final target = Duration(
-                          milliseconds:
-                              (v * dur.inMilliseconds).round(),
-                        );
-                        _service.seekTo(target);
-                      },
-                    ),
+                  return LinearProgressIndicator(
+                    value: ratio,
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Colors.white),
                   );
                 },
               ),
+            ),
 
-              // ── Controls row ──────────────────────────────────────────
-              Expanded(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.only(left: 16, right: 4, bottom: 4),
-                  child: Row(
-                    children: [
-                      // Title + artist
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
+            // ── Controls row ─────────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    // Title + artist
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            artist,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.75),
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Prev
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: 36, minHeight: 36),
+                      icon: const Icon(Icons.skip_previous_rounded,
+                          color: Colors.white, size: 26),
+                      onPressed: () => _service.previousSong(),
+                    ),
+
+                    // Play / Pause
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: _service.isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(9),
+                              child: CircularProgressIndicator(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                                strokeWidth: 2,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            )
+                          : IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                _service.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              onPressed: () {
+                                if (_service.isPlaying) {
+                                  _service.pause();
+                                } else {
+                                  _service.play();
+                                }
+                              },
                             ),
-                            Text(
-                              artist,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.75),
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
+                    ),
 
-                      // Prev
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.skip_previous_rounded,
-                            color: Colors.white, size: 26),
-                        onPressed: () => _service.previousSong(),
-                      ),
+                    // Next
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: 36, minHeight: 36),
+                      icon: const Icon(Icons.skip_next_rounded,
+                          color: Colors.white, size: 26),
+                      onPressed: () => _service.nextSong(),
+                    ),
 
-                      // Play / Pause
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: _service.isLoading
-                            ? const Padding(
-                                padding: EdgeInsets.all(10),
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : IconButton(
-                                padding: EdgeInsets.zero,
-                                icon: Icon(
-                                  _service.isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                                onPressed: () {
-                                  if (_service.isPlaying) {
-                                    _service.pause();
-                                  } else {
-                                    _service.play();
-                                  }
-                                },
-                              ),
-                      ),
-
-                      // Next
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.skip_next_rounded,
-                            color: Colors.white, size: 26),
-                        onPressed: () => _service.nextSong(),
-                      ),
-
-                      // Close
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(Icons.close,
-                            color: Colors.white.withValues(alpha: 0.7),
-                            size: 20),
-                        onPressed: () => _service.stop(),
-                      ),
-                    ],
-                  ),
+                    // Close
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: 32, minHeight: 32),
+                      icon: Icon(Icons.close,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 20),
+                      onPressed: () => _service.stop(),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

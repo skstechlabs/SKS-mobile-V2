@@ -71,16 +71,25 @@ class WallpaperService {
     _isInitializing = true;
     try {
       final _ = _dioInstance;
-      await _loadWallpapersFromAPI();
+
+      // Load from cache first — gives instant wallpaper list without network
+      await _loadWallpapersFromCache();
+
+      // Stagger the network call by 3 seconds so it doesn't compete with
+      // ApiService, AudioProvider and other services that all hit the server
+      // at app startup simultaneously (causes "Connection reset by peer").
+      await Future.delayed(const Duration(seconds: 3));
+
+      await _loadWallpapersFromAPIWithRetry();
       debugPrint('✅ WallpaperService initialized with ${_wallpapers.length} wallpapers from CDN');
-      
+
       final enabled = await isEnabled();
       if (enabled) {
         _startAutoRotation();
       }
     } catch (e) {
       debugPrint('❌ WallpaperService initialization failed: $e');
-      await _loadWallpapersFromCache();
+      // Cache was already loaded above — just continue with what we have
     } finally {
       _isInitializing = false;
     }
@@ -114,6 +123,26 @@ class WallpaperService {
     }
   }
 
+  /// Load wallpapers from API with exponential backoff retry (max 3 attempts).
+  Future<void> _loadWallpapersFromAPIWithRetry() async {
+    const maxAttempts = 3;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await _loadWallpapersFromAPI();
+        return; // success
+      } catch (e) {
+        if (attempt < maxAttempts) {
+          final delay = Duration(seconds: attempt * 2); // 2s, 4s
+          debugPrint('⚠️ Wallpaper API attempt $attempt/$maxAttempts failed, retrying in ${delay.inSeconds}s: $e');
+          await Future.delayed(delay);
+        } else {
+          debugPrint('❌ Wallpaper API failed after $maxAttempts attempts: $e');
+          rethrow;
+        }
+      }
+    }
+  }
+
   /// Cache wallpapers list
   Future<void> _cacheWallpapers() async {
     try {
@@ -133,17 +162,41 @@ class WallpaperService {
     }
   }
 
-  /// Load wallpapers from cache
+  /// Load wallpapers from SharedPreferences cache.
+  /// Parses the JSON URL array stored by _cacheWallpapers() so wallpapers
+  /// are available immediately on startup and when the server is unreachable.
   Future<void> _loadWallpapersFromCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cached = prefs.getString(_prefKeyCachedWallpapers);
-      if (cached != null) {
-        // Parse cached data (simplified - in production use proper JSON parsing)
-        debugPrint('📦 Loaded wallpapers from cache');
+
+      // Primary: parse the native-readable JSON URL array
+      final urlsJson = prefs.getString(_prefKeyCachedUrls);
+      if (urlsJson != null && urlsJson.isNotEmpty) {
+        // Parse JSON array: ["https://...", "https://...", ...]
+        final cleaned = urlsJson.trim();
+        if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+          final inner = cleaned.substring(1, cleaned.length - 1);
+          final urls = inner
+              .split(',')
+              .map((s) => s.trim().replaceAll('"', ''))
+              .where((s) => s.startsWith('http'))
+              .toList();
+
+          if (urls.isNotEmpty) {
+            _wallpapers = urls.map((u) => {
+              'url': u,
+              'filename': u.split('/').last,
+            }).toList();
+            _isLoaded = true;
+            debugPrint('📦 Loaded ${_wallpapers.length} wallpapers from cache');
+            return;
+          }
+        }
       }
+
+      debugPrint('ℹ️ No cached wallpaper URLs found');
     } catch (e) {
-      debugPrint('Error loading from cache: $e');
+      debugPrint('⚠️ Error loading wallpapers from cache: $e');
     }
   }
 
@@ -169,13 +222,21 @@ class WallpaperService {
 
     if (_isInitializing) return;
 
-    try {
-      await _loadWallpapersFromAPI();
-    } catch (e) {
-      debugPrint('⚠️ CDN refresh failed, using in-memory list: $e');
-      // If we at least have something in memory, don't fail
-      if (_wallpapers.isEmpty) {
-        await _loadWallpapersFromCache();
+    // Try cache first for instant availability
+    if (_wallpapers.isEmpty) {
+      await _loadWallpapersFromCache();
+    }
+
+    // Then try to refresh from API (with retry)
+    if (!_isLoaded || _wallpapers.isEmpty) {
+      try {
+        await _loadWallpapersFromAPIWithRetry();
+      } catch (e) {
+        debugPrint('⚠️ CDN refresh failed, using cached list (${_wallpapers.length} items): $e');
+        // If we have wallpapers from cache, that's fine — don't fail
+        if (_wallpapers.isEmpty) {
+          rethrow;
+        }
       }
     }
   }

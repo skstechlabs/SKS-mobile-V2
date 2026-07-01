@@ -22,18 +22,33 @@ class _LearningsPageState extends State<LearningsPage> {
   Map<int, Map<String, dynamic>> _levelAccess = {};
   Map<String, dynamic>? _meditationTest;
 
+  // Track whether we have ever loaded successfully so we can show cached
+  // content instantly on revisit while refreshing silently in background.
+  bool _hasLoadedOnce = false;
+
   @override
   void initState() {
     super.initState();
     _loadLevelAccess();
   }
 
-  Future<void> _loadLevelAccess() async {
+  Future<void> _loadLevelAccess({bool silent = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+
+    // If we have data already, don't show the full-screen spinner —
+    // just refresh silently in the background.
+    if (_hasLoadedOnce && !silent) {
+      // Trigger a background refresh without showing loading state
+      _loadLevelAccess(silent: true);
+      return;
+    }
+
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       debugPrint('🔍 Loading level access from API...');
@@ -70,6 +85,7 @@ class _LearningsPageState extends State<LearningsPage> {
           _meditationTest = response['meditationTest'] as Map<String, dynamic>?;
           _isLoading = false;
           _errorMessage = null;
+          _hasLoadedOnce = true;
         });
         
         debugPrint('✅ Level access loaded successfully: ${_levelAccess.length} levels');
@@ -110,10 +126,13 @@ class _LearningsPageState extends State<LearningsPage> {
       debugPrint('❌ Error loading level access: $e');
       debugPrint('Stack trace: $stackTrace');
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Unable to load classes. Please check your connection.';
-      });
+      // Silent refresh failures don't overwrite existing good data
+      if (!silent) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Unable to load classes. Please check your connection.';
+        });
+      }
     }
   }
 

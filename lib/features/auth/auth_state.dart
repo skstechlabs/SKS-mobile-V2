@@ -161,8 +161,22 @@ class AuthState extends ChangeNotifier {
   /// Refresh block status from the server.
   /// Called every time the user opens the Classes/Learnings screen.
   /// Updates [isBlocked] and [user.blockReason] in-place without a full logout.
+  ///
+  /// Throttled to once per 5 minutes — repeated tab taps don't fire extra
+  /// network calls, keeping the Classes tab snappy.
+  static DateTime? _lastBlockCheck;
+
   Future<void> refreshBlockStatus() async {
     if (_user == null) return;
+
+    // Throttle: skip if checked within the last 5 minutes
+    final now = DateTime.now();
+    if (_lastBlockCheck != null &&
+        now.difference(_lastBlockCheck!).inMinutes < 5) {
+      return;
+    }
+    _lastBlockCheck = now;
+
     try {
       final response = await ApiService().verifyToken();
       if (response['success'] == true) {

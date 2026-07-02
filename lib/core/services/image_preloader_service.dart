@@ -12,8 +12,12 @@ class ImagePreloaderService {
   bool _isPreloaded = false;
   bool get isPreloaded => _isPreloaded;
 
-  /// Preload critical images that are shown on home screen
+  /// Preload critical images that are shown on home screen.
+  ///
+  /// Safe to call multiple times — subsequent calls with a live context
+  /// will re-attempt if a previous call used an unmounted context.
   Future<void> preloadCriticalImages(BuildContext context) async {
+    // If already preloaded successfully with a valid (mounted) context, skip.
     if (_isPreloaded) {
       developer.log('✅ Images already preloaded');
       return;
@@ -38,12 +42,17 @@ class ImagePreloaderService {
         eagerError: false, // Continue even if some images fail
       );
 
-      _isPreloaded = true;
-      developer.log('✅ Critical images preloaded successfully');
+      // Only mark as preloaded if the context is still valid
+      if (context.mounted) {
+        _isPreloaded = true;
+        developer.log('✅ Critical images preloaded successfully');
+      } else {
+        developer.log('⚠️ Context unmounted after preload — will retry on next mounted context');
+        // Do NOT set _isPreloaded = true so we retry from the next live context
+      }
     } catch (e) {
       developer.log('⚠️  Image preload error: $e');
-      // Don't throw - app should work even if preload fails
-      _isPreloaded = true; // Mark as done to avoid retry
+      // Don't mark as done — allow retry from a valid context
     }
   }
 

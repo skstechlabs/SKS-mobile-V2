@@ -26,28 +26,31 @@ class AuthState extends ChangeNotifier {
   bool get isProfileComplete => _user?.isProfileComplete ?? false;
   bool get isBlocked => _user?.isBlocked ?? false;
 
-  /// Initialize auth state from cache
+  /// Initialize auth state from cache.
+  /// Safe to call multiple times — re-reads from SharedPreferences if user
+  /// is not yet loaded (handles hot-restart and post-logout re-init).
   Future<void> initialize() async {
-    // Allow re-initialization if we are marked initialized but have no user —
-    // this can happen on a hot restart where the singleton survives but
-    // SharedPreferences may not have been re-read yet.
+    // Skip if already initialized with a valid user
     if (_isInitialized && _user != null) return;
-    
+
     try {
       debugPrint('🔐 Initializing AuthState from cache...');
       final prefs = await SharedPreferences.getInstance();
 
-      // ── Version-based cache invalidation ──────────────────────────────────
-      // When the app updates, clear permission flags so the live OS state is
-      // re-checked. User session (uid/token) is preserved across updates —
-      // only volatile flags like notification_permission_granted are reset.
+      // ── Version-based flag reset ───────────────────────────────────────────
+      // On app update: reset only volatile UI flags (notification permission).
+      // NEVER remove cached_user_data here — that would log the user out.
       try {
         final info = await PackageInfo.fromPlatform();
         final currentVersion = '${info.version}+${info.buildNumber}';
         final cachedVersion = prefs.getString(_appVersionKey);
         if (cachedVersion != currentVersion) {
-          debugPrint('🔄 App version changed ($cachedVersion → $currentVersion), clearing permission flags');
+          debugPrint('🔄 App version changed ($cachedVersion → $currentVersion)');
+          // Reset permission flags so OS state is re-checked after update.
+          // User session (cached_user_data) is intentionally preserved.
           await prefs.remove('notification_permission_granted');
+          // Note: notification_permission_seen is preserved so the user
+          // isn't shown the permission screen again after an update.
           await prefs.setString(_appVersionKey, currentVersion);
         }
       } catch (e) {
@@ -60,7 +63,6 @@ class AuthState extends ChangeNotifier {
         try {
           final userData = json.decode(userJson) as Map<String, dynamic>;
           final parsed = UserModel.fromJson(userData);
-          // Discard cached data if uid is empty — it's from a corrupted/old cache
           if (parsed.uid.isNotEmpty) {
             _user = parsed;
             debugPrint('✅ Loaded cached user: ${_user!.uid}');
@@ -70,13 +72,12 @@ class AuthState extends ChangeNotifier {
           }
         } catch (e) {
           debugPrint('❌ Error parsing cached user data: $e');
-          // Clear corrupted cache so the next launch works cleanly
           await prefs.remove(_userKey);
         }
       } else {
-        debugPrint('ℹ️  No cached user data found');
+        debugPrint('ℹ️ No cached user data found');
       }
-      
+
       _isInitialized = true;
       notifyListeners();
     } catch (e) {

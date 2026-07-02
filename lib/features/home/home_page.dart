@@ -12,6 +12,7 @@ import '../../core/models/audio_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
+import '../../core/services/image_preloader_service.dart';
 import '../../core/widgets/cached_image.dart';
 
 import '../audio/now_playing_screen.dart';
@@ -79,6 +80,18 @@ class _HomePageState extends State<HomePage>
     
     // Listen for language changes to refresh quotes
     LocalizationService().addListener(_onLanguageChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Trigger image preload from the home page context.
+    // This is the fallback for cases where the splash context was already
+    // disposed before preloading could complete (e.g. fresh install).
+    // ImagePreloaderService guards against double-preloading internally.
+    if (!ImagePreloaderService().isPreloaded) {
+      ImagePreloaderService().preloadCriticalImages(context);
+    }
   }
   
   void _onLanguageChanged() {

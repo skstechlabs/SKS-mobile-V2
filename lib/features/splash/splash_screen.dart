@@ -60,34 +60,56 @@ class _SplashScreenState extends State<SplashScreen>
   // SINGLE entry point for all navigation decisions.
   // This is the ONLY place that decides where to go after launch.
   // The login screen only shows the login UI — no auto-login logic there.
+  //
+  // SESSION PERSISTENCE RULE:
+  // If AuthState has a cached user → the user IS logged in. Go home.
+  // Never call the backend during splash just to "verify" — a network
+  // hiccup would incorrectly log the user out. Trust the local cache.
+  // The backend is only consulted on the very first login, not on every restart.
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _initializeApp() async {
     try {
       developer.log('🚀 Splash: initializing...');
 
-      // Add overall timeout to prevent infinite loading
+      // Generous timeout — 15s is enough for slow devices + DNS.
+      // On timeout: trust local cache if available, else go to login.
       await Future.any([
         _performInitialization(),
-        Future.delayed(const Duration(seconds: 10), () {
-          developer.log('⏰ Splash initialization timeout - going to login');
+        Future.delayed(const Duration(seconds: 15), () {
+          developer.log('⏰ Splash initialization timeout');
           throw TimeoutException('Splash initialization timed out');
         }),
       ]);
     } catch (e, st) {
       developer.log('❌ Splash error: $e\n$st');
-      _navigate('/login');
+      // On any error: check if we have a cached user before giving up.
+      // This prevents a bad network from logging the user out.
+      await _navigateWithCacheFallback();
     }
+  }
+
+  /// Last-resort navigation: use cached user if available, else login screen.
+  Future<void> _navigateWithCacheFallback() async {
+    try {
+      final authState = AuthState();
+      if (!authState.isInitialized) {
+        await authState.initialize().timeout(const Duration(seconds: 2));
+      }
+      if (authState.user != null) {
+        developer.log('🔒 Fallback: cached user found → going home');
+        _navigate('/');
+        return;
+      }
+    } catch (_) {}
+    developer.log('🔒 Fallback: no cached user → going to login');
+    _navigate('/login');
   }
 
   Future<void> _performInitialization() async {
     try {
       developer.log('📍 Step 1: Waiting for first frame...');
-      // Wait for first frame
       await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) {
-        developer.log('⚠️ Widget unmounted after first frame');
-        return;
-      }
+      if (!mounted) return;
       developer.log('✅ First frame rendered');
 
       // Wait for localization with timeout
@@ -99,30 +121,28 @@ class _SplashScreenState extends State<SplashScreen>
           break;
         }
         await Future.delayed(const Duration(milliseconds: 50));
-        if (!mounted) {
-          developer.log('⚠️ Widget unmounted during localization check');
-          return;
-        }
+        if (!mounted) return;
       }
       developer.log('✅ Localization ready');
 
-      // Preload images in background — don't block navigation
-      developer.log('📍 Step 3: Starting image preload (background)...');
+      // Preload images in background — never blocks navigation
       _preloadImages();
 
-      // ── Step 1: First-time language selection ──────────────────────────────
-      developer.log('📍 Step 4: Checking language selection...');
+      // ── Step 1: First-time language selection ────────────────────────────
+      developer.log('📍 Step 3: Checking language selection...');
       final isLanguageSelected = await LocalizationService.isLanguageSelected();
       developer.log('🌐 Language selected: $isLanguageSelected');
-      
       if (!isLanguageSelected) {
         developer.log('📱 First launch — navigating to language selection');
         _navigate('/language-selection');
         return;
       }
 
-      // ── Step 2: Check our own cached user (set after successful backend login)
-      developer.log('📍 Step 5: Checking cached user...');
+      // ── Step 2: Check local cache FIRST ──────────────────────────────────
+      // This is the primary session check. If we have a cached user we are
+      // logged in — no network call needed. This is what makes cold-restart
+      // seamless even on slow/no network.
+      developer.log('📍 Step 4: Checking cached user...');
       final authState = AuthState();
       if (!authState.isInitialized) {
         developer.log('🔄 Initializing AuthState...');
@@ -131,215 +151,219 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (authState.user != null) {
         developer.log('✅ Cached user found: ${authState.user!.uid}');
-        developer.log('📱 Profile complete: ${authState.user!.isProfileComplete}');
-
-        // Always re-link OneSignal identity for cached users — no permission required.
-        if (!kIsWeb) {
-          try {
-            OneSignal.login(authState.user!.uid);
-            if (OneSignal.Notifications.permission) {
-              OneSignal.User.pushSubscription.optIn();
-            }
-            developer.log('✅ OneSignal.login(${authState.user!.uid}) called for cached user');
-          } catch (e) {
-            developer.log('⚠️ OneSignal login failed for cached user: $e');
-          }
-        }
-
-        // Check notification permission for returning users
-        String destination;
-        if (!authState.user!.isProfileComplete) {
-          destination = '/profile-setup';
-        } else {
-          // Check if notification permission is granted
-          try {
-            final hasPermission = await _checkNotificationPermission();
-            if (hasPermission) {
-              destination = '/';
-            } else {
-              destination = '/notification-permission';
-              developer.log('📱 User needs notification permission');
-            }
-          } catch (e) {
-            developer.log('⚠️ Error checking notification permission: $e');
-            destination = '/';
-          }
-        }
-        
-        developer.log('🎯 Navigating to: $destination');
-        _navigate(destination);
+        await _handleAuthenticatedUser(authState.user!);
         return;
       }
-      developer.log('❌ No cached user found');
+      developer.log('❌ No cached user found — checking Firebase...');
 
-      // ── Step 3: No cached user — check Firebase Auth ───────────────────────
-      // Try silent/lightweight Google sign-in first (restores previous session
-      // without showing any UI). Falls back to Firebase currentUser check.
-      developer.log('📍 Step 6: Checking Firebase auth...');
-      User? firebaseUser;
-      try {
-        // First check Firebase's own cached session
-        firebaseUser = AuthService().currentUser;
-        developer.log('Firebase currentUser: ${firebaseUser?.email ?? "null"}');
-      } catch (e) {
-        developer.log('⚠️ Firebase not ready: $e');
-      }
-
-      // Web: check redirect result first
-      if (kIsWeb && firebaseUser == null) {
-        try {
-          developer.log('📍 Step 7: Checking web redirect result...');
-          final redirectResult = await AuthService()
-              .getRedirectResult()
-              .timeout(const Duration(seconds: 3), onTimeout: () => null);
-          if (redirectResult != null && redirectResult['success'] == true) {
-            developer.log('🌐 Web redirect result — completing login');
-            _navigate('/login');
-            return;
-          }
-        } catch (e) {
-          developer.log('⚠️ Redirect check failed: $e');
-        }
-      }
-
-      if (firebaseUser == null) {
-        // No Firebase session — try lightweight Google sign-in
-        // This restores a previous Google session silently on Android
-        if (!kIsWeb) {
-          try {
-            developer.log('📍 Step 8: Attempting lightweight Google sign-in...');
-            firebaseUser = await AuthService()
-                .attemptSilentSignIn()
-                .timeout(const Duration(seconds: 3), onTimeout: () {
-                  developer.log('⏰ Silent sign-in timeout');
-                  return null;
-                });
-            if (firebaseUser != null) {
-              developer.log('✅ Lightweight sign-in restored: ${firebaseUser.email}');
-            } else {
-              developer.log('❌ Lightweight sign-in returned null');
-            }
-          } catch (e) {
-            developer.log('⚠️ Lightweight sign-in failed: $e');
-          }
-        }
-      }
-
-      if (firebaseUser == null) {
-        developer.log('👤 No Firebase session found → login screen');
-        _navigate('/login');
-        return;
-      }
-
-      // Firebase has a session — check if it's a Google account
-      developer.log('📍 Step 9: Validating Firebase provider...');
-      final isGoogle = firebaseUser.providerData
-          .any((p) => p.providerId == 'google.com');
-      developer.log('Is Google provider: $isGoogle');
-
-      if (!isGoogle) {
-        developer.log('📱 Non-Google Firebase session, no cache → login');
-        _navigate('/login');
-        return;
-      }
-
-      // Google user — silently complete backend login with timeout
-      developer.log('📍 Step 10: Completing backend login silently...');
-      await _completeSilentGoogleLogin(firebaseUser);
+      // ── Step 3: No cached user — try Firebase silent restore ─────────────
+      // This path only runs on first login after install, or after explicit logout.
+      await _tryFirebaseRestore();
     } catch (e, st) {
       developer.log('❌ Error in _performInitialization: $e\n$st');
-      // On any error, go to login screen
-      _navigate('/login');
+      // Final safety net: check cache before giving up
+      await _navigateWithCacheFallback();
     }
   }
 
-  /// Silently completes the backend login for a Firebase Google user.
-  /// Called from splash — no UI shown, user goes straight to home or profile setup.
-  Future<void> _completeSilentGoogleLogin(User firebaseUser) async {
-    try {
-      // Get a fresh token with overall timeout
-      String? idToken;
+  /// Handle a user we know is authenticated (from local cache).
+  /// Never makes a network call — pure local navigation decision.
+  Future<void> _handleAuthenticatedUser(UserModel user) async {
+    // Re-link OneSignal (no network, just registers the ID locally)
+    if (!kIsWeb) {
       try {
-        for (int i = 0; i < 2; i++) {
-          try {
-            idToken = await firebaseUser.getIdToken(i == 0)
-                .timeout(const Duration(seconds: 3));
-            if (idToken != null && idToken.isNotEmpty) break;
-          } catch (e) {
-            developer.log('⚠️ Token attempt $i failed: $e');
-          }
-          await Future.delayed(const Duration(milliseconds: 300));
+        OneSignal.login(user.uid);
+        if (OneSignal.Notifications.permission) {
+          OneSignal.User.pushSubscription.optIn();
+        }
+        developer.log('✅ OneSignal re-linked for cached user ${user.uid}');
+      } catch (e) {
+        developer.log('⚠️ OneSignal re-link failed: $e');
+      }
+    }
+
+    String destination;
+    if (!user.isProfileComplete) {
+      destination = '/profile-setup';
+    } else {
+      final hasPermission = await _checkNotificationPermission();
+      destination = hasPermission ? '/' : '/notification-permission';
+    }
+    developer.log('🎯 Cached user → navigating to $destination');
+    _navigate(destination);
+  }
+
+  /// Try to restore a Firebase session and complete backend login silently.
+  /// This only runs when there is NO cached user (fresh install / after logout).
+  Future<void> _tryFirebaseRestore() async {
+    User? firebaseUser;
+
+    // Check Firebase's own cached session
+    try {
+      firebaseUser = AuthService().currentUser;
+      developer.log('Firebase currentUser: ${firebaseUser?.email ?? "null"}');
+    } catch (e) {
+      developer.log('⚠️ Firebase not ready: $e');
+    }
+
+    // Web: check redirect result
+    if (kIsWeb && firebaseUser == null) {
+      try {
+        final redirectResult = await AuthService()
+            .getRedirectResult()
+            .timeout(const Duration(seconds: 3), onTimeout: () => null);
+        if (redirectResult != null && redirectResult['success'] == true) {
+          developer.log('🌐 Web redirect result — going to login to complete');
+          _navigate('/login');
+          return;
         }
       } catch (e) {
-        developer.log('⏰ Token fetch timeout: $e');
+        developer.log('⚠️ Redirect check failed: $e');
+      }
+    }
+
+    // Mobile: try lightweight Google silent sign-in
+    if (!kIsWeb && firebaseUser == null) {
+      try {
+        developer.log('📍 Attempting lightweight Google sign-in...');
+        firebaseUser = await AuthService()
+            .attemptSilentSignIn()
+            .timeout(const Duration(seconds: 5), onTimeout: () {
+              developer.log('⏰ Silent sign-in timeout');
+              return null;
+            });
+        developer.log(firebaseUser != null
+            ? '✅ Silent sign-in: ${firebaseUser.email}'
+            : '❌ Silent sign-in: no session');
+      } catch (e) {
+        developer.log('⚠️ Silent sign-in failed: $e');
+      }
+    }
+
+    if (firebaseUser == null) {
+      developer.log('👤 No Firebase session → login screen');
+      _navigate('/login');
+      return;
+    }
+
+    // Firebase has a session — must be Google for silent backend login
+    final isGoogle =
+        firebaseUser.providerData.any((p) => p.providerId == 'google.com');
+    if (!isGoogle) {
+      developer.log('📱 Non-Google Firebase session → login screen');
+      _navigate('/login');
+      return;
+    }
+
+    // Complete backend login silently
+    await _completeSilentGoogleLogin(firebaseUser);
+  }
+
+  /// Silently completes the backend login for a Firebase Google user.
+  /// Only called when there is NO cached user (fresh install / after logout).
+  ///
+  /// If the backend call fails (timeout, server error, no network), we do NOT
+  /// send the user to the login screen — we simply save what we know from
+  /// Firebase locally and navigate home. The next API call with a valid
+  /// Firebase token will re-establish the full session transparently.
+  Future<void> _completeSilentGoogleLogin(User firebaseUser) async {
+    try {
+      // Fetch Firebase token — try cached first, then force-refresh
+      String? idToken;
+      for (int i = 0; i < 2; i++) {
+        try {
+          idToken = await firebaseUser
+              .getIdToken(i > 0) // false on first attempt, true on retry
+              .timeout(const Duration(seconds: 5));
+          if (idToken != null && idToken.isNotEmpty) break;
+        } catch (e) {
+          developer.log('⚠️ Token attempt $i failed: $e');
+        }
+        if (i == 0) await Future.delayed(const Duration(milliseconds: 300));
       }
 
       if (idToken == null || idToken.isEmpty) {
-        developer.log('❌ Could not get Firebase token → login screen');
+        developer.log('❌ Could not get Firebase token — going to login');
         _navigate('/login');
         return;
       }
 
       final email = firebaseUser.email ?? '';
       if (email.isEmpty) {
-        developer.log('❌ No email on Firebase user → login screen');
+        developer.log('❌ No email on Firebase user — going to login');
         _navigate('/login');
         return;
       }
 
-      final result = await ApiService().loginWithGoogle(
-        mobile: firebaseUser.phoneNumber ?? email,
-        email: email,
-        name: firebaseUser.displayName,
-        photo: firebaseUser.photoURL,
-        idToken: idToken,
-      ).timeout(const Duration(seconds: 5), onTimeout: () {
-        developer.log('⏰ Backend login timeout');
-        return {'success': false, 'message': 'Login timeout'};
-      });
-
-      if (result['success'] == true) {
-        final user = UserModel.fromJson(result['user'] as Map<String, dynamic>);
-        await AuthState().setUser(user);
-
-        // Always link OneSignal identity on login — permission is not required
-        // for identity registration (OneSignal SDK v5).
-        if (!kIsWeb) {
-          try {
-            OneSignal.login(user.uid);
-            if (OneSignal.Notifications.permission) {
-              OneSignal.User.pushSubscription.optIn();
-            }
-            developer.log('✅ OneSignal.login(${user.uid}) called in silent login');
-          } catch (e) {
-            developer.log('⚠️ OneSignal login failed in silent login: $e');
-          }
-        }
-        
-        // Check notification permission for returning users
-        String destination;
-        if (!user.isProfileComplete) {
-          destination = '/profile-setup';
-        } else {
-          try {
-            final hasPermission = await _checkNotificationPermission();
-            destination = hasPermission ? '/' : '/notification-permission';
-          } catch (e) {
-            destination = '/';
-          }
-        }
-        
-        developer.log('✅ Silent login success → $destination');
-        _navigate(destination);
-      } else {
-        // Backend rejected — could be blocked, server error, etc.
-        // Send to login screen so user can see the error and retry.
-        developer.log('❌ Backend rejected silent login: ${result['message']}');
-        _navigate('/login');
+      // Attempt backend login with a generous timeout
+      Map<String, dynamic>? result;
+      try {
+        result = await ApiService().loginWithGoogle(
+          mobile: firebaseUser.phoneNumber ?? email,
+          email: email,
+          name: firebaseUser.displayName,
+          photo: firebaseUser.photoURL,
+          idToken: idToken,
+        ).timeout(const Duration(seconds: 10));
+      } catch (e) {
+        developer.log('⚠️ Backend login failed/timed out: $e');
+        // Backend unavailable — build a minimal user from Firebase data
+        // so the user can still use the app. Session will be fully restored
+        // on the next successful API call.
+        result = null;
       }
+
+      UserModel user;
+      if (result != null && result['success'] == true) {
+        user = UserModel.fromJson(result['user'] as Map<String, dynamic>);
+        developer.log('✅ Backend login success for ${user.uid}');
+      } else {
+        // Backend rejected OR unavailable — create user from Firebase data.
+        // This ensures the user is never stuck on the login screen just because
+        // of a transient server/network issue.
+        developer.log('⚠️ Backend unavailable — using Firebase identity as fallback');
+        user = UserModel(
+          uid: firebaseUser.uid,
+          mobile: firebaseUser.phoneNumber ?? '',
+          email: email,
+          name: firebaseUser.displayName ?? '',
+          photo: firebaseUser.photoURL ?? '',
+          authProvider: 'google',
+          isProfileComplete: false, // will be confirmed on next API call
+        );
+      }
+
+      await AuthState().setUser(user);
+
+      if (!kIsWeb) {
+        try {
+          OneSignal.login(user.uid);
+          if (OneSignal.Notifications.permission) {
+            OneSignal.User.pushSubscription.optIn();
+          }
+        } catch (e) {
+          developer.log('⚠️ OneSignal login failed: $e');
+        }
+      }
+
+      String destination;
+      if (!user.isProfileComplete) {
+        // If profile completeness is unknown (fallback user), go to home and
+        // let the profile screen handle the incomplete state.
+        destination = (result != null && result['success'] == true)
+            ? '/profile-setup'
+            : '/';
+      } else {
+        final hasPermission = await _checkNotificationPermission();
+        destination = hasPermission ? '/' : '/notification-permission';
+      }
+
+      developer.log('✅ Silent login complete → $destination');
+      _navigate(destination);
     } catch (e) {
-      developer.log('❌ Silent login error: $e → login screen');
-      _navigate('/login');
+      developer.log('❌ Silent login error: $e');
+      // Last resort: if we have a cached user, go home; otherwise login
+      await _navigateWithCacheFallback();
     }
   }
 
@@ -373,6 +397,10 @@ class _SplashScreenState extends State<SplashScreen>
   /// Check if notification permission is granted (without prompting).
   /// Uses permission_handler to query the OS directly — always accurate,
   /// no SDK sync delay needed.
+  ///
+  /// Returns true if:
+  ///   - Permission is granted by the OS, OR
+  ///   - User has already seen the permission screen (to avoid showing it on every restart)
   Future<bool> _checkNotificationPermission() async {
     if (kIsWeb) return true;
     try {
@@ -384,7 +412,18 @@ class _SplashScreenState extends State<SplashScreen>
       await prefs.setBool('notification_permission_granted', granted);
 
       developer.log('✅ Notification permission (OS direct): $granted');
-      return granted;
+
+      if (granted) return true;
+
+      // Not granted — check if the user has already seen (and skipped) this screen.
+      // If they've seen it, don't redirect them there again on every cold restart.
+      final alreadySeen = prefs.getBool('notification_permission_seen') ?? false;
+      if (alreadySeen) {
+        developer.log('ℹ️ Notification permission screen already seen — skipping');
+        return true;
+      }
+
+      return false;
     } catch (e) {
       developer.log('⚠️ Error checking notification permission: $e');
       return true; // Assume granted on error — don't block users

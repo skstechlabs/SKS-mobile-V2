@@ -96,10 +96,10 @@ Future<void> _runInitialization() async {
   }
 
   // ── 4. SecureStorageService — must come before ApiService (token fallback) ─
-  _safe('SecureStorageService', () async => SecureStorageService().initialize());
+  await _safe('SecureStorageService', () async => SecureStorageService().initialize());
 
   // ── 5. ApiService — must come before Localization (lang backend sync) ──────
-  _safe('ApiService', () async => ApiService().initialize());
+  await _safe('ApiService', () async => ApiService().initialize());
 
   // ── 6. Parallel non-critical services ─────────────────────────────────────
   await Future.wait([

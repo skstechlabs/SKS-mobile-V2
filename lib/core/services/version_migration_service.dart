@@ -104,23 +104,48 @@ class VersionMigrationService {
     }
   }
 
-  /// Clear API response caches
+  /// Clear API response caches — never touches auth or user session keys.
   Future<void> _clearApiCache(SharedPreferences prefs) async {
     developer.log('   Clearing API cache...');
-    
-    // Keys that might store stale API data
-    final cacheKeys = prefs.getKeys().where((key) => 
-      key.startsWith('cache_') || 
-      key.startsWith('api_') ||
-      key.contains('_cached') ||
-      key.contains('_timestamp')
-    ).toList();
-    
+
+    // Auth/session keys that MUST be preserved across version upgrades.
+    const preservedKeys = {
+      'cached_user_data',
+      'cached_auth_token',
+      'cached_app_version',
+      'notification_permission_granted',
+      'notification_permission_seen',
+      'language_selected',
+      'selected_language',
+      'last_app_version',
+      'last_build_number',
+    };
+
+    // Only remove keys that are clearly API response caches:
+    //   cache_*      — DataCacheService entries
+    //   api_*        — legacy API cache keys
+    //   _timestamp   — cache TTL timestamps
+    // Explicitly EXCLUDE anything matching auth/session patterns.
+    final cacheKeys = prefs.getKeys().where((key) {
+      if (preservedKeys.contains(key)) return false;
+      // Protect all keys that contain 'user', 'auth', 'token', 'permission', 'language'
+      final lower = key.toLowerCase();
+      if (lower.contains('user') ||
+          lower.contains('auth') ||
+          lower.contains('token') ||
+          lower.contains('permission') ||
+          lower.contains('language') ||
+          lower.contains('version')) return false;
+      return key.startsWith('cache_') ||
+          key.startsWith('api_') ||
+          key.endsWith('_timestamp');
+    }).toList();
+
     for (final key in cacheKeys) {
       await prefs.remove(key);
       developer.log('   Removed cache: $key');
     }
-    
+
     developer.log('   ✓ API cache cleared (${cacheKeys.length} items)');
   }
 

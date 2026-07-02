@@ -48,6 +48,12 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     );
     _animController.forward();
 
+    // Mark the permission screen as "seen" so the splash screen won't
+    // redirect here again on subsequent cold restarts (even if not granted).
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('notification_permission_seen', true);
+    });
+
     _checkPermissions();
   }
 
@@ -193,22 +199,28 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     if (!mounted) return;
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
             Icon(Icons.notifications_off, color: Colors.orange, size: 28),
             SizedBox(width: 12),
-            Expanded(child: Text('Notifications Required')),
+            Expanded(child: Text('Enable Notifications')),
           ],
         ),
         content: const Text(
-          'Push notifications are required to receive updates from Guruji. '
-          'Please allow notifications to continue.',
+          'Allow notifications to receive blessings and updates from Guruji.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _skipPermission();
+            },
+            child: const Text('Skip for Now'),
+          ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
@@ -219,6 +231,17 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         ],
       ),
     );
+  }
+
+  /// Let the user skip the notification permission and go straight to home.
+  /// The permission screen will not be shown again until the next app update.
+  void _skipPermission() {
+    if (!mounted) return;
+    // Persist the "seen" flag so splash doesn't redirect here again.
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool('notification_permission_seen', true);
+    });
+    context.go('/');
   }
 
   void _showOpenSettingsDialog() {
@@ -261,7 +284,10 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) _skipPermission();
+      },
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(
@@ -419,6 +445,17 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                     ),
 
                     const SizedBox(height: 24),
+
+                    // Skip option — lets users proceed without granting permission
+                    TextButton(
+                      onPressed: _skipPermission,
+                      child: const Text(
+                        'Skip for Now',
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),

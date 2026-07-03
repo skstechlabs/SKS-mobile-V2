@@ -4,7 +4,7 @@ class CdnImages {
   static const String _baseUrl = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ';
   
   // Core App Images (Keep as assets - critical for app launch)
-  static const String logoAsset = 'assets/images/SKS_Logo.png';
+  static const String logoAsset = 'assets/images/Guruji_logo.JPG';
   
   // Main Images - CDN URLs
   static const String guruji = '$_baseUrl/f30a1be3-73ca-4e16-c569-7dbcdab40200/public';

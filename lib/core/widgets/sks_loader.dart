@@ -55,7 +55,7 @@ class _SKSLoaderState extends State<SKSLoader> with SingleTickerProviderStateMix
             return Transform.scale(
               scale: _animation.value,
               child: Image.asset(
-                'assets/images/SKS_Logo.png',
+                'assets/images/Guruji_logo.JPG',
                 width: widget.size * 0.7,
                 height: widget.size * 0.7,
                 fit: BoxFit.contain,
@@ -95,7 +95,7 @@ class SKSLoaderStatic extends StatelessWidget {
           : null,
       child: Center(
         child: Image.asset(
-          'assets/images/SKS_Logo.png',
+          'assets/images/Guruji_logo.JPG',
           width: size * 0.7,
           height: size * 0.7,
           fit: BoxFit.contain,

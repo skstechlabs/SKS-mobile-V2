@@ -120,7 +120,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                             height: 24,
                             width: 24,
                             child: Image.asset(
-                              'assets/images/SKS_Logo.png',
+                              'assets/images/Guruji_logo.JPG',
                               width: 24,
                               height: 24,
                             ),

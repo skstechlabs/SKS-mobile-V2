@@ -33,6 +33,7 @@ class _AuthGuardState extends State<AuthGuard> {
     _authState.addListener(_onAuthChanged);
     // Refresh block status every time this guard mounts (i.e. every time
     // the user navigates to a guarded screen like Classes).
+    // Fire and forget — do NOT await so the screen renders immediately.
     _refreshBlockStatus();
   }
 

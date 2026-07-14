@@ -74,7 +74,7 @@ class _HomePageState extends State<HomePage>
     // Warm in-memory image cache now that the widget tree is available
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ImagePreloaderService().warmMemoryCache(context);
+        ImagePreloaderService().preloadCriticalImages(context);
       }
     });
 
@@ -285,8 +285,8 @@ class _HomePageState extends State<HomePage>
     try {
       // Use cached data by default
       await _audioProvider.fetchAllAudios();
-      // Preload secondary images in background after audios load
-      ImagePreloaderService().preloadSecondaryImages();
+      // Preload remaining images in background after audios load
+      ImagePreloaderService().preloadAllImages(context);
     } catch (e) {
       debugPrint('Error loading audios: $e');
     }

@@ -24,6 +24,7 @@ dependencies:
   
   # UI
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1  # explicit dep — used directly in image_preloader_service
   shimmer: ^3.0.0
   carousel_slider: ^5.0.0
   flutter_svg: ^2.0.9
@@ -119,7 +120,9 @@ flutter:
     # All other images loaded from Cloudflare R2 dynamically
     - assets/images/Guruji_logo.JPG
     - assets/images/Guruji_Meditation.PNG
+    - assets/images/Guruji-quotes.png
     - assets/images/kalpataru-bg.png
+    - assets/images/icons/
     - assets/translations/
     - assets/icons/
     - assets/hls.min.js

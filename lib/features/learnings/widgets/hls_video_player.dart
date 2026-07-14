@@ -51,6 +51,9 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
   bool _hasStarted = false;
   bool _isCompleted = false;
 
+  // Flutter-managed fullscreen state (NOT relying on JS/WebView fullscreen API)
+  bool _isFlutterFullscreen = false;
+
   final Set<int> _reportedMilestones = {};
   static const List<int> _milestones = [25, 50, 75, 90, 100];
 
@@ -63,8 +66,15 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 
   @override
   void dispose() {
-    // Exit fullscreen if active
-    _controller?.runJavaScript('exitFullscreenMode();');
+    // Exit Flutter fullscreen if active when widget is disposed
+    if (_isFlutterFullscreen) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    _controller?.runJavaScript('try { exitFullscreenMode(); } catch(e) {}');
     super.dispose();
   }
 
@@ -1207,10 +1217,21 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       speedMenu.classList.remove('show');
     });
 
-    // Fullscreen
+    // Fullscreen — delegate entirely to Flutter (not browser fullscreen API)
+    // Flutter handles orientation rotation which is more reliable on Android
     fullscreenBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      toggleFullscreen();
+      if (!isFullscreen) {
+        isFullscreen = true;
+        fullscreenIcon.style.display = 'none';
+        fullscreenExitIcon.style.display = 'block';
+        send({ type: 'requestFullscreen' });
+      } else {
+        isFullscreen = false;
+        fullscreenIcon.style.display = 'block';
+        fullscreenExitIcon.style.display = 'none';
+        send({ type: 'exitFullscreen' });
+      }
     });
 
     container.addEventListener('click', function(e) {
@@ -1279,7 +1300,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           break;
         case 'f':
           e.preventDefault();
-          toggleFullscreen();
+          fullscreenBtn.click();
           break;
       }
     });
@@ -1294,7 +1315,7 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
 ''';
   }
 
-  void _handleEvent(String message) {
+  void _handleEvent(String message) async {
     try {
       final data = json.decode(message) as Map<String, dynamic>;
       final type = data['type'] as String? ?? '';
@@ -1309,8 +1330,34 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
           debugPrint('❌ Player error: ${data['message']}');
           return;
         case 'fullscreenChange':
-          // Fullscreen state changed in JS - just log it
-          debugPrint('🖥️ Fullscreen: ${data['isFullscreen']}');
+          // IGNORE JS fullscreen changes — Flutter manages fullscreen via
+          // requestFullscreen / exitFullscreen messages below.
+          return;
+        case 'requestFullscreen':
+          // User tapped fullscreen button in the player — enter Flutter fullscreen
+          if (!_isFlutterFullscreen) {
+            _isFlutterFullscreen = true;
+            if (mounted) setState(() {});
+            await SystemChrome.setPreferredOrientations([
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]);
+            await SystemChrome.setEnabledSystemUIMode(
+                SystemUiMode.immersiveSticky);
+          }
+          return;
+        case 'exitFullscreen':
+          // User tapped exit-fullscreen button or back — exit Flutter fullscreen
+          if (_isFlutterFullscreen) {
+            _isFlutterFullscreen = false;
+            if (mounted) setState(() {});
+            await SystemChrome.setPreferredOrientations([
+              DeviceOrientation.portraitUp,
+              DeviceOrientation.portraitDown,
+            ]);
+            await SystemChrome.setEnabledSystemUIMode(
+                SystemUiMode.edgeToEdge);
+          }
           return;
         case 'start':
           if (!_hasStarted) {
@@ -1391,22 +1438,72 @@ class _HLSVideoPlayerState extends State<HLSVideoPlayer> {
       );
     }
 
-    // Build WebView widget once with GlobalKey to preserve state across rebuilds
-    // This ensures the video never restarts when toggling fullscreen
+    // The WebView widget — always built with the same GlobalKey
+    final webViewWidget = _controller != null
+        ? WebViewWidget(key: _webViewKey, controller: _controller!)
+        : const SizedBox.shrink();
+
+    // ── Fullscreen mode: video fills entire screen ──────────────────────────
+    // When _isFlutterFullscreen is true the widget expands to cover the whole
+    // screen via a Stack overlay. The WebView is the SAME instance (GlobalKey)
+    // so there is no reload or flicker.
+    if (_isFlutterFullscreen) {
+      return SizedBox.expand(
+        child: Stack(
+          children: [
+            Positioned.fill(child: Container(color: Colors.black, child: webViewWidget)),
+            // Back / exit-fullscreen button overlay (top-left)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: () async {
+                    _isFlutterFullscreen = false;
+                    if (mounted) setState(() {});
+                    // Tell JS the fullscreen state changed so its button icon updates
+                    _controller?.runJavaScript('''
+                      isFullscreen = false;
+                      document.getElementById('fullscreen-icon').style.display = 'block';
+                      document.getElementById('fullscreen-exit-icon').style.display = 'none';
+                    ''');
+                    await SystemChrome.setPreferredOrientations([
+                      DeviceOrientation.portraitUp,
+                      DeviceOrientation.portraitDown,
+                    ]);
+                    await SystemChrome.setEnabledSystemUIMode(
+                        SystemUiMode.edgeToEdge);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.fullscreen_exit_rounded,
+                        color: Colors.white, size: 26),
+                  ),
+                ),
+              ),
+            ),
+            if (_isInitialLoading)
+              const Positioned.fill(
+                child: Center(child: CircularProgressIndicator(color: Colors.white)),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // ── Portrait mode: 16:9 aspect ratio ───────────────────────────────────
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Stack(
         children: [
-          // WebView - NEVER conditionally rendered, always present
           if (_controller != null)
             Positioned.fill(
-              child: WebViewWidget(
-                key: _webViewKey, // Preserve state across rebuilds
-                controller: _controller!,
-              ),
+              child: WebViewWidget(key: _webViewKey, controller: _controller!),
             ),
-
-          // Loading overlay - ONLY on initial load
           if (_isInitialLoading)
             Positioned.fill(
               child: Container(

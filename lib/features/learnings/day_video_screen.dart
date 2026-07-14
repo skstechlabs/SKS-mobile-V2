@@ -15,6 +15,7 @@ class DayVideoScreen extends StatefulWidget {
   final int classId;
   final int dayNumber;
   final String dayTitle;
+  final String level;
 
   const DayVideoScreen({
     super.key,
@@ -22,6 +23,7 @@ class DayVideoScreen extends StatefulWidget {
     required this.classId,
     required this.dayNumber,
     required this.dayTitle,
+    this.level = '',
   });
 
   @override
@@ -861,22 +863,6 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
           ),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.dayTitle,
-                style: const TextStyle(fontSize: 16),
-              ),
-              Text(
-                'Day ${widget.dayNumber}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ),
         ),
         body: _buildBody(isLandscape: isLandscape),
       ),
@@ -957,15 +943,6 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
       );
     }
 
-    final videoDuration = _parseIntSafely(_videoConfig!['videoDurationSeconds']);
-    final durationMinutes = videoDuration ~/ 60;
-    final durationSeconds = videoDuration % 60;
-    final durationText = '$durationMinutes:${durationSeconds.toString().padLeft(2, '0')}';
-
-    // ═══════════════════════════════════════════════════════════════
-    // CRITICAL: Video player is built ONCE and reused across orientations
-    // This prevents flickering and double frames during rotation
-    // ═══════════════════════════════════════════════════════════════
     final videoPlayer = _buildVideoPlayer();
 
     // In landscape: video fills the entire screen, no info panel
@@ -1041,36 +1018,13 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
     // Portrait mode: video + info panel
     return Column(
       children: [
-        // Video Player - wrapped in Container to prevent size changes
-        // SAME INSTANCE as landscape mode
+        // Video Player
         Container(
           color: Colors.black,
-          child: videoPlayer, // Reuse same player instance
+          child: videoPlayer,
         ),
         
-        // Video Duration Display
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.black87,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.access_time, size: 16, color: Colors.white70),
-              const SizedBox(width: 6),
-              Text(
-                'Video Length: $durationText',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // Video Info with Security Warning
+        // Video Info
         Expanded(
           child: Container(
             color: AppTheme.white,
@@ -1079,52 +1033,6 @@ class _DayVideoScreenState extends State<DayVideoScreen> with WidgetsBindingObse
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Security Warning Banner
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.red.shade300,
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.security,
-                          color: Colors.red,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                context.tr('protected_content'),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                context.tr('recording_prohibited_short'),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.red.shade700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   
                   Text(
                     widget.dayTitle,

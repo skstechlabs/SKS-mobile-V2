@@ -8,6 +8,7 @@ import '../../core/widgets/cached_image.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
+import '../meditation/meditation_history_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -24,546 +25,484 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = false;
   UserModel? _user;
-  String? _lastLoadedProfileUid;
+  Map<String, dynamic> _meditationStats = {};
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-  }
-  
-  @override
-  void didUpdateWidget(ProfileScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Don't reload on every widget update — only reload when explicitly needed
-    // (e.g. after editing profile, call _loadProfile() directly)
+    _loadMeditationStats();
   }
 
   Future<void> _loadProfile() async {
-    // Prevent duplicate loads
     if (_isLoading) return;
-    
     setState(() => _isLoading = true);
-
     try {
       final result = await _apiService.getProfile();
-      
       if (result['success'] == true && result['user'] != null) {
         final user = UserModel.fromJson(result['user']);
-        
-        // Check if profile actually changed
-        final profileUid = result['user']['profile_uid'] as String?;
-        if (_lastLoadedProfileUid != profileUid) {
-          debugPrint('🔄 Profile changed from $_lastLoadedProfileUid to $profileUid');
-          _lastLoadedProfileUid = profileUid;
-        }
-        
-        setState(() {
-          _user = user;
-        });
-        
-        // Update auth state with cache
+        setState(() => _user = user);
         await _authState.setUser(user);
       } else {
-        // Check if it's an authentication error
-        final message = result['message'] ?? '';
-        if (message.toLowerCase().contains('not authenticated') || 
-            message.toLowerCase().contains('unauthorized') ||
-            message.toLowerCase().contains('token')) {
-          setState(() { _user = null; });
-        } else {
-          _showError(message.isNotEmpty ? message : 'Failed to load profile');
-        }
+        setState(() => _user = _authState.user);
       }
     } catch (e) {
-      debugPrint('❌ Error loading profile: $e');
-      setState(() { _user = null; });
+      setState(() => _user = _authState.user);
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadMeditationStats() async {
+    try {
+      final result = await _apiService.getMeditationStats(period: 'all');
+      if (result['success'] == true && mounted) {
+        setState(() => _meditationStats = result['stats'] ?? {});
+      }
+    } catch (_) {}
   }
 
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(context.tr('logout')),
-        content: Text(context.tr('logout_confirmation')),
+        backgroundColor: AppTheme.cardSurface,
+        title: const Text('Logout',
+            style: TextStyle(
+                color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to logout?',
+            style: TextStyle(color: AppTheme.textSecondary)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.tr('cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(context.tr('logout')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout',
+                style: TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
-
     if (confirmed != true) return;
 
     setState(() => _isLoading = true);
-
     try {
-      // Call backend logout
       await _apiService.logout();
-
-      // Remove OneSignal external user ID
       await _oneSignal.removeExternalUserId();
-
-      // Sign out from Firebase
       await _authService.signOut();
-
-      // Clear auth state and cache
       await _authState.logout();
-
-      // Navigate to login
-      if (mounted) {
-        context.go('/login');
-      }
+      if (mounted) context.go('/login');
     } catch (e) {
-      debugPrint('❌ Logout error: $e');
-      _showError('Failed to logout. Please try again.');
-    } finally {
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to logout. Please try again.')),
+        );
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  void _showError(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cream,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back_ios_rounded,
+              color: AppTheme.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          context.tr('profile'),
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 18,
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: AppTheme.primary,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
+        centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary))
           : _user == null
-              ? _buildErrorState()
-              : _buildProfileContent(),
+              ? _buildNotLoggedIn()
+              : _buildContent(),
     );
   }
 
-  Widget _buildErrorState() {
+  // ── Not logged in ─────────────────────────────────────────────────────────
+  Widget _buildNotLoggedIn() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppTheme.saffron.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.person_outline,
-                size: 80,
-                color: AppTheme.saffron,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.tagBg,
+              border: Border.all(color: AppTheme.tagBorder, width: 2),
             ),
-            const SizedBox(height: 24),
-            Text(
-              context.tr('not_logged_in'),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              context.tr('please_login'),
+            child: const Icon(Icons.person_outline_rounded,
+                size: 50, color: AppTheme.primary),
+          ),
+          const SizedBox(height: 20),
+          const Text('Not Logged In',
               style: TextStyle(
-                fontSize: 16,
-                color: AppTheme.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () => context.go('/login'),
-              icon: const Icon(Icons.login),
-              label: Text(context.tr('login')),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.saffron,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileContent() {
-    final user = _user!;
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppTheme.primary.withValues(alpha: 0.05),
-            Colors.white,
-          ],
-        ),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 32),
-
-            // Profile Picture with gradient background
-            Center(
-              child: Stack(
-                children: [
-                  Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.saffron],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: ClipOval(
-                        child: user.photo.isNotEmpty
-                            ? CachedImage(
-                                imageUrl: user.photo,
-                                width: 130,
-                                height: 130,
-                                fit: BoxFit.cover,
-                              )
-                            : Container(
-                                color: AppTheme.primary.withValues(alpha: 0.1),
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 70,
-                                  color: AppTheme.primary,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppTheme.primary, AppTheme.saffron],
-                        ),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Name with better typography
-            Text(
-              user.name.isNotEmpty ? user.name : context.tr('profile'),
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 8),
-
-            // Auth Provider Badge with improved design
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary)),
+          const SizedBox(height: 8),
+          const Text('Login to access your profile',
+              style: TextStyle(color: AppTheme.textSecondary)),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: () => context.go('/login'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 32, vertical: 14),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: user.authProvider == 'google'
-                      ? [Colors.red.shade50, Colors.red.shade100]
-                      : [Colors.blue.shade50, Colors.blue.shade100],
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: const Text('Login',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Main profile content ──────────────────────────────────────────────────
+  Widget _buildContent() {
+    final user = _user!;
+    final displayName =
+        user.name.isNotEmpty ? user.name : 'Sadhak';
+
+    final streakDays =
+        (_meditationStats['currentStreak'] as int?) ?? 0;
+    final totalMinutes =
+        (_meditationStats['totalDurationSeconds'] as int? ?? 0) ~/ 60;
+    final hours = totalMinutes ~/ 60;
+    final mins = totalMinutes % 60;
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+
+          // ── Avatar ──────────────────────────────────────────────────
+          Center(
+            child: Stack(
+              children: [
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.tagBg,
+                    border: Border.all(
+                        color: AppTheme.tagBorder, width: 2.5),
+                  ),
+                  child: ClipOval(
+                    child: user.photo.isNotEmpty
+                        ? CachedImage(
+                            imageUrl: user.photo,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: AppTheme.tagBg,
+                            child: const Icon(Icons.person_rounded,
+                                size: 60, color: AppTheme.primary),
+                          ),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: user.authProvider == 'google'
-                      ? Colors.red.shade200
-                      : Colors.blue.shade200,
-                  width: 1,
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    onTap: () =>
+                        context.push('/edit-profile'),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardSurface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppTheme.tagBorder, width: 1.5),
+                        boxShadow: [AppTheme.softShadow],
+                      ),
+                      child: const Icon(Icons.edit_rounded,
+                          size: 15, color: AppTheme.primary),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── Name + subtitle ─────────────────────────────────────────
+          Text(
+            displayName,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            context.tr('seeker_of_truth'),
+            style: TextStyle(
+                fontSize: 14, color: AppTheme.textSecondary),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Stats row ───────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    icon: '🔥',
+                    iconBg: const Color(0xFFFFF3E0),
+                    label: 'Sadhana Streak',
+                    value: '$streakDays Days',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    icon: '⏱',
+                    iconBg: const Color(0xFFE0F2F1),
+                    label: 'Meditation Time',
+                    value: '${hours}h ${mins}m',
+                    valueColor: const Color(0xFF00897B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Menu items ──────────────────────────────────────────────
+          _buildMenuSection([
+            _MenuItem(
+              icon: Icons.route_outlined,
+              label: context.tr('my_journey'),
+              subtitle: context.tr('track_your_progress'),
+              onTap: () => context.push('/meditation/history'),
+            ),
+          ]),
+
+          const SizedBox(height: 12),
+
+          _buildMenuSection([
+            _MenuItem(
+              icon: Icons.edit_outlined,
+              label: context.tr('edit_profile'),
+              subtitle: 'Update your information',
+              onTap: () => context.push('/edit-profile'),
+            ),
+            _MenuItem(
+              icon: Icons.language_outlined,
+              label: 'Change Language',
+              subtitle: 'App language preferences',
+              onTap: () => context.push('/settings/language'),
+            ),
+            _MenuItem(
+              icon: Icons.help_outline_rounded,
+              label: 'Help & Support',
+              subtitle: 'Contact Guruji team',
+              onTap: () => context.push('/guruji-connect'),
+            ),
+          ]),
+
+          const SizedBox(height: 12),
+
+          // ── Logout ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: GestureDetector(
+              onTap: _handleLogout,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.2)),
+                  boxShadow: [AppTheme.softShadow],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.logout_rounded,
+                        color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            ),
+          ),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuSection(List<_MenuItem> items) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [AppTheme.softShadow],
+      ),
+      child: Column(
+        children: items.asMap().entries.map((e) {
+          final i = e.key;
+          final item = e.value;
+          return Column(
+            children: [
+              _buildMenuItem(item),
+              if (i < items.length - 1)
+                Divider(
+                  height: 1,
+                  indent: 58,
+                  color: AppTheme.softGray.withValues(alpha: 0.6),
+                ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(_MenuItem item) {
+    return GestureDetector(
+      onTap: item.onTap,
+      child: Container(
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppTheme.tagBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(item.icon,
+                  size: 20, color: AppTheme.textPrimary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    user.authProvider == 'google'
-                        ? Icons.g_mobiledata
-                        : Icons.phone,
-                    size: 18,
-                    color: user.authProvider == 'google'
-                        ? Colors.red.shade700
-                        : Colors.blue.shade700,
-                  ),
-                  const SizedBox(width: 6),
                   Text(
-                    user.authProvider == 'google' ? context.tr('google') : context.tr('phone'),
-                    style: TextStyle(
-                      fontSize: 13,
+                    item.label,
+                    style: const TextStyle(
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: user.authProvider == 'google'
-                          ? Colors.red.shade700
-                          : Colors.blue.shade700,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 48),
-
-            // Profile Information
-            _buildSection(
-              title: context.tr('personal_information'),
-              children: [
-                _buildInfoTile(
-                  icon: Icons.phone,
-                  label: context.tr('mobile'),
-                  value: user.mobile,
-                ),
-                if (user.email.isNotEmpty)
-                  _buildInfoTile(
-                    icon: Icons.email,
-                    label: context.tr('email'),
-                    value: user.email,
-                  ),
-                if (user.gender != null)
-                  _buildInfoTile(
-                    icon: Icons.person_outline,
-                    label: context.tr('gender'),
-                    value: user.gender!,
-                  ),
-                if (user.dateOfBirth != null)
-                  _buildInfoTile(
-                    icon: Icons.cake,
-                    label: context.tr('date_of_birth'),
-                    value: user.dateOfBirth!,
-                    isLast: user.address == null && user.state == null && user.pincode == null,
-                  ),
-              ],
-            ),
-
-            if (user.address != null || user.state != null || user.pincode != null)
-              _buildSection(
-                title: context.tr('address_info'),
-                children: [
-                  if (user.address != null)
-                    _buildInfoTile(
-                      icon: Icons.home,
-                      label: context.tr('address'),
-                      value: user.address!,
-                    ),
-                  if (user.state != null)
-                    _buildInfoTile(
-                      icon: Icons.location_on,
-                      label: context.tr('state'),
-                      value: user.state!,
-                    ),
-                  if (user.pincode != null)
-                    _buildInfoTile(
-                      icon: Icons.pin_drop,
-                      label: context.tr('pincode'),
-                      value: user.pincode!,
+                  if (item.subtitle != null)
+                    Text(
+                      item.subtitle!,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary),
                     ),
                 ],
               ),
-
-            // Account Actions
-            _buildSection(
-              title: context.tr('account'),
-              children: [
-                _buildActionTile(
-                  icon: Icons.edit,
-                  label: context.tr('edit_profile'),
-                  onTap: () => context.push('/edit-profile'),
-                ),
-                _buildActionTile(
-                  icon: Icons.people,
-                  label: context.tr('manage_profiles'),
-                  onTap: () => context.push('/profile/list'),
-                ),
-                _buildActionTile(
-                  icon: Icons.language,
-                  label: context.tr('change_language'),
-                  onTap: () => context.push('/settings/language'),
-                ),
-                _buildActionTile(
-                  icon: Icons.help_outline,
-                  label: context.tr('help_support'),
-                  onTap: () => context.push('/guruji-connect'),
-                ),
-                _buildActionTile(
-                  icon: Icons.logout,
-                  label: context.tr('logout'),
-                  onTap: _handleLogout,
-                  isDestructive: true,
-                  isLast: true,
-                ),
-              ],
             ),
-
-            const SizedBox(height: 48),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppTheme.textSecondary, size: 18),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildSection({
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(children: children),
-          ),
-        ),
-        const SizedBox(height: 32),
-      ],
-    );
-  }
+// ── Stat card widget ──────────────────────────────────────────────────────────
+class _StatCard extends StatelessWidget {
+  final String icon;
+  final Color iconBg;
+  final String label;
+  final String value;
+  final Color? valueColor;
 
-  Widget _buildInfoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    bool isLast = false,
-  }) {
+  const _StatCard({
+    required this.icon,
+    required this.iconBg,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: isLast ? null : Border(
-          bottom: BorderSide(
-            color: Colors.grey.withValues(alpha: 0.1),
-            width: 1,
-          ),
-        ),
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [AppTheme.softShadow],
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.primary.withValues(alpha: 0.08),
-                  AppTheme.saffron.withValues(alpha: 0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 24, color: AppTheme.primary),
+            child: Center(
+              child: Text(icon,
+                  style: const TextStyle(fontSize: 22)),
+            ),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,20 +510,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.2,
-                  ),
+                      fontSize: 11, color: AppTheme.textSecondary),
                 ),
-                const SizedBox(height: 6),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                    letterSpacing: 0.1,
+                    fontWeight: FontWeight.bold,
+                    color:
+                        valueColor ?? AppTheme.textPrimary,
                   ),
                 ),
               ],
@@ -594,88 +528,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+}
 
-  Widget _buildActionTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-    bool isLast = false,
-  }) {
-    return Material(
-      color: Colors.white,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            border: isLast ? null : Border(
-              bottom: BorderSide(
-                color: Colors.grey.withValues(alpha: 0.1),
-                width: 1,
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: isDestructive
-                      ? LinearGradient(
-                          colors: [
-                            Colors.red.shade50,
-                            Colors.red.shade100,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : LinearGradient(
-                          colors: [
-                            AppTheme.primary.withValues(alpha: 0.08),
-                            AppTheme.saffron.withValues(alpha: 0.08),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: isDestructive ? Colors.red.shade700 : AppTheme.primary,
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: isDestructive ? Colors.red.shade700 : Colors.black87,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.chevron_right,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+// ── Menu item data class ──────────────────────────────────────────────────────
+class _MenuItem {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+  const _MenuItem(
+      {required this.icon,
+      required this.label,
+      this.subtitle,
+      required this.onTap});
 }

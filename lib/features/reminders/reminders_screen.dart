@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/reminder_notification_service.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/auth_guard.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -365,12 +366,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         const SizedBox(height: 16),
                         Text(
                           'No custom reminders yet',
-                          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                          style: TextStyle(fontSize: 18, color: AppTheme.textSecondary),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Tap + to create a custom reminder',
-                          style: TextStyle(color: Colors.grey[500]),
+                          style: TextStyle(color: AppTheme.textSecondary),
                         ),
                         const SizedBox(height: 16),
                         Container(
@@ -440,7 +441,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                       reminder['message'] as String,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.grey[600],
+                                        color: AppTheme.textSecondary,
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,

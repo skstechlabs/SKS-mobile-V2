@@ -21,6 +21,7 @@ import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
 import 'features/auth/auth_state.dart';
 import 'core/services/connectivity_service.dart';
+import 'core/services/image_preloader_service.dart';
 import 'firebase_options.dart';
 
 /// Safe wrapper: run [fn] and swallow any exception, logging with [label].
@@ -34,7 +35,7 @@ Future<void> _safe(String label, Future<void> Function() fn) async {
 }
 
 void main() async {
-  // Always guaranteed first — required before any Flutter plugin call.
+  // Always first — required before any Flutter plugin call.
   WidgetsFlutterBinding.ensureInitialized();
 
   developer.log('========================================');
@@ -44,20 +45,17 @@ void main() async {
   try {
     await _runInitialization();
   } catch (e, st) {
-    // This should never happen because _runInitialization swallows all errors,
-    // but as an absolute last resort we still launch the app.
     developer.log('💥 CRITICAL: initialization threw: $e', stackTrace: st);
   }
 
   runApp(const SpiritualApp());
 
-  // ── Deferred post-runApp work ────────────────────────────────────────────
-  // These fire after the first frame is rendered — never block startup.
+  // ── Deferred: runs after the first frame is painted ─────────────────────
   Future.microtask(() async {
     await _safe('AudioProvider (deferred)', () => AudioProvider().initialize());
-
+    // Re-link OneSignal to the authenticated user after the widget tree is up
     if (!kIsWeb) {
-      await _safe('OneSignal post-runApp re-link', () async {
+      await _safe('OneSignal user re-link', () async {
         final auth = AuthState();
         if (auth.user != null) {
           OneSignal.login(auth.user!.uid);
@@ -70,10 +68,10 @@ void main() async {
   });
 }
 
-/// All initialization logic lives here so that a rethrow in any step doesn't
-/// bypass `runApp()`. Every step uses `_safe()` or has its own try-catch.
+/// All initialization steps.  Every step is wrapped in _safe() so a single
+/// failure never prevents runApp() from being reached.
 Future<void> _runInitialization() async {
-  // ── 1. Environment check (synchronous, never throws) ──────────────────────
+  // ── 1. Environment check ──────────────────────────────────────────────────
   try {
     EnvironmentChecker.checkEnvironment();
     if (!EnvironmentChecker.isConfigured()) {
@@ -81,62 +79,117 @@ Future<void> _runInitialization() async {
     }
   } catch (_) {}
 
-  // ── 2. Version migration — must run before any cache is read ─────────────
-  await _safe('VersionMigration', () => VersionMigrationService.instance.initialize());
+  // ── 2. Version migration — clears stale caches before anything reads them ─
+  await _safe('VersionMigration',
+      () => VersionMigrationService.instance.initialize());
 
-  // ── 3. Firebase — CRITICAL. Without it auth and notifications won't work,
-  //    but we still launch the app so the user sees something useful.  ────────
-  bool firebaseOk = false;
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    firebaseOk = true;
-    developer.log('✅ Firebase initialized');
-  } catch (e) {
-    developer.log('❌ Firebase FAILED: $e — app will launch without auth');
-  }
-
-  // ── 4. SecureStorageService — must come before ApiService (token fallback) ─
-  _safe('SecureStorageService', () async => SecureStorageService().initialize());
-
-  // ── 5. ApiService — must come before Localization (lang backend sync) ──────
-  _safe('ApiService', () async => ApiService().initialize());
-
-  // ── 6. Parallel non-critical services ─────────────────────────────────────
-  await Future.wait([
-    _safe('NotificationStorage', () => NotificationStorageService().initialize()),
-    _safe('ConnectivityService', () => ConnectivityService().initialize()),
-  ]);
-
-  // ── 7. Localization — must complete before runApp so tr() works ───────────
-  await _safe('LocalizationService', () => LocalizationService().initialize());
-
-  // ── 8. AuthState — must complete before splash routing decisions ──────────
-  await _safe('AuthState', () => AuthState().initialize());
-
-  // ── 9. AudioService — guard against warm-restart double-init ─────────────
-  await _safe('AudioService', () async {
-    if (!AudioService.running) {
-      await AudioService.init(
-        builder: () => MyAudioHandler(),
-        config: const AudioServiceConfig(
-          androidNotificationChannelId: 'com.spiritual.app.channel.audio',
-          androidNotificationChannelName: 'SKS Audio',
-          androidNotificationChannelDescription: 'SKS Audio Playback',
-          androidNotificationOngoing: false,
-          androidStopForegroundOnPause: true,
-        ),
-      );
-    } else {
-      developer.log('ℹ️ AudioService already running');
+  // ── 3. Firebase — critical for Google auth & Crashlytics ─────────────────
+  await _safe('Firebase', () async {
+    try {
+      await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform);
+      developer.log('✅ Firebase initialized');
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('duplicate') || msg.contains('already')) {
+        developer.log('✅ Firebase already initialized (warm restart)');
+        return; // Not an error
+      }
+      rethrow; // Let _safe() catch and log it
     }
   });
 
-  // ── 10. Enhanced Audio Player — re-initializes safely on warm restart ─────
-  await _safe('EnhancedAudioPlayerService',
-      () => EnhancedAudioPlayerService().initialize());
+  // ── 4. SecureStorage — must be ready before ApiService reads tokens ───────
+  await _safe('SecureStorageService',
+      () async => SecureStorageService().initialize());
 
-  // ── 11. System UI ─────────────────────────────────────────────────────────
-  _safe('SystemChrome', () async {
+  // ── 5. ApiService — needs SecureStorage for JWT token lookup ─────────────
+  await _safe('ApiService', () async => ApiService().initialize());
+
+  // ── 6. ConnectivityService — needed by ApiService for online/offline logic ─
+  await _safe('ConnectivityService',
+      () => ConnectivityService().initialize());
+
+  // ── 7. Localization — must complete before runApp so tr() never returns "" ─
+  await _safe('LocalizationService',
+      () => LocalizationService().initialize());
+
+  // ── 8. AuthState — must complete before splash routing decisions ──────────
+  //    Reads cached user + validates JWT exists (clears stale session if not)
+  await _safe('AuthState', () => AuthState().initialize());
+
+  // ── 9. NotificationStorage — non-critical, parallel-safe ─────────────────
+  await _safe('NotificationStorage',
+      () => NotificationStorageService().initialize());
+
+  // ── 10. AudioService ──────────────────────────────────────────────────────
+  if (!kIsWeb) {
+    await _safe('AudioService', () async {
+      // video_player's processingState.idle means not yet started;
+      // check via a try-init pattern rather than the deprecated .running flag
+      try {
+        await AudioService.init(
+          builder: () => MyAudioHandler(),
+          config: const AudioServiceConfig(
+            androidNotificationChannelId: 'com.spiritual.app.channel.audio',
+            androidNotificationChannelName: 'SKS Audio',
+            androidNotificationChannelDescription: 'SKS Audio Playback',
+            androidNotificationOngoing: false,
+            androidStopForegroundOnPause: true,
+          ),
+        );
+      } catch (e) {
+        if (e.toString().contains('already')) {
+          developer.log('ℹ️ AudioService already running');
+        } else {
+          rethrow;
+        }
+      }
+    });
+
+    await _safe('EnhancedAudioPlayerService',
+        () => EnhancedAudioPlayerService().initialize());
+  }
+
+  // ── 11. OneSignal — push notifications (does NOT require Firebase) ─────────
+  if (!kIsWeb) {
+    await _safe('OneSignal', () async {
+      // Only enable verbose logging in debug builds
+      if (kDebugMode) {
+        OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+      } else {
+        OneSignal.Debug.setLogLevel(OSLogLevel.none);
+      }
+
+      OneSignal.initialize(AppEnv.oneSignalAppId);
+
+      // Request notification permission (non-blocking — user may deny)
+      await OneSignal.Notifications.requestPermission(false);
+
+      final svc = OneSignalService();
+      svc.setupNotificationHandlers();
+      svc.markInitialized();
+
+      // Link the authenticated user so targeted pushes work
+      final auth = AuthState();
+      if (auth.user != null) {
+        OneSignal.login(auth.user!.uid);
+        if (OneSignal.Notifications.permission) {
+          OneSignal.User.pushSubscription.optIn();
+        }
+        developer.log('🔔 OneSignal linked to user: ${auth.user!.uid}');
+      } else {
+        developer.log('🔔 OneSignal initialized (no user logged in yet)');
+      }
+
+      svc.onNavigateToNotification = (id) {
+        appRouter.push('/notifications/$id');
+      };
+    });
+  }
+
+  // ── 12. System UI ─────────────────────────────────────────────────────────
+  await _safe('SystemChrome', () async {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
@@ -151,31 +204,6 @@ Future<void> _runInitialization() async {
     ]);
   });
 
-  // ── 12. OneSignal ─────────────────────────────────────────────────────────
-  if (!kIsWeb && firebaseOk) {
-    await _safe('OneSignal', () async {
-      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-      OneSignal.initialize(AppEnv.oneSignalAppId);
-
-      final svc = OneSignalService();
-      svc.setupNotificationHandlers();
-      svc.markInitialized();
-
-      final permitted = OneSignal.Notifications.permission;
-      developer.log('🔔 Notification permission on startup: $permitted');
-
-      final auth = AuthState();
-      if (auth.user != null) {
-        OneSignal.login(auth.user!.uid);
-        if (permitted) OneSignal.User.pushSubscription.optIn();
-      }
-
-      svc.onNavigateToNotification = (id) {
-        appRouter.push('/notifications/$id');
-      };
-    });
-  }
-
   // ── 13. Flutter error handler ─────────────────────────────────────────────
   FlutterError.onError = (FlutterErrorDetails details) {
     developer.log('Flutter Error: ${details.exception}',
@@ -183,6 +211,9 @@ Future<void> _runInitialization() async {
         error: details.exception,
         stackTrace: details.stack);
   };
+
+  // ── 14. Image preloader — fire-and-forget, never blocks startup ───────────
+  _safe('ImagePreloader', () => ImagePreloaderService().preloadToDisk());
 
   developer.log('✅ All initialization complete — launching app');
 }

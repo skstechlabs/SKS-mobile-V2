@@ -102,7 +102,7 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
     if (_notification == null) {
       return Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.cream,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -186,9 +186,9 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cream,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -197,7 +197,7 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
         title: const Text(
           'Notification',
           style: TextStyle(
-            color: Colors.black,
+            color: AppTheme.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),

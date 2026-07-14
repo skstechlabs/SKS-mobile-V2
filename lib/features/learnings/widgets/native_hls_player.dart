@@ -58,9 +58,11 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
   bool _isDragging = false;
   double _dragValue = 0;
 
-  // Fullscreen via Overlay — avoids controller disposal
-  OverlayEntry? _fullscreenOverlay;
+  // Fullscreen via Navigator.push route — avoids controller disposal
   bool _isFullscreen = false;
+  // Shared notifier so _FullscreenPlayerPage can detect controller disposal
+  final ValueNotifier<VideoPlayerController?> _controllerNotifier =
+      ValueNotifier(null);
 
   @override
   void initState() {
@@ -111,6 +113,7 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
 
       if (mounted) {
         setState(() => _isInitialized = true);
+        _controllerNotifier.value = _controller; // expose to fullscreen page
         _startHideControlsTimer();
       }
     } catch (e) {
@@ -198,7 +201,7 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
     }
 
     if (mounted) setState(() {});
-    _fullscreenOverlay?.markNeedsBuild();
+    // No overlay to mark — fullscreen is a separate route now
   }
 
   void _startHideControlsTimer() {
@@ -206,7 +209,7 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
     _hideControlsTimer = Timer(const Duration(seconds: 3), () {
       if (mounted && _controller?.value.isPlaying == true) {
         setState(() => _showControls = false);
-        _fullscreenOverlay?.markNeedsBuild();
+    
       }
     });
   }
@@ -223,7 +226,7 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
       _startHideControlsTimer();
     }
     setState(() {});
-    _fullscreenOverlay?.markNeedsBuild();
+
   }
 
   void _seekTo(Duration position) {
@@ -255,36 +258,55 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
   void _setSpeed(double speed) {
     setState(() => _playbackSpeed = speed);
     _controller?.setPlaybackSpeed(speed);
-    _fullscreenOverlay?.markNeedsBuild();
+
   }
 
   void _enterFullscreen() {
     if (_controller == null || !_isInitialized) return;
-    _isFullscreen = true;
+    // Capture the controller reference at call time — before any possible disposal
+    final capturedController = _controller!;
+
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _fullscreenOverlay = OverlayEntry(builder: (_) => _buildFullscreenOverlay());
-    Overlay.of(context).insert(_fullscreenOverlay!);
-    _startHideControlsTimer();
+    _isFullscreen = true;
+
+    Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder(
+        opaque: true,
+        barrierColor: Colors.black,
+        pageBuilder: (ctx, _, __) => _FullscreenPlayerPage(
+          controller: capturedController,
+          controllerNotifier: _controllerNotifier,
+          allowSkip: widget.allowSkip,
+          maxWatchedPosition: _maxWatchedPosition,
+          playbackSpeed: _playbackSpeed,
+          onSpeedChanged: _setSpeed,
+          onSeek: _seekTo,
+          onTogglePlayPause: _togglePlayPause,
+          onExit: () => Navigator.of(ctx).pop(),
+        ),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    ).then((_) {
+      _isFullscreen = false;
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.manual, overlays: SystemUiOverlay.values);
+      if (mounted) setState(() {});
+    });
   }
 
-  void _exitFullscreen() {
-    _isFullscreen = false;
-    _fullscreenOverlay?.remove();
-    _fullscreenOverlay = null;
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.manual, overlays: SystemUiOverlay.values);
-    if (mounted) setState(() {});
-  }
+  // _exitFullscreen is handled by the route pop callback in _enterFullscreen
 
   void _showSpeedSheet({OverlayEntry? overlay}) {
     // Close fullscreen overlay temporarily while sheet is open
@@ -340,8 +362,6 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
   @override
   void dispose() {
     if (_isFullscreen) {
-      _fullscreenOverlay?.remove();
-      _fullscreenOverlay = null;
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
@@ -355,6 +375,10 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
     _hideControlsTimer?.cancel();
     _bufferingGraceTimer?.cancel();
     WakelockPlus.disable();
+    // Null the notifier BEFORE disposing so the fullscreen page sees null
+    // and stops rendering VideoPlayer — prevents _dependents assertion crash
+    _controllerNotifier.value = null;
+    _controllerNotifier.dispose();
     _controller?.removeListener(_onVideoStateChanged);
     _controller?.dispose();
     super.dispose();
@@ -615,84 +639,176 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
     );
   }
 
-  // ── Fullscreen overlay ───────────────────────────────────────────────────────
+  // ── Fullscreen is now a separate route (_FullscreenPlayerPage below) ──────
+}
 
-  Widget _buildFullscreenOverlay() {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return const SizedBox.shrink();
+// ── Fullscreen page ────────────────────────────────────────────────────────────
+
+// ── Fullscreen page ────────────────────────────────────────────────────────────
+class _FullscreenPlayerPage extends StatefulWidget {
+  // Direct reference — valid at the moment _enterFullscreen was called
+  final VideoPlayerController controller;
+  // Notifier — goes null when parent disposes; used for safety pop
+  final ValueNotifier<VideoPlayerController?> controllerNotifier;
+  final bool allowSkip;
+  final double maxWatchedPosition;
+  final double playbackSpeed;
+  final ValueChanged<double> onSpeedChanged;
+  final ValueChanged<Duration> onSeek;
+  final VoidCallback onTogglePlayPause;
+  final VoidCallback onExit;
+
+  const _FullscreenPlayerPage({
+    required this.controller,
+    required this.controllerNotifier,
+    required this.allowSkip,
+    required this.maxWatchedPosition,
+    required this.playbackSpeed,
+    required this.onSpeedChanged,
+    required this.onSeek,
+    required this.onTogglePlayPause,
+    required this.onExit,
+  });
+
+  @override
+  State<_FullscreenPlayerPage> createState() => _FullscreenPlayerPageState();
+}
+
+class _FullscreenPlayerPageState extends State<_FullscreenPlayerPage> {
+  bool _showControls = true;
+  Timer? _hideTimer;
+  bool _isDragging = false;
+  double _dragValue = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen on the direct controller (always valid here)
+    widget.controller.addListener(_onVideoChanged);
+    // Listen on notifier to auto-pop if parent disposes
+    widget.controllerNotifier.addListener(_onControllerNulled);
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onVideoChanged);
+    widget.controllerNotifier.removeListener(_onControllerNulled);
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onControllerNulled() {
+    if (!mounted) return;
+    if (widget.controllerNotifier.value == null) {
+      Navigator.of(context).pop();
     }
-    final val = _controller!.value;
+  }
+
+  void _onVideoChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (widget.controller.value.isPlaying) {
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showControls = false);
+      });
+    }
+  }
+
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+    if (_showControls) _scheduleHide();
+  }
+
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Use the direct controller reference — always valid
+    final ctrl = widget.controller;
+    final val = ctrl.value;
     final pos = val.position;
     final dur = val.duration;
     final durMs = dur.inMilliseconds.toDouble();
     final posMs =
         pos.inMilliseconds.toDouble().clamp(0.0, durMs > 0 ? durMs : 1.0);
 
-    return Material(
-      color: Colors.black,
-      child: GestureDetector(
-        onTap: () {
-          _showControls = !_showControls;
-          _fullscreenOverlay?.markNeedsBuild();
-          if (_showControls) _startHideControlsTimer();
-        },
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: _toggleControls,
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // Video — same controller, no reload
             Center(
               child: AspectRatio(
                 aspectRatio: val.aspectRatio > 0 ? val.aspectRatio : 16 / 9,
-                child: VideoPlayer(_controller!),
+                child: VideoPlayer(ctrl),
               ),
             ),
-            if (_showBuffering)
+            // Buffering
+            if (val.isBuffering)
               const Center(
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2)),
+            // Controls
             if (_showControls)
               Container(
                 color: Colors.black38,
                 child: SafeArea(
                   child: Column(
                     children: [
-                      // Top
+                      // Top: back + speed
                       Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         child: Row(
                           children: [
                             GestureDetector(
-                                onTap: _exitFullscreen,
-                                child: const Icon(Icons.arrow_back,
-                                    color: Colors.white, size: 26)),
+                              onTap: widget.onExit,
+                              child: const Icon(Icons.arrow_back,
+                                  color: Colors.white, size: 26),
+                            ),
                             const Spacer(),
                             GestureDetector(
-                              onTap: _showSpeedSheet,
+                              onTap: () => _showSpeedSheet(context),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
+                                    horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
                                     color: Colors.black45,
                                     borderRadius: BorderRadius.circular(4)),
                                 child: Text(
-                                  _playbackSpeed == 1.0
+                                  widget.playbackSpeed == 1.0
                                       ? '1x'
-                                      : '${_playbackSpeed}x',
+                                      : '${widget.playbackSpeed}x',
                                   style: const TextStyle(
-                                      color: Colors.white, fontSize: 14),
+                                      color: Colors.white, fontSize: 13),
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Centre
+                      // Centre: transport
                       Expanded(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _ctrlBtn(
-                                Icons.replay_10,
-                                () => _seekTo(
+                            _ctrlBtn(Icons.replay_10,
+                                () => widget.onSeek(
                                     pos - const Duration(seconds: 10)),
                                 40),
                             const SizedBox(width: 48),
@@ -700,25 +816,27 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
                                 val.isPlaying
                                     ? Icons.pause
                                     : Icons.play_arrow,
-                                _togglePlayPause,
+                                () {
+                                  widget.onTogglePlayPause();
+                                  _scheduleHide();
+                                },
                                 56),
                             const SizedBox(width: 48),
-                            _ctrlBtn(
-                                Icons.forward_10,
-                                () => _seekTo(
+                            _ctrlBtn(Icons.forward_10,
+                                () => widget.onSeek(
                                     pos + const Duration(seconds: 10)),
                                 40),
                           ],
                         ),
                       ),
-                      // Bottom
+                      // Bottom: seek + exit
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                         child: Row(
                           children: [
                             Text(_fmt(pos),
                                 style: const TextStyle(
-                                    color: Colors.white, fontSize: 13)),
+                                    color: Colors.white, fontSize: 12)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: SliderTheme(
@@ -734,18 +852,16 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
                                   value: _isDragging ? _dragValue : posMs,
                                   min: 0,
                                   max: durMs > 0 ? durMs : 1.0,
-                                  onChangeStart: (v) {
+                                  onChangeStart: (v) => setState(() {
                                     _isDragging = true;
                                     _dragValue = v;
-                                    _fullscreenOverlay?.markNeedsBuild();
-                                  },
-                                  onChanged: (v) {
-                                    _dragValue = v;
-                                    _fullscreenOverlay?.markNeedsBuild();
-                                  },
+                                  }),
+                                  onChanged: (v) =>
+                                      setState(() => _dragValue = v),
                                   onChangeEnd: (v) {
-                                    _isDragging = false;
-                                    _seekTo(Duration(milliseconds: v.toInt()));
+                                    setState(() => _isDragging = false);
+                                    widget.onSeek(
+                                        Duration(milliseconds: v.toInt()));
                                   },
                                 ),
                               ),
@@ -753,12 +869,15 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
                             const SizedBox(width: 8),
                             Text(_fmt(dur),
                                 style: const TextStyle(
-                                    color: Colors.white, fontSize: 13)),
-                            const SizedBox(width: 16),
+                                    color: Colors.white, fontSize: 12)),
+                            const SizedBox(width: 12),
                             GestureDetector(
-                                onTap: _exitFullscreen,
-                                child: const Icon(Icons.fullscreen_exit,
-                                    color: Colors.white, size: 28)),
+                              onTap: widget.onExit,
+                              child: const Icon(
+                                  Icons.fullscreen_exit_rounded,
+                                  color: Colors.white,
+                                  size: 28),
+                            ),
                           ],
                         ),
                       ),
@@ -767,6 +886,59 @@ class _NativeHLSPlayerState extends State<NativeHLSPlayer>
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ctrlBtn(IconData icon, VoidCallback onTap, double size) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+            color: Colors.black45, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: size),
+      ),
+    );
+  }
+
+  void _showSpeedSheet(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Playback Speed',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ...([0.5, 0.75, 1.0, 1.25, 1.5, 2.0]).map((s) => ListTile(
+                    dense: true,
+                    title: Text(s == 1.0 ? 'Normal' : '${s}x',
+                        style: TextStyle(
+                            color: widget.playbackSpeed == s
+                                ? Colors.amber
+                                : Colors.white)),
+                    trailing: widget.playbackSpeed == s
+                        ? const Icon(Icons.check,
+                            color: Colors.amber, size: 20)
+                        : null,
+                    onTap: () {
+                      widget.onSpeedChanged(s);
+                      Navigator.pop(c);
+                    },
+                  )),
+            ],
+          ),
         ),
       ),
     );

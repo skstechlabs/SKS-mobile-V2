@@ -5,7 +5,7 @@ import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/models/audio_model.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/sks_loader.dart';
-import '../audio/now_playing_screen.dart';
+import '../../core/utils/audio_navigation.dart';
 
 /// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
@@ -53,19 +53,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   }
 
   void _openPlayer() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    );
+    openNowPlaying(context);
   }
 
   @override

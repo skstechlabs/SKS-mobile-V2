@@ -183,6 +183,22 @@ class WallpaperService {
               .toList();
 
           if (urls.isNotEmpty) {
+            // ── Stale URL detection ────────────────────────────────────
+            // Old R2 bucket (pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev)
+            // served 404s. Discard any cached list that still contains those
+            // URLs so we always fetch fresh ones from the API on next launch.
+            final hasStaleUrls = urls.any((u) =>
+                u.contains('pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev') ||
+                u.contains('/Wallpapers/Guruji.JPG'));
+
+            if (hasStaleUrls) {
+              debugPrint('⚠️ Stale wallpaper URLs detected in cache — clearing to force refresh');
+              await prefs.remove(_prefKeyCachedUrls);
+              await prefs.remove(_prefKeyCachedWallpapers);
+              await prefs.remove(_prefKeyListFetchedAt);
+              return; // will fetch fresh from API
+            }
+
             _wallpapers = urls.map((u) => {
               'url': u,
               'filename': u.split('/').last,

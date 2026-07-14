@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/enhanced_audio_player_service.dart';
 import '../services/now_playing_state.dart';
 import '../theme/app_theme.dart';
-import '../../features/audio/now_playing_screen.dart';
+import '../utils/audio_navigation.dart';
 
 class MiniAudioPlayer extends StatefulWidget {
   const MiniAudioPlayer({super.key});
@@ -40,21 +40,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   }
 
   void _openPlayer() {
-    // Guard: never push NowPlayingScreen if it's already open
-    if (nowPlayingVisible.value) return;
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    );
+    openNowPlaying(context);
   }
 
   @override
@@ -202,7 +188,8 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                       onPressed: () => _service.nextSong(),
                     ),
 
-                    // Close
+                    // Close — stops playback only.
+                    // NowPlayingScreen has its own × button to dismiss itself.
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(

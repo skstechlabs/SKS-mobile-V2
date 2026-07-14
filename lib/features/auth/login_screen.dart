@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
+import '../onboarding/onboarding_screen.dart';
 import '../../core/utils/network_diagnostic.dart';
 import 'auth_service.dart';
 import 'auth_state.dart';
@@ -174,10 +175,14 @@ class _LoginScreenState extends State<LoginScreen>
         if (loginResult['success'] == true) break;
 
         final errCode = loginResult['error_code'] as String? ?? '';
+        // Stop immediately on auth/token errors or network errors (no point retrying)
         if (errCode == 'TOKEN_EXPIRED' ||
             errCode == 'TOKEN_INVALID' ||
-            errCode == 'TOKEN_REVOKED') {
-          debugPrint('❌ Token rejected on attempt $attempt: $errCode');
+            errCode == 'TOKEN_REVOKED' ||
+            errCode == 'NETWORK_ERROR' ||
+            errCode == 'DNS_RESOLUTION_FAILED' ||
+            errCode == 'CONNECTION_ERROR') {
+          debugPrint('❌ Non-retryable error on attempt $attempt: $errCode');
           break;
         }
         if (attempt < 3) {
@@ -242,11 +247,15 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       context.go(isLanguageSelected ? '/profile-setup' : '/language-selection');
     } else {
-      // Returning user with complete profile → go straight home.
-      // Permission screen was already shown during first login flow
-      // (profile setup → notification-permission → home).
+      // Returning user with complete profile — show onboarding if first time.
       if (!mounted) return;
-      context.go('/');
+      final done = await hasCompletedOnboarding();
+      if (!mounted) return;
+      if (!done) {
+        context.go('/onboarding');
+      } else {
+        context.go('/');
+      }
     }
   }
 

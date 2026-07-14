@@ -25,8 +25,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   @override
   void initState() {
     super.initState();
-    // Signal globally that the full-screen player is now visible.
-    // MiniAudioPlayer observes this and hides itself to avoid duplicate controls.
+    // nowPlayingVisible is already set to true by openNowPlaying() before push.
+    // We set it here as well to handle the /now-playing named route case.
     nowPlayingVisible.value = true;
 
     _service.addListener(_onStateChanged);
@@ -53,11 +53,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
   void _onStateChanged() {
     if (!mounted) return;
-    setState(() {});
     if (_service.isPlaying) {
       _artController.forward();
     } else {
       _artController.reverse();
+    }
+    // Only rebuild if we still have a song — never rebuild to show empty state
+    if (_service.currentSong != null) {
+      setState(() {});
+    }
+    // When stop() clears the playlist, pop the screen.
+    // Schedule after the current frame so we don't pop mid-build.
+    if (_service.currentSong == null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
     }
   }
 
@@ -78,6 +88,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     final song = _service.currentSong;
     final playlist = _service.playlist;
     final idx = _service.currentIndex;
+
+    // If song is gone (stop() was called), show nothing and pop.
+    // Never render the "no song playing" placeholder.
+    if (song == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+      return const Scaffold(backgroundColor: Colors.black);
+    }
 
     // Make status bar icons white on the dark background
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
@@ -118,6 +137,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
                     children: [
+                      // Down arrow — minimize (keep playing)
                       IconButton(
                         icon: const Icon(Icons.keyboard_arrow_down,
                             color: Colors.white, size: 32),
@@ -146,18 +166,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                           ],
                         ),
                       ),
-                      // Loop toggle
+                      // Close button — pop first, then stop
                       IconButton(
                         icon: Icon(
-                          _service.loopMode == LoopMode.one
-                              ? Icons.repeat_one
-                              : Icons.repeat,
-                          color: _service.loopMode != LoopMode.off
-                              ? AppTheme.saffron
-                              : Colors.white54,
+                          Icons.close,
+                          color: Colors.white.withValues(alpha: 0.7),
                           size: 24,
                         ),
-                        onPressed: () => _service.toggleLoopMode(),
+                        onPressed: () {
+                          // Detach listener before popping so _onStateChanged
+                          // can't fire on a half-disposed widget
+                          _service.removeListener(_onStateChanged);
+                          Navigator.of(context).pop();
+                          _service.stop();
+                        },
                       ),
                     ],
                   ),
@@ -332,6 +354,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
+                      // Loop toggle
+                      IconButton(
+                        icon: Icon(
+                          _service.loopMode == LoopMode.one
+                              ? Icons.repeat_one
+                              : Icons.repeat,
+                          color: _service.loopMode != LoopMode.off
+                              ? AppTheme.saffron
+                              : Colors.white54,
+                          size: 24,
+                        ),
+                        onPressed: () => _service.toggleLoopMode(),
+                      ),
+
                       // Previous
                       _CtrlBtn(
                         icon: Icons.skip_previous_rounded,
@@ -389,6 +425,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                             ? () => _service.nextSong()
                             : null,
                       ),
+
+                      // Placeholder to balance loop button
+                      const SizedBox(width: 40),
                     ],
                   ),
                 ),

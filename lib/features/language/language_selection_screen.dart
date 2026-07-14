@@ -83,10 +83,10 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: widget.isFromSettings
           ? AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: AppTheme.cream,
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -95,7 +95,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen>
               title: Text(
                 context.tr('change_language'),
                 style: const TextStyle(
-                  color: Colors.black,
+                  color: AppTheme.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),

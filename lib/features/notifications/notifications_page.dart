@@ -326,9 +326,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final hasNotifications = _notifications.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cream,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -339,7 +339,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             Text(
               context.tr('notifications'),
               style: const TextStyle(
-                color: Colors.black,
+                color: AppTheme.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -671,7 +671,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppTheme.textPrimary,
                 ),
               ),
               SizedBox(height: 4),
@@ -852,7 +852,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: AppTheme.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                   ),

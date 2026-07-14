@@ -157,7 +157,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.cream,
           title: Text(
             context.tr('edit_profile'),
             style: const TextStyle(

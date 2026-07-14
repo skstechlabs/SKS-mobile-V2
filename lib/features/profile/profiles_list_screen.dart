@@ -106,9 +106,9 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cream,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -117,7 +117,7 @@ class _ProfilesListScreenState extends State<ProfilesListScreen> {
         title: const Text(
           'Manage Profiles',
           style: TextStyle(
-            color: Colors.black,
+            color: AppTheme.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),

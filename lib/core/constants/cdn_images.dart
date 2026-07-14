@@ -32,7 +32,25 @@ class CdnImages {
   static const String guruji30 = '$_baseUrl/d82f348e-6b86-4be8-31c9-565ef2112300/public';
   static const String guruji32 = '$_baseUrl/238879d8-5b8d-473d-5061-cb28c7e2b700/public';
   
-  // Recent Gatherings Images - CDN URLs (to be added)
+  // Chakra Landing Slide Images - CDN URLs
+  static const String chakraSlide1 = chakras;           // Cover
+  static const String chakraSlide2 = kundalini;         // What Are Chakras
+  static const String chakraSlide3 = meditation;        // Activation vs Awakening
+  static const String chakraSlide4 = gurujiMeditation;  // How Kundalini Rises
+  static const String chakraSlide5 = guruji30;          // Blocks & Balance
+  static const String chakraSlide6 = gurujiSmile;       // Physical Experiences
+  static const String kundaliniSlide1 = kundalini;         // Cover
+  static const String kundaliniSlide2 = kundalini;         // Primordial Energy
+  static const String kundaliniSlide3 = meditation;        // Inner Technology
+  static const String kundaliniSlide4 = chakras;           // Seven Chakras
+  static const String kundaliniSlide5 = gurujiMeditation;  // Path of Awakening
+  static const String kundaliniSlide6 = guruji30;          // Safe for Every Seeker
+  static const String guruJourneySlide1 = guruji;           // Cover — Guruji main
+  static const String guruJourneySlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/Kundalini%20Awakened%20from%20birth.png'; // Awakening (age 8)
+  static const String guruJourneySlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/Divine%20Encounter%20at%20Srisailam.png';       // Srisailam (age 13)
+  static const String guruJourneySlide4 = meditation;       // Enlightenment / Sadhana
+  static const String guruJourneySlide5 = guruji30;         // Founding SKS mission
+  static const String guruJourneySlide6 = gurujiSmile;      // Gift of Grace
   static const String blissCenter = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/bliss-center-id/public'; // TODO: Add actual ID
   static const String guruPoornima2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/guru-poornima-id/public'; // TODO: Add actual ID
   static const String mahaSivaratri2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/maha-sivaratri-id/public'; // TODO: Add actual ID

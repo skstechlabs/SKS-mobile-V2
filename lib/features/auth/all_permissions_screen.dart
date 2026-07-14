@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/api_service.dart';
+import '../onboarding/onboarding_screen.dart';
 import 'auth_state.dart';
 
 /// Key stored in SharedPreferences once the user grants notification permission.
@@ -70,7 +71,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
   Future<void> _checkPermissions() async {
     // Web: skip permission screen
     if (kIsWeb) {
-      if (mounted) context.go('/');
+      if (mounted) _goHome();
       return;
     }
 
@@ -90,7 +91,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     if (granted) {
       await _persistPermissionGranted();
       await _setupOneSignalUser();
-      if (mounted) context.go('/');
+      if (mounted) _goHome();
       return;
     }
 
@@ -146,10 +147,9 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
 
     try {
       if (_notificationGranted) {
-        // Already granted — just go home
         await _persistPermissionGranted();
         await _setupOneSignalUser();
-        if (mounted) context.go('/');
+        if (mounted) _goHome();
         return;
       }
 
@@ -159,26 +159,44 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
         return;
       }
 
-      debugPrint('🔔 Requesting notification permission...');
-      final granted = await _oneSignal.requestPermission();
-      debugPrint('🔔 Result: $granted');
+      debugPrint('🔔 Requesting notification permission via OS...');
+
+      // Use permission_handler directly — bypasses OneSignal which can hang
+      // or return incorrect results on some Android versions/emulators.
+      final status = await Permission.notification.request();
+      final granted = status.isGranted;
+
+      debugPrint('🔔 OS permission result: $status (granted: $granted)');
 
       if (!mounted) return;
-      setState(() => _notificationGranted = granted);
+
+      setState(() {
+        _notificationGranted = granted;
+        _notificationPermanentlyDenied = status.isPermanentlyDenied;
+      });
 
       if (granted) {
+        // Grant the push subscription to OneSignal so it can deliver notifications.
+        // We use permission_handler for the OS dialog (more reliable) but still
+        // need to tell OneSignal the permission was granted via its own API so
+        // it registers the push token with its servers.
+        try {
+          // optIn() activates the push subscription — this is what enables
+          // OneSignal to send notifications to this device.
+          OneSignal.User.pushSubscription.optIn();
+          debugPrint('✅ OneSignal.pushSubscription.optIn() called');
+        } catch (e) {
+          debugPrint('⚠️ OneSignal optIn error (non-critical): $e');
+        }
         await _persistPermissionGranted();
         await _setupOneSignalUser();
-        if (mounted) context.go('/');
+        if (mounted) _goHome();
+      } else if (status.isPermanentlyDenied) {
+        if (mounted) setState(() => _isLoading = false);
+        _showOpenSettingsDialog();
       } else {
-        // Check OS state to distinguish "denied this time" vs "permanently denied"
-        final status = await Permission.notification.status;
-        if (mounted) {
-          setState(() {
-            _notificationPermanentlyDenied = status.isPermanentlyDenied;
-            _isLoading = false;
-          });
-        }
+        // Denied but not permanently — show skip option
+        if (mounted) setState(() => _isLoading = false);
         _showPermissionDeniedDialog();
       }
     } catch (e) {
@@ -189,32 +207,61 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
     }
   }
 
+  /// Navigate to home without notification permission (user chose to skip).
+  void _skipPermission() {
+    if (!mounted) return;
+    _goHome();
+  }
+
+  /// Navigate to home — shows onboarding first if user hasn't seen it yet.
+  Future<void> _goHome() async {
+    if (!mounted) return;
+    try {
+      final done = await hasCompletedOnboarding();
+      if (!mounted) return;
+      context.go(done ? '/' : '/onboarding');
+    } catch (_) {
+      if (mounted) context.go('/');
+    }
+  }
+
   void _showPermissionDeniedDialog() {
     if (!mounted) return;
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
             Icon(Icons.notifications_off, color: Colors.orange, size: 28),
             SizedBox(width: 12),
-            Expanded(child: Text('Notifications Required')),
+            Expanded(child: Text('Enable Notifications?')),
           ],
         ),
         content: const Text(
-          'Push notifications are required to receive updates from Guruji. '
-          'Please allow notifications to continue.',
+          'Allow notifications to receive blessings, updates and spiritual '
+          'reminders from Guruji. You can enable them later in Settings.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              _skipPermission(); // Let user proceed without notifications
+            },
+            child: const Text('Skip for now',
+                style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary),
+            onPressed: () {
+              Navigator.pop(context);
               _requestPermission();
             },
-            child: const Text('Allow Notifications'),
+            child: const Text('Allow',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -417,6 +464,21 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                               ),
                       ),
                     ),
+
+                    const SizedBox(height: 12),
+
+                    // Skip option — notifications are optional
+                    if (!_notificationGranted && !_isLoading)
+                      TextButton(
+                        onPressed: _skipPermission,
+                        child: Text(
+                          'Skip for now',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
                   ],

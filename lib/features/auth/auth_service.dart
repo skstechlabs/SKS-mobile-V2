@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_env.dart';
 import '../../../core/services/onesignal_service.dart';
+import '../../../firebase_options.dart';
 
 /// AuthService — Google Sign-In using google_sign_in 7.x API.
 ///
@@ -33,47 +34,77 @@ class AuthService {
   bool _initialized = false;
   bool _initializing = false;
 
-  FirebaseAuth get _auth {
-    try {
-      Firebase.app();
-      return FirebaseAuth.instance;
-    } catch (e) {
-      debugPrint('⚠️ Firebase not initialized: $e');
-      rethrow;
-    }
-  }
+  // Access FirebaseAuth directly — never through Firebase.app() which can throw.
+  // FirebaseAuth.instance works as long as Firebase.initializeApp() was called,
+  // which _ensureFirebaseInitialized() guarantees before any auth operation.
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
-  /// Ensure Firebase is initialized before using auth
+  /// Ensure Firebase is initialized and FirebaseAuth is accessible.
   Future<void> _ensureFirebaseInitialized() async {
-    try {
-      Firebase.app();
-    } catch (e) {
-      debugPrint('⚠️ Firebase not ready, initializing...');
-      // Wait for Firebase - it should be initializing in main.dart
-      for (int i = 0; i < 50; i++) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        try {
-          Firebase.app();
-          debugPrint('✅ Firebase ready after ${(i + 1) * 100}ms');
-          return;
-        } catch (_) {
-          // Keep waiting
+    // Fast path — if FirebaseAuth is already accessible, we're done.
+    if (_isFirebaseAuthReady()) return;
+
+    debugPrint('⚠️ Firebase not ready, initializing...');
+
+    // Retry initializeApp up to 5 times with increasing backoff.
+    // Handles: first-launch race, warm-restart, storage-clear scenarios.
+    for (int attempt = 1; attempt <= 5; attempt++) {
+      try {
+        await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform);
+        debugPrint('✅ Firebase.initializeApp() succeeded (attempt $attempt)');
+      } catch (e) {
+        final msg = e.toString();
+        if (msg.contains('duplicate') || msg.contains('already')) {
+          // Already initialized — this is success, not failure.
+          debugPrint('✅ Firebase already initialized (attempt $attempt)');
+        } else {
+          debugPrint('⚠️ Firebase init attempt $attempt failed: $e');
+          if (attempt < 5) {
+            await Future.delayed(Duration(milliseconds: 300 * attempt));
+            continue;
+          }
         }
       }
-      debugPrint('❌ Firebase still not initialized after 5 seconds');
-      throw Exception('Firebase not initialized. Please restart the app.');
+
+      // After each initializeApp attempt, poll for FirebaseAuth readiness
+      // (platform channel registration takes a few ms after initializeApp).
+      for (int poll = 0; poll < 30; poll++) {
+        if (_isFirebaseAuthReady()) {
+          debugPrint('✅ FirebaseAuth ready');
+          return;
+        }
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
+    // If still not ready, one final check before throwing
+    if (_isFirebaseAuthReady()) return;
+
+    throw Exception(
+        'Google Sign-In is temporarily unavailable. '
+        'Please check your internet connection and try again.');
+  }
+
+  /// Returns true if FirebaseAuth.instance is accessible without throwing.
+  bool _isFirebaseAuthReady() {
+    try {
+      FirebaseAuth.instance.currentUser; // throws [core/no-app] if not ready
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
   /// Initialize GoogleSignIn singleton. Safe to call multiple times.
+  /// Resets and retries if storage was cleared (handles clear-cache scenario).
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     if (_initializing) {
-      // Wait for the in-progress initialization with a safety timeout
       for (int i = 0; i < 100; i++) {
         await Future.delayed(const Duration(milliseconds: 50));
         if (_initialized) return;
-        if (!_initializing) break; // init failed, fall through to retry
+        if (!_initializing) break;
       }
       if (_initialized) return;
     }
@@ -85,22 +116,44 @@ class AuthService {
 
       debugPrint('🔑 GoogleSignIn.initialize() with serverClientId: $serverClientId');
 
+      // On Android, after clearing app storage, GoogleSignIn.instance may be
+      // in a stale state. Calling initialize() again always works — it's
+      // idempotent in google_sign_in 7.x and re-registers the client.
       await GoogleSignIn.instance.initialize(
         serverClientId: serverClientId,
       );
       _initialized = true;
       debugPrint('✅ GoogleSignIn.instance initialized');
     } catch (e) {
-      debugPrint('❌ GoogleSignIn.initialize() failed: $e');
+      debugPrint('⚠️ GoogleSignIn.initialize() attempt failed: $e — retrying once');
+      // Reset flag so we retry fresh next call
       _initialized = false;
-      rethrow;
+      // Wait briefly then retry once — handles transient Play Services state
+      await Future.delayed(const Duration(milliseconds: 600));
+      try {
+        final serverClientId = AppEnv.googleClientId.isNotEmpty
+            ? AppEnv.googleClientId
+            : _webClientId;
+        await GoogleSignIn.instance.initialize(serverClientId: serverClientId);
+        _initialized = true;
+        debugPrint('✅ GoogleSignIn.instance initialized on retry');
+      } catch (e2) {
+        debugPrint('❌ GoogleSignIn.initialize() failed after retry: $e2');
+        rethrow;
+      }
     } finally {
       _initializing = false;
     }
   }
 
-  User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? get currentUser {
+    try { return FirebaseAuth.instance.currentUser; } catch (_) { return null; }
+  }
+
+  Stream<User?> get authStateChanges {
+    try { return FirebaseAuth.instance.authStateChanges(); }
+    catch (_) { return const Stream.empty(); }
+  }
 
   // ── Google Sign-In ─────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> signInWithGoogle() async {
@@ -127,6 +180,9 @@ class AuthService {
 
   // ── Mobile (Android / iOS) ─────────────────────────────────────────────────
   Future<Map<String, dynamic>> _signInMobile() async {
+    // Always reset initialization state before a fresh sign-in attempt.
+    // After clear cache/storage, the singleton's internal state may be stale.
+    _initialized = false;
     await _ensureInitialized();
 
     // authenticate() shows the account picker.
@@ -165,12 +221,13 @@ class AuthService {
   Future<Map<String, dynamic>> _signInWithFirebase({
     required GoogleSignInAuthentication googleAuth,
   }) async {
-    // In 7.x, GoogleSignInAuthentication only has idToken.
-    // Firebase credential only needs idToken for sign-in.
+    // Re-verify Firebase is ready immediately before using it.
+    // GoogleSignIn can take several seconds (account picker, network),
+    // during which the Firebase SDK state may change.
+    await _ensureFirebaseInitialized();
+
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
-      // accessToken is not available in 7.x authentication — omit it.
-      // Firebase accepts idToken-only credentials.
     );
 
     final userCredential = await _auth.signInWithCredential(credential);

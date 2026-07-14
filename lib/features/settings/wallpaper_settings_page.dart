@@ -15,10 +15,10 @@ class WallpaperSettingsPage extends StatefulWidget {
 class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
   final WallpaperService _wallpaperService = WallpaperService();
   
-  bool _isEnabled = false;
   bool _isLoading = true;
-  Map<String, dynamic> _currentInfo = {};
   List<String> _availableWallpapers = [];
+  // Tracks which index was explicitly set by the user — null means none yet
+  int? _currentIndex;
 
   @override
   void initState() {
@@ -30,8 +30,6 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     setState(() => _isLoading = true);
 
     try {
-      final enabled = await _wallpaperService.isEnabled();
-      final info = await _wallpaperService.getCurrentInfo();
       // Always force-refresh the wallpaper list when the page loads so that
       // any new wallpapers added to the CDN appear immediately.
       final wallpapers = await _wallpaperService.getAvailableWallpapers(
@@ -40,112 +38,61 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
 
       if (mounted) {
         setState(() {
-          _isEnabled = enabled;
-          _currentInfo = info;
           _availableWallpapers = wallpapers;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading wallpaper status: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _toggleWallpaper(bool value) async {
-    setState(() => _isLoading = true);
-
-    try {
-      bool success;
-      if (value) {
-        success = await _wallpaperService.enable();
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Wallpaper rotation enabled! Changes every 15 minutes.'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        success = await _wallpaperService.disable();
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Wallpaper rotation disabled'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-
-      await _loadStatus();
-    } catch (e) {
-      debugPrint('Error toggling wallpaper: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _changeNow() async {
-    setState(() => _isLoading = true);
-
-    try {
-      await _wallpaperService.changeNow();
-      await _loadStatus();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Wallpaper changed successfully!'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error changing wallpaper: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _setSpecificWallpaper(int index) async {
+    // Show confirmation dialog first
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.wallpaper, color: AppTheme.primary),
+            SizedBox(width: 10),
+            Text('Set Wallpaper?'),
+          ],
+        ),
+        content: const Text(
+          'This image will be set as your device wallpaper.',
+          style: TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Set Wallpaper'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() => _isLoading = true);
 
     try {
       await _wallpaperService.setWallpaperByIndex(index);
       await _loadStatus();
+      // Mark this index as current after successful set
+      if (mounted) setState(() => _currentIndex = index);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,6 +105,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
               ],
             ),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -165,15 +113,12 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
       debugPrint('Error setting wallpaper: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        
-        // Check if it's a web platform error
         if (e.toString().contains('not supported on web')) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+                  borderRadius: BorderRadius.circular(20)),
               title: const Row(
                 children: [
                   Icon(Icons.info_outline, color: Colors.blue),
@@ -208,7 +153,7 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -217,220 +162,121 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
         title: Text(context.tr('wisdom_wallpapers_title')),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
           : RefreshIndicator(
               onRefresh: _loadStatus,
               child: SingleChildScrollView(
-                // Ensure the scroll view is always scrollable so pull-to-refresh works
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with toggle
-                  Container(
-                    margin: const EdgeInsets.all(20),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppTheme.saffron,
-                          AppTheme.saffron.withValues(alpha: 0.8),
-                        ],
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Header ───────────────────────────────────────────────
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [AppTheme.glowShadow],
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.saffron.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.wallpaper,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.wallpaper,
+                                color: Colors.white, size: 32),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            context.tr('wisdom_wallpapers_title'),
+                            style: const TextStyle(
                                 color: Colors.white,
-                                size: 30,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    context.tr('auto_rotate'),
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    context.tr('changes_every_15_min'),
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: _isEnabled,
-                              onChanged: _toggleWallpaper,
-                              activeThumbColor: Colors.white,
-                              activeTrackColor: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ],
-                        ),
-                        if (_isEnabled) ...[
-                          const SizedBox(height: 20),
-                          const Divider(color: Colors.white, height: 1),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                context.tr('last_updated'),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text(
-                                _formatLastUpdate(_currentInfo['lastUpdate']),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: _changeNow,
-                            icon: const Icon(Icons.refresh),
-                            label: Text(context.tr('change_now')),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppTheme.saffron,
-                              minimumSize: const Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
+                          const SizedBox(height: 6),
+                          Text(
+                            context.tr('tap_to_set_wallpaper'),
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 13),
+                            textAlign: TextAlign.center,
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-
-                  // Info section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.tr('available_wallpapers'),
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          context.tr('tap_to_set_wallpaper'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Wallpaper grid
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.7,
-                      ),
-                      itemCount: _availableWallpapers.length,
-                      itemBuilder: (context, index) {
-                        return _buildWallpaperCard(index);
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Info note
-                  Container(
-                    margin: const EdgeInsets.all(20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.blue.withValues(alpha: 0.3),
                       ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          color: Colors.blue,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
+
+                    // ── Section heading ──────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.tr('available_wallpapers'),
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tap an image to set it as your wallpaper',
+                            style: const TextStyle(
+                                fontSize: 13, color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── Wallpaper grid ───────────────────────────────────────
+                    if (_availableWallpapers.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(40),
                           child: Text(
-                            'When auto-rotate is enabled, your wallpaper will automatically change to the next image every 15 minutes.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.blue.shade700,
-                              height: 1.4,
-                            ),
+                            context.tr('no_wallpapers_available'),
+                            style: const TextStyle(color: AppTheme.textSecondary),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 0.7,
+                          ),
+                          itemCount: _availableWallpapers.length,
+                          itemBuilder: (context, index) =>
+                              _buildWallpaperCard(index),
+                        ),
+                      ),
 
-                  const SizedBox(height: 40),
-                ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
             ),
-          ),
     );
   }
 
   Widget _buildWallpaperCard(int index) {
     final imageUrl = _availableWallpapers[index];
-    final isCurrent = _currentInfo['currentImage'] == imageUrl;
+    // Only show "Current" badge if user has explicitly set this image
+    final isCurrent = _currentIndex == index;
 
     return GestureDetector(
       onTap: () => _setSpecificWallpaper(index),
@@ -438,17 +284,15 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isCurrent ? AppTheme.saffron : AppTheme.softGray,
+            color: isCurrent ? AppTheme.primary : AppTheme.softGray,
             width: isCurrent ? 3 : 1,
           ),
           boxShadow: isCurrent
-              ? [
-                  BoxShadow(
-                    color: AppTheme.saffron.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
+              ? [BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )]
               : null,
         ),
         child: ClipRRect(
@@ -456,67 +300,51 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-              ),
+              CachedImage(imageUrl: imageUrl, fit: BoxFit.cover),
               if (isCurrent)
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  top: 8, right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppTheme.saffron,
+                      color: AppTheme.primary,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.white,
-                          size: 14,
-                        ),
+                        Icon(Icons.check_circle, color: Colors.white, size: 13),
                         SizedBox(width: 4),
-                        Text(
-                          'Current',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text('Current',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
                 ),
+              // Bottom label
               Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
+                bottom: 0, left: 0, right: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.7),
+                        Colors.black.withValues(alpha: 0.65),
                       ],
                     ),
                   ),
                   child: Text(
                     'Image ${index + 1}',
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -528,25 +356,5 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
     );
   }
 
-  String _formatLastUpdate(String? timestamp) {
-    if (timestamp == null) return 'Never';
-
-    try {
-      final date = DateTime.parse(timestamp);
-      final now = DateTime.now();
-      final difference = now.difference(date);
-
-      if (difference.inMinutes < 1) {
-        return 'Just now';
-      } else if (difference.inMinutes < 60) {
-        return '${difference.inMinutes}m ago';
-      } else if (difference.inHours < 24) {
-        return '${difference.inHours}h ago';
-      } else {
-        return '${difference.inDays}d ago';
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
 }
+

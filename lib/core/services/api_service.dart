@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_env.dart';
 import 'connectivity_service.dart';
 import 'data_cache_service.dart';
@@ -63,6 +65,8 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        // NOTE: Do NOT add 'Connection' header — browsers treat it as
+        // a forbidden header and block the request with an XHR error.
       },
     ));
 
@@ -157,8 +161,10 @@ class ApiService {
             }
           }
           
-          // Special handling for DNS resolution failures
-          if (error.type == DioExceptionType.unknown && 
+          // Special handling for DNS resolution failures (mobile only)
+          // On web, DNS is handled by the browser — don't interfere
+          if (!kIsWeb &&
+              error.type == DioExceptionType.unknown && 
               error.message != null && 
               error.message!.contains('Failed host lookup')) {
             debugPrint('🌐 DNS resolution failed for domain, attempting IP fallback...');
@@ -181,8 +187,10 @@ class ApiService {
                 error.requestOptions.path = fallbackUrl;
                 error.requestOptions.baseUrl = '';
                 
-                // Add Host header to ensure proper routing
-                error.requestOptions.headers['Host'] = 'app.sivakundalini.org';
+                // Host header is only safe on mobile — browsers block it as forbidden
+                if (!kIsWeb) {
+                  error.requestOptions.headers['Host'] = 'app.sivakundalini.org';
+                }
                 
                 debugPrint('🔄 Retrying with IP address...');
                 final response = await _dio!.fetch(error.requestOptions);
@@ -228,6 +236,11 @@ class ApiService {
 
     // ── Online path: try Firebase first (Google sign-in users) ───────────────
     try {
+      // Guard: check Firebase is initialized before calling FirebaseAuth
+      if (Firebase.apps.isEmpty) {
+        debugPrint('⚠️ Firebase not initialized yet — skipping Firebase token');
+        return await _getStoredJwt();
+      }
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         // Try cached token first — works without network if not expired
@@ -269,9 +282,6 @@ class ApiService {
 
       final jwt = await storage.getAccessToken();
 
-      // If we have a token, try it regardless of expiry when offline
-      // The server is the ultimate judge — an "expired" local token may
-      // still be valid on the server (clock drift, grace periods).
       if (jwt != null && jwt.isNotEmpty) {
         final isExpired = await storage.isTokenExpired();
         if (!isExpired) {
@@ -292,17 +302,42 @@ class ApiService {
           }
         }
 
-        // Can't refresh (offline or refresh failed) — use the expired token
-        // as a last resort. Some backends accept tokens within a grace window.
+        // Can't refresh — use the expired token as a last resort
         debugPrint('⚠️ Using expired JWT as last resort (offline or refresh failed)');
         return jwt;
       }
+
+      // ── No JWT found in secure storage ──────────────────────────────────
+      // This happens when the app is reinstalled or secure storage is cleared
+      // (Android KeyStore reset). The user object may still be in SharedPrefs
+      // making isAuthenticated=true, but the token is gone.
+      // Force logout so the user is prompted to log in again cleanly.
+      debugPrint('⚠️ JWT missing from secure storage — forcing re-login');
+      _forceLogoutDueToMissingToken();
+
     } catch (e) {
       debugPrint('⚠️ JWT fallback token retrieval failed: $e');
     }
 
     debugPrint('❌ _getIdToken: no valid token available');
     return null;
+  }
+
+  /// Called when the JWT is gone but the user object still exists in cache.
+  /// Clears auth state so the user is prompted to sign in again.
+  void _forceLogoutDueToMissingToken() {
+    try {
+      // Run async but don't await — we can't make this method async
+      // since it's called from inside _getStoredJwt
+      Future.microtask(() async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('cached_user_data');
+          await prefs.remove('cached_auth_token');
+          debugPrint('✅ Cleared stale user cache after missing JWT');
+        } catch (_) {}
+      });
+    } catch (_) {}
   }
 
   /// Refresh JWT access token using a stored refresh token.

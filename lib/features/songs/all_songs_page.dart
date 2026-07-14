@@ -5,7 +5,7 @@ import '../../core/providers/audio_provider.dart';
 import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/theme/app_theme.dart';
-import '../audio/now_playing_screen.dart';
+import '../../core/utils/audio_navigation.dart';
 
 ImageProvider _imgProvider(String url) {
   if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -87,28 +87,15 @@ class _AllSongsPageState extends State<AllSongsPage> {
   }
 
   void _openPlayer() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(
-              CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    );
+    openNowPlaying(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cream,
         elevation: 0,
         surfaceTintColor: Colors.white,
         leading: IconButton(
@@ -120,7 +107,7 @@ class _AllSongsPageState extends State<AllSongsPage> {
             Text(
               context.tr('all_songs'),
               style: const TextStyle(
-                color: Colors.black,
+                color: AppTheme.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -327,7 +314,7 @@ class _SongTile extends StatelessWidget {
                   : Text(
                       '${index + 1}',
                       style: TextStyle(
-                        color: Colors.grey[500],
+                        color: AppTheme.textSecondary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -389,7 +376,7 @@ class _SongTile extends StatelessWidget {
                   Text(
                     song.artist ?? song.description ?? 'Divine Chants',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey[500]),
+                        fontSize: 12, color: AppTheme.textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -402,7 +389,7 @@ class _SongTile extends StatelessWidget {
             // Duration
             Text(
               _dur(song.durationSeconds),
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
             ),
             const SizedBox(width: 4),
 

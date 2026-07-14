@@ -13,6 +13,7 @@ import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
 import '../../core/services/image_preloader_service.dart';
+import '../onboarding/onboarding_screen.dart';
 import 'dart:developer' as developer;
 
 class SplashScreen extends StatefulWidget {
@@ -167,7 +168,12 @@ class _SplashScreenState extends State<SplashScreen>
         }
         
         developer.log('🎯 Navigating to: $destination');
-        _navigate(destination);
+        // Show onboarding on first login before reaching home
+        if (destination == '/') {
+          await _navigateWithOnboarding(destination);
+        } else {
+          _navigate(destination);
+        }
         return;
       }
       developer.log('❌ No cached user found');
@@ -330,7 +336,11 @@ class _SplashScreenState extends State<SplashScreen>
         }
         
         developer.log('✅ Silent login success → $destination');
-        _navigate(destination);
+        if (destination == '/') {
+          await _navigateWithOnboarding(destination);
+        } else {
+          _navigate(destination);
+        }
       } else {
         // Backend rejected — could be blocked, server error, etc.
         // Send to login screen so user can see the error and retry.
@@ -360,6 +370,23 @@ class _SplashScreenState extends State<SplashScreen>
     } catch (e, st) {
       developer.log('❌ Navigation error: $e\n$st');
     }
+  }
+
+  /// Wraps [destination] with onboarding when the user hasn't seen it yet.
+  /// Onboarding only shows once; on subsequent launches it's skipped.
+  /// Returns the resolved path to navigate to.
+  Future<void> _navigateWithOnboarding(String destination) async {
+    try {
+      final done = await hasCompletedOnboarding();
+      if (!done) {
+        developer.log('📖 First launch — showing onboarding before $destination');
+        _navigate('/onboarding');
+        return;
+      }
+    } catch (e) {
+      developer.log('⚠️ Could not check onboarding flag: $e');
+    }
+    _navigate(destination);
   }
 
   Future<void> _preloadImages() async {

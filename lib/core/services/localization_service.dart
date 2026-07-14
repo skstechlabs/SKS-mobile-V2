@@ -136,6 +136,16 @@ class LocalizationService extends ChangeNotifier {
     }
   }
 
+  /// Merge extra key-value pairs into the currently loaded strings.
+  /// Use this to inject keys that exist in the JSON but are not yet in the
+  /// cached rootBundle (e.g. keys added since the last full build).
+  /// Existing keys are NOT overwritten — live bundle values take priority.
+  void patchStrings(Map<String, String> extras) {
+    for (final entry in extras.entries) {
+      _localizedStrings.putIfAbsent(entry.key, () => entry.value);
+    }
+  }
+
   String translate(String key) {
     if (!_isInitialized || _localizedStrings.isEmpty) return key;
     final t = _localizedStrings[key];

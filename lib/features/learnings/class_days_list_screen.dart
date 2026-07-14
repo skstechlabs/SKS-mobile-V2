@@ -43,7 +43,11 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
     try {
       debugPrint('📚 Loading days for class ${widget.classId}');
       
-      // Get user's current language preference
+      // Auto-enroll in Level 1 if not yet enrolled — Level 1 is always free
+      if (widget.classId == 1) {
+        await _apiService.post('/api/classes/1/enroll', {}).catchError((_) => <String, dynamic>{});
+      }
+      
       final currentLanguage = LocalizationService().currentLocale.languageCode;
       debugPrint('🌐 Using language: $currentLanguage');
       
@@ -462,11 +466,18 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
           children: [
             Text(
               widget.level,
-              style: const TextStyle(fontSize: 16),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primary,
+              ),
             ),
             Text(
               widget.classTitle,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -660,7 +671,7 @@ class _ClassDaysListScreenState extends State<ClassDaysListScreen> {
                   final classIdStr = widget.classId.toString();
                   
                   context.push(
-                    '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber&classId=$classIdStr',
+                    '/classes/days/$dayId/video?title=${Uri.encodeComponent(title)}&dayNumber=$dayNumber&classId=$classIdStr&level=${Uri.encodeComponent(widget.level)}',
                   );
                 }
               : () {

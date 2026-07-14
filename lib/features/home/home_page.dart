@@ -13,8 +13,10 @@ import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
 import '../../core/widgets/cached_image.dart';
+import '../../core/services/image_preloader_service.dart';
 
 import '../audio/now_playing_screen.dart';
+import '../../core/utils/audio_navigation.dart';
 
 /// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
@@ -67,6 +69,13 @@ class _HomePageState extends State<HomePage>
     _audioService.initialize();
     _audioService.addListener(_onAudioStateChanged);
     _audioProvider.addListener(_onAudioProviderChanged);
+
+    // Warm in-memory image cache now that the widget tree is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ImagePreloaderService().warmMemoryCache(context);
+      }
+    });
 
     // Quote rotation is now handled by _QuoteRotatorWidget — no timer here.
     
@@ -137,14 +146,23 @@ class _HomePageState extends State<HomePage>
       
       if (mounted) {
         setState(() {
+          // If API returned quotes use them, otherwise _quotes stays empty
+          // and _buildDailyQuoteCard will use translation-based fallbacks
           _quotes = quotes;
         });
         debugPrint('[HomePage] ✅ Loaded ${quotes.length} quotes');
+        
+        // If API returned nothing, trigger a rebuild so the fallback quotes
+        // from translations are shown immediately
+        if (quotes.isEmpty && mounted) {
+          debugPrint('[HomePage] No API quotes — using translation fallbacks');
+          setState(() {}); // force rebuild so _buildDailyQuoteCard picks up fallbacks
+        }
       }
     } catch (e) {
       debugPrint('[HomePage] ❌ Error loading quotes: $e');
-      // On error, quotes list stays empty - no fallback to AppConstants
-      // This ensures we always use API data
+      // Trigger rebuild so fallback translation quotes render
+      if (mounted) setState(() {});
     }
   }
   
@@ -254,6 +272,8 @@ class _HomePageState extends State<HomePage>
     try {
       // Use cached data by default
       await _audioProvider.fetchAllAudios();
+      // Preload secondary images in background after audios load
+      ImagePreloaderService().preloadSecondaryImages();
     } catch (e) {
       debugPrint('Error loading audios: $e');
     }
@@ -283,35 +303,321 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      // Performance optimizations
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
-          _buildDailyQuotes(),
-          _buildDailyReminders(),
-          _buildMeditationTimer(),
-          _buildRingtoneSettings(),
-          _buildWallpaperSettings(),
-          _buildMeditationMusic(),
-          _buildBhajans(),
-          _buildGuruJourney(),
-          _buildKundaliniScience(),
-          _buildBenefits(),
-          _build7Chakras(),
+          _buildGurujiHeaderSection(), // Guruji image + name (as before)
+          _buildQuickActions(),        // Bhajans, Classes, Events, Kalpataru
+          _buildDailyQuoteCard(),      // Today's Inspiration (image card)
+          _buildMeditationTimer(),     // Purple timer card
+          _buildRingtoneSettings(),    // Sivoham Ringtone
+          _buildWallpaperSettings(),   // Guruji Wallpapers
+          _buildMeditationMusic(),     // Meditation music player
+          _buildBhajans(),             // Top bhajans
+          // _buildGuruJourney(),
+          // _buildKundaliniScience(),
+          // _buildBenefits(),
+          // _build7Chakras(),
           _buildRecentGatherings(),
           _buildUpcomingPrograms(),
           _buildVisionMission(),
           _buildOurValues(),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    return SizedBox.shrink();
+    return const SizedBox.shrink();
+  }
+
+  // ── Guruji image + name section (exactly as before) ───────────────────────
+  Widget _buildGurujiHeaderSection() {
+    return Column(
+      children: [
+        // Full-width Guruji image
+        SizedBox(
+          height: 260,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedImage(
+                imageUrl: 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/mobile/Guruji_dashboard.png',
+                fit: BoxFit.cover,
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      AppTheme.cream.withValues(alpha: 0.85),
+                    ],
+                    stops: const [0.5, 1.0],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Guruji name section — identical to the previous design
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Column(
+            children: [
+              // Decorative divider
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30, height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        Colors.transparent,
+                        AppTheme.gold.withValues(alpha: 0.5),
+                      ]),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(Icons.auto_awesome,
+                        size: 13,
+                        color: AppTheme.gold.withValues(alpha: 0.7)),
+                  ),
+                  Container(
+                    width: 30, height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        AppTheme.gold.withValues(alpha: 0.5),
+                        Colors.transparent,
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Moksha Guru subtitle
+              Text(
+                context.tr('parama_pujya'),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primary.withValues(alpha: 0.8),
+                  letterSpacing: 2.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              // Guruji's name
+              Text(
+                context.tr('sri_jeeveswara_yogi'),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primary,
+                  letterSpacing: 0.5,
+                  height: 1.2,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              // Bottom decorative divider
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30, height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        Colors.transparent,
+                        AppTheme.gold.withValues(alpha: 0.5),
+                      ]),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(Icons.auto_awesome,
+                        size: 13,
+                        color: AppTheme.gold.withValues(alpha: 0.7)),
+                  ),
+                  Container(
+                    width: 30, height: 1.5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        AppTheme.gold.withValues(alpha: 0.5),
+                        Colors.transparent,
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Quick-action icon grid: About Guruji, Kundalini, Chakras, Reminders ──
+  Widget _buildQuickActions() {
+    final actions = [
+      _QuickAction(
+        iconPath: 'assets/images/icons/Gurudev-icon.png',
+        label: context.tr('quick_about_guruji'),
+        onTap: () => context.push('/guru-journey'),
+      ),
+      _QuickAction(
+        iconPath: 'assets/images/icons/kundalini-icon.png',
+        label: context.tr('quick_kundalini'),
+        onTap: () => context.push('/kundalini-science'),
+      ),
+      _QuickAction(
+        iconPath: 'assets/images/icons/chakras-icon.png',
+        label: context.tr('quick_chakras'),
+        onTap: () => context.push('/chakras', extra: {'initialIndex': 0}),
+      ),
+      _QuickAction(
+        iconPath: 'assets/images/icons/remainders-icon.png',
+        label: context.tr('quick_daily_reminders'),
+        onTap: () => context.push('/reminders'),
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: actions.map(_buildQuickActionItem).toList(),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionItem(_QuickAction action) {
+    return GestureDetector(
+      onTap: action.onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: AppTheme.tagBg,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.tagBorder, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.07),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                action.iconPath,
+                width: 70,
+                height: 70,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            action.label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Today's Inspiration — Guruji image with quotes overlay ──────────────
+  Widget _buildDailyQuoteCard() {
+    // Fallback quotes from translations — shown when API is unavailable
+    // Uses all meaningful quote keys already present in both en.json and te.json
+    final fallbackQuotes = [
+      {'quote_text': context.tr('guru_journey_quote')},
+      {'quote_text': context.tr('kundalini_quote')},
+      {'quote_text': context.tr('kundalini_highlight_1')},
+      {'quote_text': context.tr('kundalini_highlight_2')},
+      {'quote_text': context.tr('kundalini_highlight_3')},
+    ];
+    final quotes = _quotes.isNotEmpty ? _quotes : fallbackQuotes;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [AppTheme.softShadow],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            // Full-width Guruji image — natural size, no crop
+            Image.asset(
+              'assets/images/Guruji-quotes.png',
+              width: double.infinity,
+              fit: BoxFit.fitWidth,
+            ),
+            // Left-side gradient so quotes are readable without covering Guruji
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Color(0xEEF5EDE2), // strong warm cream on left
+                      Color(0xCCF5EDE2), // slightly transparent mid
+                      Color(0x44F5EDE2), // very light toward Guruji
+                      Colors.transparent, // fully clear on right (Guruji side)
+                    ],
+                    stops: [0.0, 0.35, 0.55, 0.75],
+                  ),
+                ),
+              ),
+            ),
+            // Quote text — left side only, never overlaps Guruji
+            Positioned(
+              left: 18,
+              top: 18,
+              bottom: 18,
+              right: 160, // keeps text clear of Guruji image on right
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Opening quote mark
+                  Text(
+                    '\u201C',
+                    style: TextStyle(
+                      fontSize: 36,
+                      height: 0.8,
+                      color: AppTheme.primary.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Rotating quote
+                  _QuoteRotatorWidget(quotes: quotes),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDailyQuotes() {
@@ -577,195 +883,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildDailyReminders() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppTheme.saffron, AppTheme.saffron.withValues(alpha: 0.7)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.alarm,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    context.tr('daily_reminders'),
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ],
-              ),
-              TextButton.icon(
-                onPressed: () => context.push('/reminders'),
-                icon: const Icon(Icons.settings, size: 18),
-                label: Text(context.tr('manage')),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.saffron,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            context.tr('enable_reminders_subtitle'),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                  fontSize: 14,
-                ),
-          ),
-          const SizedBox(height: 20),
-          
-          // Vertical reminder cards
-          _buildReminderCard(
-            title: context.tr('morning_meditation'),
-            description: context.tr('daily_at') + ' 6:00 AM',
-            subtitle: context.tr('start_day_peace'),
-            icon: Icons.wb_sunny,
-            color: Colors.orange,
-            isActive: _presetReminders['morning_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('morning_meditation', 'Morning Meditation', '06:00'),
-          ),
-          const SizedBox(height: 12),
-          _buildReminderCard(
-            title: context.tr('evening_meditation'),
-            description: context.tr('daily_at') + ' 6:00 PM',
-            subtitle: context.tr('end_day_gratitude'),
-            icon: Icons.nightlight_round,
-            color: Colors.deepPurple,
-            isActive: _presetReminders['evening_meditation'] ?? false,
-            onToggle: () => _togglePresetReminder('evening_meditation', 'Evening Meditation', '18:00'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildReminderCard({
-    required String title,
-    required String description,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required bool isActive,
-    required VoidCallback onToggle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.15),
-            color.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [color, color.withValues(alpha: 0.7)],
-              ),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Transform.scale(
-            scale: 0.9,
-            child: Switch(
-              value: isActive,
-              onChanged: (_) => onToggle(),
-              activeThumbColor: Colors.white,
-              activeTrackColor: color,
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor: Colors.grey.shade300,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
   void _togglePresetReminder(String key, String title, String defaultTime) async {
     final currentState = _presetReminders[key] ?? false;
     
@@ -972,111 +1089,124 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildMeditationTimer() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         children: [
+          // ── Daily Sadhana card ────────────────────────────────────────
           GestureDetector(
             onTap: () => context.push('/meditation/timer'),
             child: Container(
-              padding: const EdgeInsets.all(24),
+              height: 160,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                   colors: [
-                    const Color(0xFF7C3AED),
-                    const Color(0xFF9333EA),
-                    const Color(0xFFA855F7),
+                    Color(0xFFF5EDE2),
+                    Color(0xFFF8F2EA),
+                    Color(0xFFF0EAE4),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [AppTheme.softShadow],
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.timer,
-                      color: Colors.white,
-                      size: 32,
+                  // ── Left: Guruji image, face/head only ───────────
+                  ClipRRect(
+                    borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(20)),
+                    child: Image.asset(
+                      'assets/images/icons/Guruji_Thratakam-icon.png',
+                      width: 155,
+                      height: 160,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  // ── Right: text + button ──────────────────────────
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.tr('meditation_timer'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 20, 20, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                context.tr('daily_sadhana_title'),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                context.tr('daily_sadhana_subtitle'),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          context.tr('track_meditation_practice'),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 14,
-                            height: 1.3,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 11),
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: const Text(
+                              'Start Meditation',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 20,
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          // View History Button
+
+          const SizedBox(height: 10),
+
+          // ── View Meditation Journey button ───────────────────────────
           GestureDetector(
             onTap: () => context.push('/meditation/history'),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 13),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
-                  width: 2,
-                ),
+                color: AppTheme.cardSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.tagBorder, width: 1.5),
+                boxShadow: [AppTheme.softShadow],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.analytics_outlined,
-                    color: const Color(0xFF7C3AED),
-                    size: 20,
-                  ),
+                  Icon(Icons.bar_chart_rounded,
+                      color: AppTheme.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     context.tr('view_meditation_journey'),
                     style: const TextStyle(
-                      color: Color(0xFF7C3AED),
-                      fontSize: 15,
+                      color: AppTheme.primary,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1090,73 +1220,91 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildRingtoneSettings() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: GestureDetector(
         onTap: () => context.push('/settings/ringtone'),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          height: 100,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFF6B6B),
-                Color(0xFFFF8E53),
-              ],
-            ),
+            color: const Color(0xFFFFF8F0),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            border: Border.all(color: AppTheme.tagBorder),
+            boxShadow: [AppTheme.softShadow],
           ),
-          child: Row(
+          child: Stack(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.music_note,
-                  color: Colors.white,
-                  size: 28,
+              // Decorative right circle
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primary.withValues(alpha: 0.07),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 18),
+                child: Row(
                   children: [
-                    Text(
-                      context.tr('sivoham_ringtone'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.music_note_rounded,
+                          color: Colors.white, size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            context.tr('sivoham_ringtone'),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            context.tr('set_as_ringtone'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.tr('set_as_ringtone'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        context.tr('set_now'),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.white,
-                size: 18,
               ),
             ],
           ),
@@ -1166,73 +1314,69 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildWallpaperSettings() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: GestureDetector(
         onTap: () => context.push('/settings/wallpaper'),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          height: 100,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF667eea),
-                Color(0xFF764ba2),
-              ],
-            ),
+            color: AppTheme.tagBg,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF667eea).withValues(alpha: 0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            border: Border.all(color: AppTheme.tagBorder),
+            boxShadow: [AppTheme.softShadow],
           ),
-          child: Row(
+          child: Stack(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.wallpaper,
-                  color: Colors.white,
-                  size: 28,
+              Positioned(
+                right: -20, top: -20,
+                child: Container(
+                  width: 110, height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.gold.withValues(alpha: 0.10),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                child: Row(
                   children: [
-                    Text(
-                      context.tr('wisdom_wallpaper'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.goldGradient,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.wallpaper_rounded, color: Colors.white, size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(context.tr('wisdom_wallpaper'),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary)),
+                          const SizedBox(height: 3),
+                          Text(context.tr('set_daily_wallpaper'),
+                              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.tr('set_daily_wallpaper'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.goldGradient,
+                        borderRadius: BorderRadius.circular(20),
                       ),
+                      child: Text(context.tr('set_now'),
+                          style: const TextStyle(color: Colors.white, fontSize: 12,
+                              fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.white,
-                size: 18,
               ),
             ],
           ),
@@ -1243,242 +1387,92 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildVisionMission() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         children: [
-          // Vision Card - Beautiful gradient card
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFF3E0),
-                  Color(0xFFFFE0B2),
-                  Color(0xFFFFCC80),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.saffron.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 1.5,
-                ),
-              ),
-              padding: EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon and Title Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.saffron,
-                              Color(0xFFFF6B35),
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.saffron.withOpacity(0.4),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.visibility_outlined,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.tr('our_vision'),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFD84315),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              height: 3,
-                              width: 60,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppTheme.saffron,
-                                    Colors.transparent,
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  // Vision Text
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      context.tr('vision_text'),
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.7,
-                        color: Color(0xFF424242),
-                        letterSpacing: 0.3,
-                      ),
-                      textAlign: TextAlign.justify,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _buildInfoCard(
+            icon: Icons.visibility_outlined,
+            title: context.tr('our_vision'),
+            body: context.tr('vision_text'),
           ),
-          
-          SizedBox(height: 24),
-          
-          // Mission Card - Beautiful gradient card
+          const SizedBox(height: 16),
+          _buildInfoCard(
+            icon: Icons.explore_outlined,
+            title: context.tr('our_mission'),
+            body: context.tr('mission_text'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shared warm-themed card for Vision / Mission
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String body,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.tagBorder, width: 1),
+        boxShadow: [AppTheme.softShadow],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primary,
+                        )),
+                    const SizedBox(height: 3),
+                    Container(
+                      height: 2, width: 48,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.goldGradient,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Container(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFE3F2FD),
-                  Color(0xFFBBDEFB),
-                  Color(0xFF90CAF9),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primary.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
-                ),
-              ],
+              color: AppTheme.tagBg,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 1.5,
-                ),
+            child: Text(
+              body,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.7,
+                color: AppTheme.textSecondary,
+                letterSpacing: 0.2,
               ),
-              padding: EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon and Title Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primary,
-                              Color(0xFF1565C0),
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primary.withOpacity(0.4),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.explore_outlined,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.tr('our_mission'),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0D47A1),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              height: 3,
-                              width: 60,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppTheme.primary,
-                                    Colors.transparent,
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  // Mission Text
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      context.tr('mission_text'),
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.7,
-                        color: Color(0xFF424242),
-                        letterSpacing: 0.3,
-                      ),
-                      textAlign: TextAlign.justify,
-                    ),
-                  ),
-                ],
-              ),
+              textAlign: TextAlign.justify,
             ),
           ),
         ],
@@ -1488,125 +1482,76 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildOurValues() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFF3E5F5),
-              Color(0xFFE1BEE7),
-              Color(0xFFCE93D8),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.purple.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.5),
-              width: 1.5,
-            ),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.tagBorder, width: 1),
+        boxShadow: [AppTheme.softShadow],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
             children: [
-              // Icon and Title Row
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF9C27B0),
-                          Color(0xFFAB47BC),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withValues(alpha: 0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.stars,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.tr('our_values'),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6A1B9A),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          height: 3,
-                          width: 60,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Color(0xFF9C27B0),
-                                Colors.transparent,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.all(Radius.circular(2)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Values List
               Container(
-                padding: const EdgeInsets.all(16),
+                width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(16),
+                  gradient: AppTheme.goldGradient,
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildValueItem(context.tr('value_surrenderance'), Icons.favorite_border),
-                    const SizedBox(height: 12),
-                    _buildValueItem(context.tr('value_practice'), Icons.self_improvement),
-                    const SizedBox(height: 12),
-                    _buildValueItem(context.tr('value_service'), Icons.volunteer_activism),
-                    const SizedBox(height: 12),
-                    _buildValueItem(context.tr('value_gratitude'), Icons.spa),
-                    const SizedBox(height: 12),
-                    _buildValueItem(context.tr('value_acceptance_forgiveness'), Icons.healing),
+                    Text(context.tr('our_values'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primary,
+                        )),
+                    const SizedBox(height: 3),
+                    Container(
+                      height: 2, width: 48,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.goldGradient,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          // Values list
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.tagBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildValueItem(context.tr('value_surrenderance'), Icons.favorite_border),
+                const SizedBox(height: 12),
+                _buildValueItem(context.tr('value_practice'), Icons.self_improvement),
+                const SizedBox(height: 12),
+                _buildValueItem(context.tr('value_service'), Icons.volunteer_activism),
+                const SizedBox(height: 12),
+                _buildValueItem(context.tr('value_gratitude'), Icons.spa),
+                const SizedBox(height: 12),
+                _buildValueItem(context.tr('value_acceptance_forgiveness'), Icons.healing),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1615,34 +1560,25 @@ class _HomePageState extends State<HomePage>
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          width: 36, height: 36,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF9C27B0),
-                Color(0xFFAB47BC),
-              ],
-            ),
+            gradient: AppTheme.primaryGradient,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 20,
-          ),
+          child: Icon(icon, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF424242),
-              letterSpacing: 0.3,
+              color: AppTheme.textPrimary,
             ),
           ),
         ),
+        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.textHint),
       ],
     );
   }
@@ -1669,7 +1605,6 @@ class _HomePageState extends State<HomePage>
         GestureDetector(
           onTap: () async {
             if (firstMeditation != null) {
-              // Check if this meditation is currently playing
               final currentSong = _audioService.currentSong;
               final bool isCurrentlyPlaying;
               if (currentSong == null) {
@@ -1680,44 +1615,10 @@ class _HomePageState extends State<HomePage>
                 isCurrentlyPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
               }
 
-              if (isCurrentlyPlaying) {
-                // Already playing → open the full player
-                if (mounted) {
-                  Navigator.of(context).push(
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-                      transitionsBuilder: (_, anim, __, child) => SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 1),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                            parent: anim, curve: Curves.easeOutCubic)),
-                        child: child,
-                      ),
-                      transitionDuration: const Duration(milliseconds: 350),
-                    ),
-                  );
-                }
-              } else {
-                // Start playback then open player
+              if (!isCurrentlyPlaying) {
                 await _audioService.playSong(meditations, 0);
-                if (mounted) {
-                  Navigator.of(context).push(
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-                      transitionsBuilder: (_, anim, __, child) => SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 1),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                            parent: anim, curve: Curves.easeOutCubic)),
-                        child: child,
-                      ),
-                      transitionDuration: const Duration(milliseconds: 350),
-                    ),
-                  );
-                }
               }
+              if (mounted) openNowPlaying(context);
             }
           },
           child: Container(
@@ -1910,43 +1811,10 @@ class _HomePageState extends State<HomePage>
         final bhajans = _audioProvider.bhajans;
         final index = bhajans.indexWhere((b) => b.id == bhajan.id);
         if (index != -1) {
-          if (isCurrentSong && _audioService.isPlaying) {
-            // Already playing this song → open the full player
-            if (mounted) {
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-                  transitionsBuilder: (_, anim, __, child) => SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 1),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                        parent: anim, curve: Curves.easeOutCubic)),
-                    child: child,
-                  ),
-                  transitionDuration: const Duration(milliseconds: 350),
-                ),
-              );
-            }
-          } else {
+          if (!(isCurrentSong && _audioService.isPlaying)) {
             await _audioService.playSong(bhajans, index);
-            if (mounted) {
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-                  transitionsBuilder: (_, anim, __, child) => SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 1),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                        parent: anim, curve: Curves.easeOutCubic)),
-                    child: child,
-                  ),
-                  transitionDuration: const Duration(milliseconds: 350),
-                ),
-              );
-            }
           }
+          if (mounted) openNowPlaying(context);
         }
       },
       child: Container(
@@ -2669,160 +2537,170 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildUpcomingPrograms() {
-    // Don't show section while loading or if no events
     if (_isLoadingEvents || _upcomingEvents.isEmpty) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            context.tr('upcoming_programs'),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          SizedBox(height: 16),
-          ..._upcomingEvents.map((event) {
-            final title = event['title'] as String? ?? 'Untitled Event';
-            final eventDate = event['eventDate'] as String? ?? '';
-            final location = event['location'] as String? ?? '';
-            final imageUrl = event['imageUrl'] as String?;
-            
-            return InkWell(
-              onTap: () {
-                // Navigate to events tab
-                context.go('/events');
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: double.infinity,
-                margin: EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Event image or placeholder
-                    if (imageUrl != null && imageUrl.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                        child: CachedImage(
-                          imageUrl: imageUrl,
-                          width: double.infinity,
-                          height: 180,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    else
-                      Container(
-                        height: 180,
-                        decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(20)),
-                          gradient: LinearGradient(
-                            colors: [AppTheme.primary, AppTheme.saffron],
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.event,
-                            size: 64,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                          ),
-                          if (eventDate.isNotEmpty) ...[
-                            SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 16,
-                                  color: AppTheme.primary,
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  eventDate,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: AppTheme.primary,
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 13,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ],
-                          if (location.isNotEmpty) ...[
-                            SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.location_on,
-                                  size: 16,
-                                  color: AppTheme.textSecondary,
-                                ),
-                                SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    location,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 13,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+            child: Text(
+              context.tr('upcoming_programs'),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
               ),
-            );
-          }).toList(),
+            ),
+          ),
+          ..._upcomingEvents.map((event) => _buildEventCard(event)).toList(),
         ],
       ),
     );
   }
-}
 
+  Widget _buildEventCard(Map<String, dynamic> event) {
+    final title    = event['title']    as String? ?? 'Untitled Event';
+    final rawDate  = event['eventDate'] as String? ?? '';
+    final location = event['location'] as String? ?? '';
+    final imageUrl = event['imageUrl'] as String?;
+
+    // Format ISO date to readable string
+    final displayDate = _formatEventDate(rawDate);
+
+    return GestureDetector(
+      onTap: () => context.go('/events'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardSurface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [AppTheme.cardShadow],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image or placeholder
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: SizedBox(
+                width: double.infinity,
+                height: 160,
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? CachedImage(
+                        imageUrl: imageUrl,
+                        width: double.infinity,
+                        height: 160,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppTheme.primary, AppTheme.lightSaffron],
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.event_rounded,
+                              size: 56, color: Colors.white),
+                        ),
+                      ),
+              ),
+            ),
+            // Details
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (displayDate.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today_rounded,
+                            size: 14, color: AppTheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          displayDate,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (location.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_rounded,
+                            size: 14, color: AppTheme.textSecondary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            location,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Converts ISO 8601 date string to a readable format like "22 Jul 2026"
+  String _formatEventDate(String raw) {
+    if (raw.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      // If it's already a readable string just return it
+      return raw;
+    }
+  }
+} // end _HomePageState
+
+/// Simple data holder for quick-action grid items.
+class _QuickAction {
+  final String iconPath;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickAction({required this.iconPath, required this.label, required this.onTap});
+}
 
 /// Self-contained widget that rotates through quotes every 3 seconds.
 /// Isolates the Timer-driven setState to this widget only,
@@ -2881,20 +2759,20 @@ class _QuoteRotatorWidgetState extends State<_QuoteRotatorWidget> {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 600),
       transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
-      child: SingleChildScrollView(
+      child: Text(
         key: ValueKey(_index),
-        child: Text(
-          quote,
-          style: const TextStyle(
-            fontSize: 16,
-            height: 1.6,
-            color: Color(0xFF6D4C41),
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.3,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
+        quote,
+        style: const TextStyle(
+          fontSize: 13,
+          height: 1.6,
+          color: AppTheme.textPrimary,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.2,
+          fontStyle: FontStyle.italic,
         ),
+        textAlign: TextAlign.left,
+        maxLines: 6,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

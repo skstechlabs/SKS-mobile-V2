@@ -23,7 +23,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
   // Current enabled state for each type
   bool _ringtoneEnabled = false;
   bool _appNotificationEnabled = false;
-  bool _alarmEnabled = false;
 
   // Pending action to retry after returning from system settings
   String? _pendingType;
@@ -68,13 +67,11 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
       final results = await Future.wait([
         _channel.invokeMethod<bool>('checkRingtone').catchError((_) => false),
         _channel.invokeMethod<bool>('checkAppNotification').catchError((_) => false),
-        _channel.invokeMethod<bool>('checkAlarm').catchError((_) => false),
       ]);
       if (mounted) {
         setState(() {
           _ringtoneEnabled        = results[0] ?? false;
           _appNotificationEnabled = results[1] ?? false;
-          _alarmEnabled           = results[2] ?? false;
         });
       }
     } catch (e) {
@@ -148,7 +145,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     final methodMap = {
       'ringtone': 'setRingtone',
       'appNotification': 'setAppNotification',
-      'alarm': 'setAlarm',
     };
 
     if (mounted) setState(() => _loadingType = type);
@@ -194,7 +190,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     final methodMap = {
       'ringtone': 'resetRingtone',
       'appNotification': 'resetAppNotification',
-      'alarm': 'resetAlarm',
     };
 
     if (mounted) setState(() => _loadingType = type);
@@ -221,7 +216,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
   void _showPermissionDialog(String type) {
     final names = {
       'ringtone': 'phone ringtone',
-      'alarm': 'alarm sound',
     };
 
     showDialog(
@@ -437,7 +431,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
                               ? context.tr('stop_preview')
                               : context.tr('play_preview')),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: AppTheme.cream,
                             foregroundColor: AppTheme.saffron,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 24, vertical: 12),
@@ -496,14 +490,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
                   isEnabled: _appNotificationEnabled,
                   isRecommended: true,
                 ),
-                _buildCard(
-                  icon: Icons.alarm,
-                  title: context.tr('alarm_sound'),
-                  description: context.tr('set_default_alarm'),
-                  color: Colors.orange,
-                  type: 'alarm',
-                  isEnabled: _alarmEnabled,
-                ),
 
                 // ── Info note ────────────────────────────────────────────────
                 Container(
@@ -550,7 +536,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     final activeCount = [
       _ringtoneEnabled,
       _appNotificationEnabled,
-      _alarmEnabled,
     ].where((e) => e).length;
 
     if (activeCount == 0) return const SizedBox.shrink();
@@ -558,7 +543,6 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
     final activeNames = <String>[];
     if (_ringtoneEnabled) activeNames.add('Ringtone');
     if (_appNotificationEnabled) activeNames.add('App Notification');
-    if (_alarmEnabled) activeNames.add('Alarm');
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),

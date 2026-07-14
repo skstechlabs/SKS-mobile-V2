@@ -62,8 +62,26 @@ class AuthState extends ChangeNotifier {
           final parsed = UserModel.fromJson(userData);
           // Discard cached data if uid is empty — it's from a corrupted/old cache
           if (parsed.uid.isNotEmpty) {
-            _user = parsed;
-            debugPrint('✅ Loaded cached user: ${_user!.uid}');
+            // ── JWT sanity check ───────────────────────────────────────────
+            // Verify the JWT also exists in secure storage. If it's gone
+            // (reinstall, KeyStore reset) but the user object is still in
+            // SharedPrefs, we'd show "logged in" but all API calls would fail.
+            // In that case, discard the user cache so they're prompted to login.
+            final storage = SecureStorageService();
+            storage.initialize();
+            final jwt = await storage.getAccessToken();
+            final hasJwt = jwt != null && jwt.isNotEmpty;
+            // For Google users, Firebase token is the auth source — no JWT needed
+            final isGoogleUser = parsed.authProvider == 'google';
+
+            if (hasJwt || isGoogleUser) {
+              _user = parsed;
+              debugPrint('✅ Loaded cached user: ${_user!.uid}');
+            } else {
+              debugPrint('⚠️ JWT missing for phone user — clearing stale session');
+              await prefs.remove(_userKey);
+              await prefs.remove(_authTokenKey);
+            }
           } else {
             debugPrint('⚠️ Cached user has empty uid — discarding stale cache');
             await prefs.remove(_userKey);

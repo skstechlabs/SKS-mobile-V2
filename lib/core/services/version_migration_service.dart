@@ -38,6 +38,9 @@ class VersionMigrationService {
       developer.log('   Current: $_currentVersion (build $_currentBuildNumber)');
       developer.log('   Previous: $_previousVersion (build $_previousBuildNumber)');
 
+      // Always clear stale wallpaper cache on every launch — not just on upgrade
+      await _clearStaleWallpaperCache(prefs);
+
       // Check if this is a new install or upgrade
       if (_previousVersion == null) {
         // New install - just save current version
@@ -90,6 +93,8 @@ class VersionMigrationService {
       await _clearApiCache(prefs);
       await _clearImageCache();
       await _clearVideoCache();
+      // Clear stale wallpaper URLs from the old R2 bucket that return 404
+      await _clearStaleWallpaperCache(prefs);
       
       // Preserve important data:
       // - User authentication (don't clear auth tokens)
@@ -101,6 +106,26 @@ class VersionMigrationService {
     } catch (e) {
       developer.log('❌ Migration error: $e');
       return false;
+    }
+  }
+
+  /// Clear stale wallpaper URLs from the old Cloudflare R2 bucket.
+  /// The old bucket (pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev) returns 404.
+  Future<void> _clearStaleWallpaperCache(SharedPreferences prefs) async {
+    try {
+      const urlsKey = 'wallpaper_cached_urls';
+      const wallpapersKey = 'wallpaper_cached_list';
+      const fetchedAtKey = 'wallpaper_list_fetched_at';
+      final cached = prefs.getString(urlsKey) ?? '';
+      if (cached.contains('pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev') ||
+          cached.contains('Wallpapers/Guruji.JPG')) {
+        await prefs.remove(urlsKey);
+        await prefs.remove(wallpapersKey);
+        await prefs.remove(fetchedAtKey);
+        developer.log('✅ Cleared stale wallpaper R2 cache');
+      }
+    } catch (e) {
+      developer.log('⚠️ Could not clear wallpaper cache: $e');
     }
   }
 

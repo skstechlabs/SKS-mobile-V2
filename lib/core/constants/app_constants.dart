@@ -47,6 +47,30 @@ class AppConstants {
   static const String comingSoonMessage = 'This feature is under development.\n\nStay tuned for amazing spiritual content and features that will enhance your spiritual journey!';
   static const String stayTunedMessage = 'We are working hard to bring you the best spiritual experience.';
   
+  // Chakra Landing Slide Images
+  static const String chakraSlide1 = CdnImages.chakraSlide1;
+  static const String chakraSlide2 = CdnImages.chakraSlide2;
+  static const String chakraSlide3 = CdnImages.chakraSlide3;
+  static const String chakraSlide4 = CdnImages.chakraSlide4;
+  static const String chakraSlide5 = CdnImages.chakraSlide5;
+  static const String chakraSlide6 = CdnImages.chakraSlide6;
+
+  // Kundalini Science Slide Images
+  static const String kundaliniSlide1 = CdnImages.kundaliniSlide1;
+  static const String kundaliniSlide2 = CdnImages.kundaliniSlide2;
+  static const String kundaliniSlide3 = CdnImages.kundaliniSlide3;
+  static const String kundaliniSlide4 = CdnImages.kundaliniSlide4;
+  static const String kundaliniSlide5 = CdnImages.kundaliniSlide5;
+  static const String kundaliniSlide6 = CdnImages.kundaliniSlide6;
+
+  // Guru Journey Slide Images
+  static const String guruJourneySlide1 = CdnImages.guruJourneySlide1;
+  static const String guruJourneySlide2 = CdnImages.guruJourneySlide2;
+  static const String guruJourneySlide3 = CdnImages.guruJourneySlide3;
+  static const String guruJourneySlide4 = CdnImages.guruJourneySlide4;
+  static const String guruJourneySlide5 = CdnImages.guruJourneySlide5;
+  static const String guruJourneySlide6 = CdnImages.guruJourneySlide6;
+
   // About Guruji
   static const String aboutGuruji = '''Our revered Guru is an enlightened Sadguru who has dedicated over three decades to the study and practice of Kundalini Sadhana. Having attained the highest states of consciousness, the Guru now shares this divine knowledge to help humanity transcend its limitations and realize its true potential.
 

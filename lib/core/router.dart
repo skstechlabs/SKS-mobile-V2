@@ -31,7 +31,9 @@ import '../features/guru_journey/guru_journey_page.dart';
 import '../features/kundalini_science/kundalini_science_page.dart';
 import '../features/benefits/benefits_page.dart';
 import '../features/chakras/chakra_detail_page.dart';
+import '../features/chakras/chakra_landing_page.dart';
 import '../features/video/youtube_player.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import 'widgets/main_scaffold.dart';
 import 'theme/app_theme.dart';
 
@@ -184,6 +186,14 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     GoRoute(
+      path: '/onboarding',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        final dest  = extra?['destination'] as String? ?? '/';
+        return OnboardingScreen(destination: dest);
+      },
+    ),
+    GoRoute(
       path: '/guruji-connect',
       builder: (context, state) => const GurujiConnectPage(),
     ),
@@ -201,6 +211,10 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/chakras',
+      builder: (context, state) => const ChakraLandingPage(),
+    ),
+    GoRoute(
+      path: '/chakra-detail',
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
         final initialIndex = extra?['initialIndex'] as int? ?? 0;
@@ -317,11 +331,13 @@ final GoRouter appRouter = GoRouter(
         final dayNumber = int.tryParse(dayNumberStr) ?? 1;
         final classIdStr = state.uri.queryParameters['classId'] ?? '1';
         final classId = int.tryParse(classIdStr) ?? 1;
+        final level = state.uri.queryParameters['level'] ?? '';
         return DayVideoScreen(
           dayId: dayId,
           classId: classId,
           dayNumber: dayNumber,
           dayTitle: dayTitle,
+          level: level,
         );
       },
     ),

@@ -64,27 +64,29 @@ class _AllSongsPageState extends State<AllSongsPage> {
 
   List<AudioModel> get _songs => _provider.bhajans;
 
-  /// Play song at [index] and open the full player.
+  /// Play song at [index] and open the full player immediately.
   Future<void> _play(int index) async {
-    await _service.playSong(_songs, index);
+    // Open the full-screen player right away — don't wait for audio to load.
+    // This prevents the orange mini player from flashing before the screen appears.
     if (mounted) _openPlayer();
+    await _service.playSong(_songs, index);
   }
 
-  /// Play all songs from the beginning and open the full player.
+  /// Play all songs from the beginning and open the full player immediately.
   Future<void> _playAll() async {
     if (_songs.isEmpty) return;
+    if (mounted) _openPlayer();
     await _service.setLoopMode(LoopMode.all);
     await _service.playSong(_songs, 0);
-    if (mounted) _openPlayer();
   }
 
-  /// Shuffle all songs and open the full player.
+  /// Shuffle all songs and open the full player immediately.
   Future<void> _shuffle() async {
     if (_songs.isEmpty) return;
     final shuffled = List<AudioModel>.from(_songs)..shuffle();
+    if (mounted) _openPlayer();
     await _service.setLoopMode(LoopMode.all);
     await _service.playSong(shuffled, 0);
-    if (mounted) _openPlayer();
   }
 
   void _openPlayer() {
@@ -274,12 +276,9 @@ class _SongTile extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         if (isCur) {
-          // Already the active song — tap opens player
-          if (isPlay) {
-            onTapPlaying();
-          } else {
-            service.play().then((_) => onTapPlaying());
-          }
+          // Already the active song — open the player immediately
+          onTapPlaying();
+          if (!isPlay) service.play();
         } else {
           onTap();
         }

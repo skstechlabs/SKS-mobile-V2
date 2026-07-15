@@ -8,7 +8,8 @@ import '../../core/widgets/cached_image.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
-import '../meditation/meditation_history_page.dart';
+import '../meditation/meditation_journey_page.dart';
+import '../../core/widgets/login_gate.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -57,7 +58,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final result = await _apiService.getMeditationStats(period: 'all');
       if (result['success'] == true && mounted) {
-        setState(() => _meditationStats = result['stats'] ?? {});
+        final lifetime = result['lifetime'] as Map<String, dynamic>? ?? {};
+        final streak   = result['streak']   as Map<String, dynamic>? ?? {};
+        setState(() => _meditationStats = {
+          // Use _parseInt everywhere — MSSQL BIGINTs come back as String
+          'currentStreak':        _parseInt(streak['current'] ?? result['current_streak']),
+          'totalDurationSeconds': _parseInt(lifetime['total_duration_seconds']
+              ?? result['summary']?['total_duration_seconds']),
+          'totalSessions':        _parseInt(lifetime['total_sessions']
+              ?? result['summary']?['total_sessions']),
+          'totalDays':            _parseInt(lifetime['total_meditation_days']),
+        });
       }
     } catch (_) {}
   }
@@ -109,6 +120,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Not logged in — return the shared gate directly (it has its own Scaffold + AppBar)
+    if (!_isLoading && _user == null) {
+      return LoginGate(
+        title: context.tr('profile'),
+        featureHint: '👤 View and edit your profile & spiritual progress',
+        showBackButton: true,
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.cream,
       appBar: AppBar(
@@ -133,72 +153,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.primary))
-          : _user == null
-              ? _buildNotLoggedIn()
-              : _buildContent(),
+          : _buildContent(),
     );
   }
 
-  // ── Not logged in ─────────────────────────────────────────────────────────
-  Widget _buildNotLoggedIn() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.tagBg,
-              border: Border.all(color: AppTheme.tagBorder, width: 2),
-            ),
-            child: const Icon(Icons.person_outline_rounded,
-                size: 50, color: AppTheme.primary),
-          ),
-          const SizedBox(height: 20),
-          const Text('Not Logged In',
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 8),
-          const Text('Login to access your profile',
-              style: TextStyle(color: AppTheme.textSecondary)),
-          const SizedBox(height: 28),
-          GestureDetector(
-            onTap: () => context.go('/login'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 32, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: const Text('Login',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
+  // ── Safe int parser — handles String, int, double from MSSQL BIGINT ────────
+  static int _parseInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
   }
 
   // ── Main profile content ──────────────────────────────────────────────────
   Widget _buildContent() {
     final user = _user!;
-    final displayName =
-        user.name.isNotEmpty ? user.name : 'Sadhak';
+    final displayName = user.name.isNotEmpty ? user.name : 'Sadhak';
 
-    final streakDays =
-        (_meditationStats['currentStreak'] as int?) ?? 0;
-    final totalMinutes =
-        (_meditationStats['totalDurationSeconds'] as int? ?? 0) ~/ 60;
+    final streakDays   = _parseInt(_meditationStats['currentStreak']);
+    final totalMinutes = _parseInt(_meditationStats['totalDurationSeconds']) ~/ 60;
     final hours = totalMinutes ~/ 60;
-    final mins = totalMinutes % 60;
+    final mins  = totalMinutes % 60;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),

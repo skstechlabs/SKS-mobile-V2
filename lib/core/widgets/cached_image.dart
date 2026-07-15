@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../theme/app_theme.dart';
+import '../services/sks_cache_manager.dart';
 
 /// Cached image widget with skeleton loader, retry logic, and error handling.
 ///
@@ -44,17 +45,21 @@ class _CachedImageState extends State<CachedImage> {
   int _imageKey = 0;
 
   void _onError(dynamic error) {
-    // Don't retry on DNS / socket errors — they won't self-recover with retries
-    // Don't retry on 404 — the resource doesn't exist, retrying wastes time
     final errorStr = error?.toString() ?? '';
-    final isDnsError = errorStr.contains('Failed host lookup') ||
+
+    // These errors will NEVER self-recover — stop retrying immediately
+    final isFatal = errorStr.contains('Failed host lookup') ||
         errorStr.contains('No address associated with hostname') ||
         errorStr.contains('SocketException') ||
-        errorStr.contains('errno = 7');
-    final is404 = errorStr.contains('statusCode: 404') ||
-        errorStr.contains('Invalid statusCode: 404');
+        errorStr.contains('errno = 7') ||
+        errorStr.contains('statusCode: 404') ||
+        errorStr.contains('Invalid statusCode: 404') ||
+        errorStr.contains('EncodingError') ||        // corrupt / undecodable image
+        errorStr.contains('cannot be decoded') ||    // same, different phrasing
+        errorStr.contains('Invalid image data') ||
+        errorStr.contains('FormatException');        // bad image format
 
-    if (!isDnsError && !is404 && _retryCount < _maxRetries && mounted) {
+    if (!isFatal && _retryCount < _maxRetries && mounted) {
       Future.delayed(Duration(milliseconds: 800 * (_retryCount + 1)), () {
         if (mounted) {
           setState(() {
@@ -63,7 +68,8 @@ class _CachedImageState extends State<CachedImage> {
           });
         }
       });
-    } else if ((isDnsError || is404) && mounted) {
+    } else if (mounted) {
+      // Fatal or max retries — jump straight to error widget, no more spinning
       setState(() => _retryCount = _maxRetries);
     }
   }
@@ -93,12 +99,11 @@ class _CachedImageState extends State<CachedImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
-        // Let CachedNetworkImage use its own built-in cache manager.
-        // Do NOT pass DefaultCacheManager() — its SQLite table may not
-        // exist yet at startup, causing "no such table: cacheObject" crashes.
+        // Use the app-wide cache manager: 365-day stale period, 500 images.
+        // This prevents any network revalidation for images already on disk.
+        cacheManager: SksCacheManager(),
         httpHeaders: const {
           'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-          'Cache-Control': 'max-age=86400',
         },
         placeholder: (context, url) {
           if (widget.placeholder != null) return widget.placeholder!;
@@ -109,14 +114,20 @@ class _CachedImageState extends State<CachedImage> {
           final errorStr = error?.toString() ?? '';
           final is404 = errorStr.contains('statusCode: 404') ||
               errorStr.contains('Invalid statusCode: 404');
-          // Only log 404s once; log other errors on every attempt
-          if (!is404 || _retryCount == 0) {
+          final isFatal = is404 ||
+              errorStr.contains('EncodingError') ||
+              errorStr.contains('cannot be decoded') ||
+              errorStr.contains('Invalid image data') ||
+              errorStr.contains('FormatException');
+          // Log only on first attempt, and never spam encoding errors
+          if (_retryCount == 0) {
             debugPrint('❌ Image load error (attempt $_retryCount): $url — $error');
           }
           _onError(error);
-          return _retryCount < _maxRetries
-              ? _buildDefaultPlaceholder()
-              : (widget.errorWidget ?? _buildErrorWidget());
+          // Show error widget immediately for fatal errors, spinner while retrying
+          return (isFatal || _retryCount >= _maxRetries)
+              ? (widget.errorWidget ?? _buildErrorWidget())
+              : _buildDefaultPlaceholder();
         },
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 100),

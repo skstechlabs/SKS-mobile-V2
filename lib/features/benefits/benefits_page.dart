@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/sks_cache_manager.dart';
 
 class BenefitsPage extends StatelessWidget {
   const BenefitsPage({Key? key}) : super(key: key);
@@ -40,6 +41,7 @@ class BenefitsPage extends StatelessWidget {
                 width: double.infinity,
                 height: 300,
                 fit: BoxFit.cover,
+                cacheManager: SksCacheManager(),
                 placeholder: (context, url) => Container(
                   color: AppTheme.softGray,
                   child: const Center(

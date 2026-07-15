@@ -820,6 +820,34 @@ class ApiService {
   }
 
   // ── 13. GET /api/events ────────────────────────────────────────────────────
+  // ── Spiritual Calendar Events ───────────────────────────────────────────────
+  Future<Map<String, dynamic>> getSpiritualCalendarEvents({
+    String lang = 'en',
+    int days = 60,
+  }) async {
+    final cacheKey = 'spiritual_calendar_${lang}_$days';
+    final cached = DataCacheService().get<Map<String, dynamic>>(cacheKey);
+    if (cached != null) return cached;
+
+    if (ConnectivityService().isOffline) {
+      return {'success': false, 'events': []};
+    }
+
+    try {
+      final response = await _client.get(
+        '/api/spiritual-calendar',
+        queryParameters: {'lang': lang, 'days': days},
+      );
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        DataCacheService().set(cacheKey, data, ttl: const Duration(hours: 6));
+      }
+      return data;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> getEvents({bool forceRefresh = false}) async {
     // Check cache first (unless force refresh)
     if (!forceRefresh) {
@@ -927,15 +955,19 @@ class ApiService {
       debugPrint('   Start: $startTime');
       debugPrint('   End: $endTime');
       debugPrint('   Duration: $durationSeconds seconds');
-      
+
       final response = await _client.post(
         '/api/meditation/sessions',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
         data: {
-          'start_time': startTime,
-          'end_time': endTime,
-          'duration_seconds': durationSeconds,
+          // sks-meditation-service accepts both naming conventions
+          'started_at':        startTime,
+          'start_time':        startTime,
+          'ended_at':          endTime,
+          'end_time':          endTime,
+          'duration_seconds':  durationSeconds,
           if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (notes != null && notes.isNotEmpty) 'remarks': notes,
         },
       );
 
@@ -947,17 +979,16 @@ class ApiService {
       return _handleError(e);
     } catch (e) {
       debugPrint('❌ Unexpected error recording meditation: $e');
-      return {
-        'success': false,
-        'message': 'Failed to record meditation session. Please try again.',
-      };
+      return {'success': false, 'message': 'Failed to record meditation session. Please try again.'};
     }
   }
 
   // ── 17. GET /api/meditation/sessions - Get meditation sessions ─────────────
   Future<Map<String, dynamic>> getMeditationSessions({
-    int limit = 50,
-    int offset = 0,
+    int page = 1,
+    int limit = 10,     // default 10 — server hard-caps at 20
+    int? year,
+    int? month,
     String? startDate,
     String? endDate,
   }) async {
@@ -967,16 +998,16 @@ class ApiService {
         return {'success': false, 'message': 'Not authenticated'};
       }
 
-      final queryParams = {
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
-      };
-
       final response = await _client.get(
         '/api/meditation/sessions',
-        queryParameters: queryParams,
+        queryParameters: {
+          'page':  page.toString(),
+          'limit': limit.toString(),
+          if (year  != null) 'year':       year.toString(),
+          if (month != null) 'month':      month.toString(),
+          if (startDate != null) 'start_date': startDate,
+          if (endDate   != null) 'end_date':   endDate,
+        },
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
 
@@ -987,8 +1018,9 @@ class ApiService {
   }
 
   // ── 18. GET /api/meditation/stats - Get meditation statistics ──────────────
+  // Returns lifetime + daily + weekly + monthly + yearly + streak
   Future<Map<String, dynamic>> getMeditationStats({
-    String period = 'week', // day, week, month, year, all
+    String period = 'week', // kept for backward compat, service returns all periods
   }) async {
     try {
       final idToken = await _getIdToken();
@@ -998,7 +1030,6 @@ class ApiService {
 
       final response = await _client.get(
         '/api/meditation/stats',
-        queryParameters: {'period': period},
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
       );
 
@@ -1038,6 +1069,39 @@ class ApiService {
       final response = await _client.delete(
         '/api/meditation/sessions/$sessionId',
         options: Options(headers: {'Authorization': 'Bearer $idToken'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ── 21. GET /api/meditation/leaderboard ────────────────────────────────────
+  // type: total_duration | total_sessions | total_days | weekly | monthly | yearly
+  Future<Map<String, dynamic>> getMeditationLeaderboard({
+    String type = 'total_duration',
+    int limit = 50,
+    int? year,
+    int? month,
+    String? weekStart,
+    bool myRank = false,
+  }) async {
+    try {
+      final idToken = await _getIdToken();
+      final headers = idToken != null ? {'Authorization': 'Bearer $idToken'} : <String, String>{};
+
+      final response = await _client.get(
+        '/api/meditation/leaderboard',
+        queryParameters: {
+          'type':    type,
+          'limit':   limit.toString(),
+          if (year       != null) 'year':       year.toString(),
+          if (month      != null) 'month':      month.toString(),
+          if (weekStart  != null) 'week_start': weekStart,
+          if (myRank && idToken != null) 'my_rank': 'true',
+        },
+        options: Options(headers: headers.isNotEmpty ? headers : null),
       );
 
       return response.data as Map<String, dynamic>;

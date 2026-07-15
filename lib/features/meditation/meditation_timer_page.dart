@@ -57,10 +57,10 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     super.initState();
     _breathingController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
 
-    _breathingAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _breathingAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
 
@@ -902,282 +902,176 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     );
   }
 
-  // ── Home view: Guruji image + play/schedule/stop controls ──────────────────
+  // ── Home view — full-screen bg, light footer with timer + icons ─────────────
   Widget _buildHomeView(bool isSmall) {
-    return Column(
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        // ── Hero image ────────────────────────────────────────────────
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Breathing Guruji image
-                AnimatedBuilder(
-                  animation: _breathingAnimation,
-                  builder: (_, __) => Transform.scale(
-                    scale: _isRunning ? _breathingAnimation.value : 1.0,
-                    child: Container(
-                      width: isSmall ? 200 : 240,
-                      height: isSmall ? 200 : 240,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppTheme.primary.withValues(alpha: 0.35), width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary.withValues(alpha: 0.18),
-                            blurRadius: 30, spreadRadius: 8),
-                          BoxShadow(
-                            color: AppTheme.gold.withValues(alpha: 0.12),
-                            blurRadius: 50, spreadRadius: 12),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/Guruji_Meditation.PNG',
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: AppTheme.tagBg,
-                            child: const Icon(Icons.self_improvement,
-                                size: 80, color: AppTheme.primary)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Title
-                Text(context.tr('daily_meditation_title'),
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 4),
-                Text(context.tr('daily_meditation_subtitle'),
-                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-
-                const SizedBox(height: 20),
-
-                // Timer display (shows 00:00 when idle)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardSurface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                        color: AppTheme.primary.withValues(alpha: 0.2)),
-                    boxShadow: [AppTheme.softShadow],
-                  ),
-                  child: Text(
-                    _formatDuration(_seconds),
-                    style: const TextStyle(
-                      fontSize: 52, fontWeight: FontWeight.w200,
-                      color: AppTheme.textPrimary, letterSpacing: 4),
-                  ),
-                ),
-
-                if (_targetSeconds > 0 && _seconds == 0) ...[
-                  const SizedBox(height: 8),
-                  Text('Duration: ${_formatDuration(_targetSeconds)}',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                ],
-
-                if (!_isLoggedIn) ...[
-                  const SizedBox(height: 12),
-                  Text(context.tr('login_to_save_sessions'),
-                      style: TextStyle(fontSize: 11, color: AppTheme.textHint,
-                          fontStyle: FontStyle.italic)),
-                ],
-              ],
-            ),
-          ),
+        // Full-page background
+        Image.asset(
+          'assets/images/guruji_meditation.PNG',
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
         ),
-
-        // ── Controls bottom sheet ─────────────────────────────────────
-        Container(
-          padding: EdgeInsets.fromLTRB(24, 16, 24, isSmall ? 24 : 32),
-          decoration: BoxDecoration(
-            color: AppTheme.cardSurface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.textSecondary.withValues(alpha: 0.08),
-                blurRadius: 20, offset: const Offset(0, -4))
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Duration picker
-              _buildRoundBtn(Icons.timer_outlined, _showDurationPicker,
-                  bg: AppTheme.tagBg, iconColor: AppTheme.primary),
-              const SizedBox(width: 20),
-              // Main play button
-              GestureDetector(
-                onTap: _soundsLoading ? null : _startTimer,
-                child: Container(
-                  width: isSmall ? 70 : 80, height: isSmall ? 70 : 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: AppTheme.primaryGradient,
-                    boxShadow: [BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.40),
-                      blurRadius: 20, offset: const Offset(0, 6))],
-                  ),
-                  child: _soundsLoading
-                      ? const Padding(padding: EdgeInsets.all(22),
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.5))
-                      : const Icon(Icons.play_arrow_rounded,
-                          size: 44, color: Colors.white),
-                ),
-              ),
-              const SizedBox(width: 20),
-              // View history
-              _buildRoundBtn(Icons.bar_chart_rounded,
-                  () => context.push('/meditation/history'),
-                  bg: AppTheme.tagBg, iconColor: AppTheme.primary),
-            ],
-          ),
+        // Footer panel pinned to bottom
+        Positioned(
+          left: 0, right: 0, bottom: 0,
+          child: _buildFooterPanel(isSmall, isTimerView: false),
         ),
       ],
     );
   }
 
-
-  // ── Timer view: shown while session is active / paused ───────────────────
+  // ── Timer view — same bg, footer shows active controls ───────────────────
   Widget _buildTimerView(bool isSmall) {
-    return Column(
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Expanded(
+        // Full-page background with subtle brightness pulse when running
+        AnimatedBuilder(
+          animation: _breathingAnimation,
+          builder: (_, __) => Image.asset(
+            'assets/images/guruji_meditation.PNG',
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            opacity: AlwaysStoppedAnimation(
+              _isRunning ? (0.85 + _breathingAnimation.value * 0.15) : 1.0,
+            ),
+          ),
+        ),
+        // Footer panel
+        Positioned(
+          left: 0, right: 0, bottom: 0,
+          child: _buildFooterPanel(isSmall, isTimerView: true),
+        ),
+      ],
+    );
+  }
+
+  /// Shared footer panel — timer on top, icons row at bottom, light transparent bg
+  Widget _buildFooterPanel(bool isSmall, {required bool isTimerView}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.50), width: 1),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(24, 16, 24, isSmall ? 16 : 24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Breathing Guruji image
-              AnimatedBuilder(
-                animation: _breathingAnimation,
-                builder: (_, __) => Transform.scale(
-                  scale: _isRunning ? _breathingAnimation.value : 1.0,
-                  child: Container(
-                    width: isSmall ? 180 : 220,
-                    height: isSmall ? 180 : 220,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4), width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withValues(alpha: 0.20),
-                          blurRadius: 30, spreadRadius: 8),
-                        BoxShadow(
-                          color: AppTheme.gold.withValues(alpha: 0.15),
-                          blurRadius: 50, spreadRadius: 12),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/Guruji_Meditation.PNG',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: AppTheme.tagBg,
-                          child: const Icon(Icons.self_improvement, size: 80, color: AppTheme.primary)),
-                      ),
-                    ),
-                  ),
+              // Sivoham status removed per user request
+
+              // ── Timer display ─────────────────────────────────────────
+              Text(
+                _formatDuration(_seconds),
+                style: TextStyle(
+                  fontSize: isSmall ? 52 : 60,
+                  fontWeight: FontWeight.w200,
+                  color: Colors.white,
+                  letterSpacing: 6,
+                  shadows: const [Shadow(color: Colors.black54, blurRadius: 8)],
                 ),
               ),
 
-              const SizedBox(height: 28),
+              if (_targetSeconds > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  isTimerView
+                      ? 'Target: ${_formatDuration(_targetSeconds)}'
+                      : 'Duration: ${_formatDuration(_targetSeconds)}',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.75)),
+                ),
+              ],
 
-              // Status text
-              Text(
-                _isRunning ? '🌸  Breathe in... Breathe out...' :
-                    _hasStarted ? '⏸  Paused' : '✨  Ready',
-                style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary,
-                    fontStyle: FontStyle.italic, letterSpacing: 0.5),
-              ),
+              if (!_isLoggedIn) ...[
+                const SizedBox(height: 4),
+                Text(context.tr('login_to_save_sessions'),
+                    style: TextStyle(fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontStyle: FontStyle.italic)),
+              ],
 
               const SizedBox(height: 20),
 
-              // Timer display
+              // ── Icon buttons row — light pill background ──────────────
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardSurface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
-                  boxShadow: [AppTheme.softShadow],
+                  color: Colors.white.withValues(alpha: 0.70),
+                  borderRadius: BorderRadius.circular(40),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
                 ),
-                child: Text(
-                  _formatDuration(_seconds),
-                  style: const TextStyle(
-                    fontSize: 56, fontWeight: FontWeight.w200,
-                    color: AppTheme.textPrimary, letterSpacing: 4),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              if (_targetSeconds > 0)
-                Text('Target: ${_formatDuration(_targetSeconds)}',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-            ],
-          ),
-        ),
-
-        // Controls
-        Container(
-          padding: EdgeInsets.fromLTRB(24, 16, 24, isSmall ? 24 : 32),
-          decoration: BoxDecoration(
-            color: AppTheme.cardSurface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [BoxShadow(
-              color: AppTheme.textSecondary.withValues(alpha: 0.08),
-              blurRadius: 20, offset: const Offset(0, -4))],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!_isRunning && (_seconds > 0 || _targetSeconds > 0)) ...[
-                _buildRoundBtn(Icons.refresh_rounded, _resetTimer,
-                    bg: AppTheme.tagBg, iconColor: AppTheme.textSecondary),
-                const SizedBox(width: 16),
-              ],
-              if (_isRunning) ...[
-                _buildRoundBtn(Icons.stop_rounded, _stopTimer,
-                    bg: Colors.red.shade50, iconColor: Colors.red.shade400),
-                const SizedBox(width: 16),
-              ],
-              // Main play/pause
-              GestureDetector(
-                onTap: _soundsLoading && !_isRunning
-                    ? null
-                    : (_isRunning ? _pauseTimer : _startTimer),
-                child: Container(
-                  width: isSmall ? 70 : 80, height: isSmall ? 70 : 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: AppTheme.primaryGradient,
-                    boxShadow: [BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.4),
-                      blurRadius: 20, offset: const Offset(0, 6))],
-                  ),
-                  child: _soundsLoading && !_isRunning
-                      ? const Padding(padding: EdgeInsets.all(22),
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : Icon(_isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          size: isSmall ? 38 : 44, color: Colors.white),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (!isTimerView) ...[
+                      _buildImgBtn('assets/images/icons/timer-icon.png', _showDurationPicker),
+                      const SizedBox(width: 28),
+                      _buildImgBtn('assets/images/icons/play-icon.png',
+                          _soundsLoading ? () {} : _startTimer, large: true),
+                      const SizedBox(width: 28),
+                      _buildImgBtn('assets/images/icons/stats-icon.png',
+                          () => context.push('/meditation/history')),
+                    ] else ...[
+                      if (_isRunning || _seconds > 0 || _targetSeconds > 0) ...[
+                        _buildImgBtn('assets/images/icons/stop-icon.png',
+                            _isRunning ? _stopTimer : _resetTimer),
+                        const SizedBox(width: 28),
+                      ],
+                      _buildImgBtn(
+                        _isRunning
+                            ? 'assets/images/icons/pause-icon.png'
+                            : 'assets/images/icons/play-icon.png',
+                        _soundsLoading && !_isRunning
+                            ? () {}
+                            : (_isRunning ? _pauseTimer : _startTimer),
+                        large: true,
+                      ),
+                      if (!_isRunning && _seconds == 0) ...[
+                        const SizedBox(width: 28),
+                        _buildImgBtn('assets/images/icons/timer-icon.png', _showDurationPicker),
+                      ],
+                    ],
+                  ],
                 ),
               ),
-              if (!_isRunning && _seconds == 0) ...[
-                const SizedBox(width: 16),
-                _buildRoundBtn(Icons.timer_outlined, _showDurationPicker,
-                    bg: AppTheme.tagBg, iconColor: AppTheme.primary),
+
+              if (_soundsLoading) ...[
+                const SizedBox(height: 8),
+                const SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
               ],
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  /// Bare image button — no background circle, just the icon.
+  /// [large] = play/pause (bigger).
+  Widget _buildImgBtn(String iconPath, VoidCallback onTap, {bool large = false}) {
+    final w = large ? 90.0 : 64.0;
+    final h = w * 1.5; // 2:3 portrait ratio
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Image.asset(
+        iconPath,
+        width: w,
+        height: h,
+        fit: BoxFit.contain,
+      ),
     );
   }
 
@@ -1210,8 +1104,6 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       required Color color, bool isSmall = false}) =>
       const SizedBox.shrink();
 }
-
-// ── Preset session data ───────────────────────────────────────────────────────
 class _PresetSession {
   final String label;
   final String emoji;

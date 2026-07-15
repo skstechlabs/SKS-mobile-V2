@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../../features/auth/auth_state.dart';
+import 'login_gate.dart';
 
 /// Wraps a widget that requires login.
 /// - Not logged in → shows login prompt
@@ -66,74 +67,12 @@ class _AuthGuardState extends State<AuthGuard> {
     return widget.child;
   }
 
-  // ── Not logged in ──────────────────────────────────────────────────────────
+  // ── Not logged in — shared LoginGate ─────────────────────────────────────
   Widget _buildLoginPrompt(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                  ),
-                  child: const Icon(Icons.lock_outline, size: 60, color: AppTheme.primary),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Login Required',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primary,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Please login to access ${widget.featureName}',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.textSecondary,
-                        height: 1.5,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/login'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: const Text(
-                      'Login Now',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Go Back to Home'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return LoginGate(
+      title: widget.featureName,
+      featureHint: 'Login to access ${widget.featureName}',
+      showBackButton: true,
     );
   }
 

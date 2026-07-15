@@ -223,7 +223,7 @@ class _KalpataruPageState extends State<KalpataruPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: Image.asset('assets/images/Guruji_Meditation.PNG', fit: BoxFit.contain),
+                child: Image.asset('assets/images/guruji-kalpatharu.png', fit: BoxFit.contain),
               ),
             ),
           ),

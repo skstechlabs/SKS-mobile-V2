@@ -4,12 +4,13 @@ import '../../core/models/audio_model.dart';
 import '../../core/providers/audio_provider.dart';
 import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/sks_cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/audio_navigation.dart';
 
 ImageProvider _imgProvider(String url) {
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    return CachedNetworkImageProvider(url);
+    return CachedNetworkImageProvider(url, cacheManager: SksCacheManager());
   }
   return const AssetImage('assets/images/Guruji_logo.JPG');
 }

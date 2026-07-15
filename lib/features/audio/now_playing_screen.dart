@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../core/models/audio_model.dart';
 import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/services/now_playing_state.dart';
+import '../../core/services/sks_cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Full-screen Spotify-style Now Playing screen.
@@ -79,7 +80,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
   ImageProvider _thumb(AudioModel? song) {
     final url = song?.thumbnailUrl ?? '';
-    if (url.startsWith('http')) return CachedNetworkImageProvider(url);
+    if (url.startsWith('http')) return CachedNetworkImageProvider(url, cacheManager: SksCacheManager());
     return const AssetImage('assets/images/Guruji_logo.JPG');
   }
 
@@ -496,7 +497,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                               : null,
                           image: DecorationImage(
                             image: thumb.startsWith('http')
-                                ? CachedNetworkImageProvider(thumb)
+                                ? CachedNetworkImageProvider(thumb, cacheManager: SksCacheManager())
                                     as ImageProvider
                                 : const AssetImage(
                                     'assets/images/Guruji_logo.JPG'),

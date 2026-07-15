@@ -14,15 +14,16 @@ import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
 import '../../core/services/image_preloader_service.dart';
 import '../../core/widgets/cached_image.dart';
-import '../../core/services/image_preloader_service.dart';
+import '../../core/services/sks_cache_manager.dart';
 
 import '../audio/now_playing_screen.dart';
 import '../../core/utils/audio_navigation.dart';
 
-/// Helper function to get the correct ImageProvider for CDN or asset images
+/// Returns the correct [ImageProvider] for a URL or asset path.
+/// CDN images use [SksCacheManager] so they are never re-downloaded once cached.
 ImageProvider _getImageProvider(String imageUrl) {
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return CachedNetworkImageProvider(imageUrl);
+    return CachedNetworkImageProvider(imageUrl, cacheManager: SksCacheManager());
   }
   return AssetImage(imageUrl);
 }
@@ -52,6 +53,9 @@ class _HomePageState extends State<HomePage>
   
   // Quotes from database - now stores full quote objects
   List<Map<String, dynamic>> _quotes = [];
+  
+  // Backend spiritual calendar events (admin-managed)
+  List<Map<String, dynamic>> _backendCalendarEvents = [];
   
   // Preset reminders state
   final Map<String, bool> _presetReminders = {
@@ -86,6 +90,7 @@ class _HomePageState extends State<HomePage>
     _loadGatherings();
     _loadQuotes();
     _loadAudios();
+    _loadCalendarEvents();
     
     // Listen for language changes to refresh quotes
     LocalizationService().addListener(_onLanguageChanged);
@@ -105,6 +110,13 @@ class _HomePageState extends State<HomePage>
   
   void _onLanguageChanged() {
     debugPrint('[HomePage] Language changed, refreshing quotes');
+    // Clear stale quotes immediately so the card shows fallback in the new
+    // language rather than the old-language API quotes while fetching.
+    if (mounted) {
+      setState(() {
+        _quotes = [];
+      });
+    }
     _loadQuotes();
   }
 
@@ -281,6 +293,20 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  Future<void> _loadCalendarEvents() async {
+    try {
+      final lang = _isTelugu ? 'te' : 'en';
+      final response = await _apiService.getSpiritualCalendarEvents(lang: lang, days: 60);
+      if (response['success'] == true && mounted) {
+        setState(() {
+          _backendCalendarEvents = List<Map<String, dynamic>>.from(response['events'] ?? []);
+        });
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Calendar events load error: $e');
+    }
+  }
+
   Future<void> _loadAudios() async {
     try {
       // Use cached data by default
@@ -321,17 +347,15 @@ class _HomePageState extends State<HomePage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildGurujiHeaderSection(), // Guruji image + name (as before)
-          _buildQuickActions(),        // Bhajans, Classes, Events, Kalpataru
+          _buildQuickActions(),        // About Guruji, Kundalini, Chakras, Kalpataru
           _buildDailyQuoteCard(),      // Today's Inspiration (image card)
+          _buildMeditationMusic(),     // Chanting / Meditation music
           _buildMeditationTimer(),     // Purple timer card
+          _buildSpiritualCalendar(),   // Telugu Spiritual Calendar
           _buildRingtoneSettings(),    // Sivoham Ringtone
           _buildWallpaperSettings(),   // Guruji Wallpapers
-          _buildMeditationMusic(),     // Meditation music player
-          _buildBhajans(),             // Top bhajans
-          // _buildGuruJourney(),
-          // _buildKundaliniScience(),
-          // _buildBenefits(),
-          // _build7Chakras(),
+          _buildDailyReminders(),      // Daily Reminders
+          const SizedBox(height: 20),
           _buildRecentGatherings(),
           _buildUpcomingPrograms(),
           _buildVisionMission(),
@@ -476,11 +500,11 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // ── Quick-action icon grid: About Guruji, Kundalini, Chakras, Reminders ──
+  // ── Quick-action icon grid: About Guruji, Kundalini, Chakras, Kalpataru ──
   Widget _buildQuickActions() {
     final actions = [
       _QuickAction(
-        iconPath: 'assets/images/icons/Gurudev-icon.png',
+        iconPath: 'assets/images/icons/guruji-icon.png',
         label: context.tr('quick_about_guruji'),
         onTap: () => context.push('/guru-journey'),
       ),
@@ -495,17 +519,21 @@ class _HomePageState extends State<HomePage>
         onTap: () => context.push('/chakras', extra: {'initialIndex': 0}),
       ),
       _QuickAction(
-        iconPath: 'assets/images/icons/remainders-icon.png',
-        label: context.tr('quick_daily_reminders'),
-        onTap: () => context.push('/reminders'),
+        iconPath: 'assets/images/icons/kalpatharu-icon.png',
+        label: context.tr('kalpataru'),
+        onTap: () => context.go('/kalpataru'),
       ),
     ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: actions.map(_buildQuickActionItem).toList(),
+      // RepaintBoundary isolates this row so audio/quote setState calls on
+      // the parent HomePage never trigger a repaint of the icons.
+      child: RepaintBoundary(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: actions.map(_buildQuickActionItem).toList(),
+        ),
       ),
     );
   }
@@ -556,15 +584,19 @@ class _HomePageState extends State<HomePage>
 
   // ── Today's Inspiration — Guruji image with quotes overlay ──────────────
   Widget _buildDailyQuoteCard() {
-    // Fallback quotes from translations — shown when API is unavailable
-    // Uses all meaningful quote keys already present in both en.json and te.json
+    // Fallback quotes — shown only when API is unavailable AND no cache exists.
+    // These keys exist in both en.json and te.json so they display in the
+    // correct language automatically when context.tr() is called.
     final fallbackQuotes = [
-      {'quote_text': context.tr('guru_journey_quote')},
-      {'quote_text': context.tr('kundalini_quote')},
-      {'quote_text': context.tr('kundalini_highlight_1')},
-      {'quote_text': context.tr('kundalini_highlight_2')},
-      {'quote_text': context.tr('kundalini_highlight_3')},
+      {'quote_text': context.tr('daily_quote_1')},
+      {'quote_text': context.tr('daily_quote_2')},
+      {'quote_text': context.tr('daily_quote_3')},
+      {'quote_text': context.tr('daily_quote_4')},
+      {'quote_text': context.tr('daily_quote_5')},
     ];
+
+    // Prefer API quotes (already language-filtered by QuotesService).
+    // Only fall back when _quotes is genuinely empty (API + cache both failed).
     final quotes = _quotes.isNotEmpty ? _quotes : fallbackQuotes;
 
     return Container(
@@ -1232,6 +1264,495 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Widget _buildSpiritualCalendar() {
+    final now = DateTime.now();
+    final events = _getSpiritualEvents(now);
+    final todayEvents = events.where((e) => _isSameDay(e.date, now)).toList();
+    final upcomingEvents = events
+        .where((e) => e.date.isAfter(now) && e.date.isBefore(now.add(const Duration(days: 30))))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    final teluguMonths = _isTelugu ? [
+      'చైత్రం', 'వైశాఖం', 'జ్యేష్ఠం', 'ఆషాఢం',
+      'శ్రావణం', 'భాద్రపదం', 'ఆశ్వయుజం', 'కార్తీకం',
+      'మార్గశిరం', 'పుష్యం', 'మాఘం', 'ఫాల్గుణం',
+    ] : [
+      'Chaitra', 'Vaishakha', 'Jyeshtha', 'Ashadha',
+      'Shravana', 'Bhadrapada', 'Ashwayuja', 'Karthika',
+      'Margasira', 'Pushya', 'Magha', 'Phalguna',
+    ];
+    // Approximate Telugu month (offset ~2 months from Gregorian)
+    final teluguMonthIdx = (now.month + 10) % 12;
+    final teluguMonth = teluguMonths[teluguMonthIdx];
+    final teluguYear = now.year - (now.month <= 3 ? 57 : 56); // approx Saka era
+    final tithi = _getTithi(now);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Section header ──────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                width: 4, height: 22,
+                decoration: BoxDecoration(
+                  color: AppTheme.gold,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '🕉️  ${_t('ఆధ్యాత్మిక పంచాంగం', 'Spiritual Calendar')}',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── Today's panchang card ────────────────────────────────────
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFF8EE), Color(0xFFFFF3DC)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.gold.withValues(alpha: 0.40), width: 1.5),
+              boxShadow: [AppTheme.softShadow],
+            ),
+            child: Column(
+              children: [
+                // Gold header bar
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.goldGradient,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('📅', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_t('నేడు', 'Today')} · ${_formatDate(now)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          teluguMonth,
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Panchang details grid
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _panchaangItem('🌙', _t('తిథి', 'Tithi'), tithi.name),
+                          const SizedBox(width: 8),
+                          _panchaangItem('☀️', _t('పక్షం', 'Paksha'), tithi.paksha),
+                          const SizedBox(width: 8),
+                          _panchaangItem('✨', _t('శక సంవత్సరం', 'Saka Year'), '$teluguYear'),
+                        ],
+                      ),
+                      if (todayEvents.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.20)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '🎊  ${_t('నేటి విశేషాలు', "Today's Events")}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              ...todayEvents.map((e) => Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Row(
+                                  children: [
+                                    Text(e.emoji, style: const TextStyle(fontSize: 14)),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        e.titleTe,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppTheme.textPrimary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Upcoming events list ─────────────────────────────────────
+          Container(
+            decoration: BoxDecoration(
+              color: AppTheme.cardSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.tagBorder),
+              boxShadow: [AppTheme.softShadow],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text('🗓️', style: TextStyle(fontSize: 16)),
+                      const SizedBox(width: 8),
+                      Text(
+                        _t('రాబోయే విశేష తిథులు', 'Upcoming Sacred Days'),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _t('30 రోజులు', '30 days'),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFEDD5BC)),
+                if (upcomingEvents.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      _t('రాబోయే ఈవెంట్లు లేవు', 'No upcoming events'),
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                    ),
+                  )
+                else
+                  ...upcomingEvents.take(6).map((e) => _buildEventRow(e, now)),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _panchaangItem(String emoji, String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.70),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.gold.withValues(alpha: 0.20)),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 4),
+            Text(label,
+                style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+            const SizedBox(height: 2),
+            Text(value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventRow(_SpiritualEvent event, DateTime now) {
+    final daysLeft = event.date.difference(now).inDays;
+    final isVeryClose = daysLeft <= 3;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: const Color(0xFFEDD5BC).withValues(alpha: 0.50))),
+      ),
+      child: Row(
+        children: [
+          // Event type colour dot
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: event.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: event.color.withValues(alpha: 0.30)),
+            ),
+            child: Center(child: Text(event.emoji, style: const TextStyle(fontSize: 18))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(event.titleTe,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    )),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDate(event.date),
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: isVeryClose
+                  ? AppTheme.primary.withValues(alpha: 0.12)
+                  : AppTheme.tagBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isVeryClose
+                    ? AppTheme.primary.withValues(alpha: 0.30)
+                    : AppTheme.tagBorder,
+              ),
+            ),
+            child: Text(
+              daysLeft == 0 ? _t('నేడు', 'Today') : '$daysLeft ${_t('రోజులు', 'days')}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isVeryClose ? AppTheme.primary : AppTheme.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  bool get _isTelugu => LocalizationService().currentLocale.languageCode == 'te';
+  String _t(String te, String en) => _isTelugu ? te : en;
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _formatDate(DateTime d) {
+    final months = _isTelugu
+        ? ['జన', 'ఫిబ్ర', 'మార్చి', 'ఏప్రి', 'మే', 'జూన్', 'జులై', 'ఆగ', 'సెప్ట', 'అక్టో', 'నవం', 'డిసెం']
+        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  _TithiInfo _getTithi(DateTime date) {
+    // Approximate lunar tithi from Julian date
+    const double synodicMonth = 29.53058867;
+    final jd = _julianDay(date);
+    const double knownNewMoon = 2459215.5; // Jan 13 2021 new moon (JD)
+    final daysSince = jd - knownNewMoon;
+    final moonAge = daysSince % synodicMonth;
+    final tithi = (moonAge / synodicMonth * 30).floor() + 1;
+
+    final tithiNames = _isTelugu ? [
+      'ప్రతిపద', 'ద్వితీయ', 'తృతీయ', 'చతుర్థి', 'పంచమి',
+      'షష్ఠి', 'సప్తమి', 'అష్టమి', 'నవమి', 'దశమి',
+      'ఏకాదశి', 'ద్వాదశి', 'త్రయోదశి', 'చతుర్దశి', 'పూర్ణిమ',
+      'ప్రతిపద', 'ద్వితీయ', 'తృతీయ', 'చతుర్థి', 'పంచమి',
+      'షష్ఠి', 'సప్తమి', 'అష్టమి', 'నవమి', 'దశమి',
+      'ఏకాదశి', 'ద్వాదశి', 'త్రయోదశి', 'చతుర్దశి', 'అమావాస్య',
+    ] : [
+      'Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami',
+      'Shashti', 'Saptami', 'Ashtami', 'Navami', 'Dashami',
+      'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Purnima',
+      'Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami',
+      'Shashti', 'Saptami', 'Ashtami', 'Navami', 'Dashami',
+      'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Amavasya',
+    ];
+    final idx = (tithi - 1).clamp(0, 29);
+    final paksha = idx < 15 ? _t('శుక్ల పక్షం', 'Shukla Paksha') : _t('కృష్ణ పక్షం', 'Krishna Paksha');
+    return _TithiInfo(name: tithiNames[idx], paksha: paksha);
+  }
+
+  double _julianDay(DateTime date) {
+    final y = date.year;
+    final m = date.month;
+    final d = date.day + date.hour / 24.0;
+    final a = (14 - m) ~/ 12;
+    final yr = y + 4800 - a;
+    final mo = m + 12 * a - 3;
+    return d + (153 * mo + 2) ~/ 5 + 365 * yr + yr ~/ 4 - yr ~/ 100 + yr ~/ 400 - 32045;
+  }
+
+  List<_SpiritualEvent> _getSpiritualEvents(DateTime now) {
+    final year = now.year;
+    final List<_SpiritualEvent> events = [];
+
+    // ── Full moons, new moons, Maha Shivaratri & Ekadashi ───────────────────
+    // Maha Shivaratri = day before Amavasya (Krishna Chaturdashi, 14th tithi)
+    final double synodicMonth = 29.53058867;
+    final double knownNewMoon = 2459215.5;
+    for (int i = -2; i < 15; i++) {
+      final nmJD  = knownNewMoon + i * synodicMonth;          // New moon (Amavasya)
+      final fmJD  = knownNewMoon + (i + 0.5) * synodicMonth; // Full moon (Pournami)
+      final msJD  = nmJD - 1;                                  // Day before Amavasya = Maha Shivaratri
+
+      final nmDate = _fromJulianDay(nmJD);
+      final fmDate = _fromJulianDay(fmJD);
+      final msDate = _fromJulianDay(msJD);
+
+      if (fmDate.year == year || fmDate.year == year + 1) {
+        events.add(_SpiritualEvent(
+          date: fmDate, emoji: '🌕',
+          titleTe: _t('పూర్ణిమ', 'Pournami'),
+          color: AppTheme.gold, type: 'lunar',
+        ));
+      }
+      if (msDate.year == year || msDate.year == year + 1) {
+        events.add(_SpiritualEvent(
+          date: msDate, emoji: '🕉️',
+          titleTe: _t('మాస శివరాత్రి', 'Masa Shivaratri'),
+          color: const Color(0xFF5C35B0), type: 'shivaratri',
+        ));
+      }
+      if (nmDate.year == year || nmDate.year == year + 1) {
+        events.add(_SpiritualEvent(
+          date: nmDate, emoji: '🌑',
+          titleTe: _t('అమావాస్య', 'Amavasya'),
+          color: const Color(0xFF37474F), type: 'lunar',
+        ));
+      }
+    }
+
+    // ── Ekadashi (11th lunar day — every ~15 days) ────────────────────────
+    for (int i = 0; i < 25; i++) {
+      final ek1JD = knownNewMoon + i * synodicMonth + 10.5; // Shukla Ekadashi
+      final ek2JD = knownNewMoon + i * synodicMonth + 25.5; // Krishna Ekadashi
+      for (final jd in [ek1JD, ek2JD]) {
+        final d = _fromJulianDay(jd);
+        if (d.year == year) {
+          events.add(_SpiritualEvent(
+            date: d, emoji: '🌿',
+            titleTe: _t('ఏకాదశి', 'Ekadashi'),
+            color: const Color(0xFF2E7D32), type: 'ekadashi',
+          ));
+        }
+      }
+    }
+
+    // ── Backend / admin-managed events (festivals, Guruji birthday etc.) ────
+    for (final e in _backendCalendarEvents) {
+      try {
+        final dateStr = e['date']?.toString() ?? '';
+        if (dateStr.isEmpty) continue;
+        final date = DateTime.parse(dateStr);
+        events.add(_SpiritualEvent(
+          date: date,
+          emoji: e['emoji']?.toString() ?? '🕉️',
+          titleTe: e['title']?.toString() ?? '',
+          color: _parseColor(e['colorHex']?.toString()),
+          type:  e['type']?.toString() ?? 'festival',
+        ));
+      } catch (_) {}
+    }
+
+    // ── Fallback static festivals (used when backend is unreachable) ─────────
+    if (_backendCalendarEvents.isEmpty) {
+      final festivals = [
+        _SpiritualEvent(date: DateTime(year, 1, 14), emoji: '🌾', titleTe: _t('మకర సంక్రాంతి', 'Makar Sankranti'), color: const Color(0xFF2E7D32), type: 'festival'),
+        _SpiritualEvent(date: DateTime(year, 3, 30), emoji: '🌸', titleTe: _t('ఉగాది', 'Ugadi'), color: const Color(0xFF1565C0), type: 'festival'),
+        _SpiritualEvent(date: DateTime(year, 7, 22), emoji: '🙏', titleTe: _t('గురుజీ జయంతి', "Guruji's Birthday"), color: AppTheme.primary, type: 'guruji'),
+        _SpiritualEvent(date: DateTime(year, 8, 26), emoji: '🐘', titleTe: _t('వినాయక చవితి', 'Vinayaka Chavithi'), color: const Color(0xFF2E7D32), type: 'festival'),
+        _SpiritualEvent(date: DateTime(year, 10, 20), emoji: '🪔', titleTe: _t('దీపావళి', 'Diwali'), color: AppTheme.gold, type: 'festival'),
+      ];
+      events.addAll(festivals);
+    }
+
+    return events;
+  }
+
+  /// Parse a hex color string like '#C4622D' into a Flutter Color.
+  Color _parseColor(String? hex) {
+    if (hex == null || hex.isEmpty) return AppTheme.primary;
+    try {
+      final clean = hex.replaceFirst('#', '');
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return AppTheme.primary;
+    }
+  }
+
+  DateTime _fromJulianDay(double jd) {
+    final z = jd.floor() + 1;
+    final a = ((z - 1867216.25) / 36524.25).floor();
+    final b = z + a - (a ~/ 4) + 1;
+    final c = ((b - 122.1) / 365.25).floor();
+    final d = (365.25 * c).floor();
+    final e = ((b - d) / 30.6001).floor();
+    final day = b - d - (30.6001 * e).floor();
+    final month = e < 14 ? e - 1 : e - 13;
+    final year = month > 2 ? c - 4716 : c - 4715;
+    return DateTime(year, month, day);
+  }
+
   Widget _buildRingtoneSettings() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -1246,14 +1767,12 @@ class _HomePageState extends State<HomePage>
             boxShadow: [AppTheme.softShadow],
           ),
           child: Stack(
+            clipBehavior: Clip.hardEdge,
             children: [
-              // Decorative right circle
               Positioned(
-                right: -20,
-                top: -20,
+                right: -20, top: -20,
                 child: Container(
-                  width: 110,
-                  height: 110,
+                  width: 120, height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppTheme.primary.withValues(alpha: 0.07),
@@ -1261,21 +1780,16 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.music_note_rounded,
-                          color: Colors.white, size: 26),
+                    Image.asset(
+                      'assets/images/icons/ringtone-icon.png',
+                      width: 96,
+                      height: 96,
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1284,8 +1798,7 @@ class _HomePageState extends State<HomePage>
                           Text(
                             context.tr('sivoham_ringtone'),
                             style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16, fontWeight: FontWeight.bold,
                               color: AppTheme.textPrimary,
                             ),
                           ),
@@ -1293,26 +1806,22 @@ class _HomePageState extends State<HomePage>
                           Text(
                             context.tr('set_as_ringtone'),
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              fontSize: 12, color: AppTheme.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         context.tr('set_now'),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -1340,11 +1849,12 @@ class _HomePageState extends State<HomePage>
             boxShadow: [AppTheme.softShadow],
           ),
           child: Stack(
+            clipBehavior: Clip.hardEdge,
             children: [
               Positioned(
                 right: -20, top: -20,
                 child: Container(
-                  width: 110, height: 110,
+                  width: 120, height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppTheme.gold.withValues(alpha: 0.10),
@@ -1352,18 +1862,16 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    Container(
-                      width: 52, height: 52,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.goldGradient,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.wallpaper_rounded, color: Colors.white, size: 26),
+                    Image.asset(
+                      'assets/images/icons/wallpaper-icon.png',
+                      width: 96,
+                      height: 96,
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,6 +1895,90 @@ class _HomePageState extends State<HomePage>
                       child: Text(context.tr('set_now'),
                           style: const TextStyle(color: Colors.white, fontSize: 12,
                               fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyReminders() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: GestureDetector(
+        onTap: () => context.push('/reminders'),
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.tagBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.tagBorder),
+            boxShadow: [AppTheme.softShadow],
+          ),
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                right: -20, top: -20,
+                child: Container(
+                  width: 120, height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primary.withValues(alpha: 0.07),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/images/icons/remainders-icon.png',
+                      width: 96,
+                      height: 96,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            context.tr('daily_reminders'),
+                            style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            context.tr('enable_reminders_subtitle'),
+                            style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textSecondary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        context.tr('manage'),
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -2789,4 +3381,28 @@ class _QuoteRotatorWidgetState extends State<_QuoteRotatorWidget> {
       ),
     );
   }
+}
+
+/// Spiritual calendar event data model
+class _SpiritualEvent {
+  final DateTime date;
+  final String emoji;
+  final String titleTe;
+  final Color color;
+  final String type;
+
+  const _SpiritualEvent({
+    required this.date,
+    required this.emoji,
+    required this.titleTe,
+    required this.color,
+    required this.type,
+  });
+}
+
+/// Lunar tithi information
+class _TithiInfo {
+  final String name;
+  final String paksha;
+  const _TithiInfo({required this.name, required this.paksha});
 }

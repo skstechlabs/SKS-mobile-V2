@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../constants/cdn_images.dart';
+import '../services/sks_cache_manager.dart';
 import 'dart:developer' as developer;
 
 /// Service to preload critical images for better performance
@@ -56,16 +57,18 @@ class ImagePreloaderService {
     }
   }
 
-  /// Preload a single image
+  /// Preload a single image — uses [SksCacheManager] so the download lands
+  /// in the same 365-day cache bucket that [CachedImage] reads from.
   Future<void> _preloadImage(BuildContext context, String imageUrl) async {
     try {
-      // Use CachedNetworkImageProvider to cache the image
-      final imageProvider = CachedNetworkImageProvider(imageUrl);
+      final imageProvider = CachedNetworkImageProvider(
+        imageUrl,
+        cacheManager: SksCacheManager(),
+      );
       await precacheImage(imageProvider, context);
       developer.log('✅ Preloaded: ${imageUrl.split('/').last}');
     } catch (e) {
       developer.log('⚠️  Failed to preload ${imageUrl.split('/').last}: $e');
-      // Don't throw - continue with other images
     }
   }
 

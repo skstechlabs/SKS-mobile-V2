@@ -21,6 +21,8 @@ import '../features/reminders/reminders_screen.dart';
 import '../features/reminders/reminder_form_screen.dart';
 import '../features/meditation/meditation_timer_page.dart';
 import '../features/meditation/meditation_history_page.dart';
+import '../features/meditation/meditation_journey_page.dart';
+import '../features/meditation/meditation_sessions_page.dart';
 import '../features/learnings/class_days_list_screen.dart';
 import '../features/learnings/day_video_screen.dart';
 import '../features/settings/ringtone_settings_page.dart';
@@ -289,7 +291,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/meditation/history',
-      builder: (context, state) => const MeditationHistoryPage(),
+      builder: (context, state) => const MeditationJourneyPage(),
+    ),
+    GoRoute(
+      path: '/meditation/sessions',
+      builder: (context, state) => const MeditationSessionsPage(),
     ),
     GoRoute(
       path: '/settings/ringtone',

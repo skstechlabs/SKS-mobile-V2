@@ -19,6 +19,8 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
   List<String> _availableWallpapers = [];
   // Tracks which index was explicitly set by the user — null means none yet
   int? _currentIndex;
+  // URLs that failed with a fatal error (corrupt, undecodable) — hidden from grid
+  final Set<String> _brokenUrls = {};
 
   @override
   void initState() {
@@ -259,9 +261,19 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
                             mainAxisSpacing: 16,
                             childAspectRatio: 0.7,
                           ),
-                          itemCount: _availableWallpapers.length,
-                          itemBuilder: (context, index) =>
-                              _buildWallpaperCard(index),
+                          // Only show wallpapers that haven't failed with a fatal error
+                          itemCount: _availableWallpapers
+                              .where((url) => !_brokenUrls.contains(url))
+                              .length,
+                          itemBuilder: (context, index) {
+                            // Build against the filtered list
+                            final filtered = _availableWallpapers
+                                .where((url) => !_brokenUrls.contains(url))
+                                .toList();
+                            return _buildWallpaperCard(
+                              _availableWallpapers.indexOf(filtered[index]),
+                            );
+                          },
                         ),
                       ),
 
@@ -300,7 +312,21 @@ class _WallpaperSettingsPageState extends State<WallpaperSettingsPage> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedImage(imageUrl: imageUrl, fit: BoxFit.cover),
+              CachedImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                // When image fails fatally (EncodingError, corrupt), hide it from grid
+                errorWidget: Builder(builder: (_) {
+                  // Schedule removal after the current frame — can't call setState in build
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!_brokenUrls.contains(imageUrl) && mounted) {
+                      debugPrint('🗑️ Removing broken wallpaper from grid: $imageUrl');
+                      setState(() => _brokenUrls.add(imageUrl));
+                    }
+                  });
+                  return const SizedBox.shrink();
+                }),
+              ),
               if (isCurrent)
                 Positioned(
                   top: 8, right: 8,

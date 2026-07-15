@@ -3,14 +3,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/models/audio_model.dart';
+import '../../core/services/sks_cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/sks_loader.dart';
 import '../../core/utils/audio_navigation.dart';
 
-/// Helper function to get the correct ImageProvider for CDN or asset images
 ImageProvider _getImageProvider(String imageUrl) {
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return CachedNetworkImageProvider(imageUrl);
+    return CachedNetworkImageProvider(imageUrl, cacheManager: SksCacheManager());
   }
   return AssetImage(imageUrl);
 }

@@ -21,6 +21,7 @@ import 'core/constants/app_env.dart';
 import 'core/utils/environment_checker.dart';
 import 'features/auth/auth_state.dart';
 import 'core/services/connectivity_service.dart';
+import 'core/services/asset_cache_service.dart';
 import 'firebase_options.dart';
 
 /// Safe wrapper: run [fn] and swallow any exception, logging with [label].
@@ -36,6 +37,10 @@ Future<void> _safe(String label, Future<void> Function() fn) async {
 void main() async {
   // Always guaranteed first — required before any Flutter plugin call.
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Expand ImageCache limits BEFORE any image is loaded so icons are
+  // never evicted by CDN images loaded later.
+  AssetCacheService.configureCacheLimits();
 
   developer.log('========================================');
   developer.log('🚀 APP STARTING');
@@ -54,6 +59,11 @@ void main() async {
   // ── Deferred post-runApp work ────────────────────────────────────────────
   // These fire after the first frame is rendered — never block startup.
   Future.microtask(() async {
+    // Precache all local asset icons/images immediately after first frame.
+    // This runs in the background while the splash screen is visible so
+    // icons are always warm by the time the user reaches the home page.
+    AssetCacheService().scheduleWarmup();
+
     await _safe('AudioProvider (deferred)', () => AudioProvider().initialize());
 
     if (!kIsWeb) {

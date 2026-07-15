@@ -13,6 +13,7 @@ import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
 import '../../core/services/image_preloader_service.dart';
+import '../../core/services/asset_cache_service.dart';
 import 'dart:developer' as developer;
 
 class SplashScreen extends StatefulWidget {
@@ -388,6 +389,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _preloadImages() async {
     try {
+      // 1. Warm local asset icons first — these are the ones that flicker.
+      //    Uses the mounted splash context which is guaranteed live here.
+      await AssetCacheService().warmWithContext(context);
+    } catch (_) {}
+    try {
+      // 2. Warm remote CDN images (non-blocking, best-effort).
       await ImagePreloaderService()
           .preloadCriticalImages(context)
           .timeout(const Duration(seconds: 3));

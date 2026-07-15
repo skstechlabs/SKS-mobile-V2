@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/sks_cache_manager.dart';
 
 class GurujiConnectPage extends StatelessWidget {
   const GurujiConnectPage({Key? key}) : super(key: key);
@@ -102,6 +103,7 @@ class GurujiConnectPage extends StatelessWidget {
                             width: 120,
                             height: 120,
                             fit: BoxFit.cover,
+                            cacheManager: SksCacheManager(),
                             placeholder: (context, url) => Container(
                               color: AppTheme.beige,
                               child: const Center(

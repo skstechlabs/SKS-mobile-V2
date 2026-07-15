@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/sks_cache_manager.dart';
 
 class ChakraDetailPage extends StatefulWidget {
   final int initialIndex;
@@ -212,6 +213,7 @@ class _ChakraDetailPageState extends State<ChakraDetailPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: CachedNetworkImage(
+                cacheManager: SksCacheManager(),
                 imageUrl: chakra['image'],
                 fit: BoxFit.contain, width: double.infinity,
                 placeholder: (_, __) => Container(

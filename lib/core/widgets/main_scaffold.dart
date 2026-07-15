@@ -115,12 +115,26 @@ class _MainScaffoldState extends State<MainScaffold> {
       child: Scaffold(
         backgroundColor: AppTheme.cream,
         appBar: _buildAppBar(context),
-        body: OfflineBanner(child: widget.child),
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
+        body: Stack(
           children: [
-            const MiniAudioPlayer(),
-            _buildBottomNav(context),
+            // Main content — padding so it doesn't hide behind the nav bar
+            Padding(
+              padding: const EdgeInsets.only(bottom: 72),
+              child: OfflineBanner(child: widget.child),
+            ),
+            // Bottom nav pinned to bottom
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const MiniAudioPlayer(),
+                  _buildBottomNav(context),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -128,11 +142,14 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final titleFontSize = (screenWidth / 20).clamp(16.0, 22.0);
+
     return AppBar(
       backgroundColor: AppTheme.cream,
       elevation: 0,
       scrolledUnderElevation: 0,
-      titleSpacing: 20,
+      titleSpacing: 16,
       centerTitle: false,
       automaticallyImplyLeading: false,
       systemOverlayStyle: const SystemUiOverlayStyle(
@@ -141,29 +158,71 @@ class _MainScaffoldState extends State<MainScaffold> {
       ),
       title: Text(
         context.tr('app_full_name'),
-        style: const TextStyle(
-          fontSize: 22,
+        style: TextStyle(
+          fontSize: titleFontSize,
           fontWeight: FontWeight.bold,
           color: AppTheme.primary,
           letterSpacing: 0.2,
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
       actions: [
+        // Notification icon — right-aligned with proper spacing
+        GestureDetector(
+          onTap: () => _onNotificationTap(context),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Image.asset(
+                  'assets/images/icons/notification-icon.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                    width: 15,
+                    height: 15,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF3B30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        _unreadCount > 9 ? '9+' : _unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // 8px gap between notification and profile
+        const SizedBox(width: 8),
+        // Profile icon — 16px from right edge
         GestureDetector(
           onTap: () => context.push('/profile'),
-          child: Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.tagBg,
-              border: Border.all(color: AppTheme.tagBorder, width: 1.5),
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              size: 22,
-              color: AppTheme.primary,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: Image.asset(
+                'assets/images/icons/profile-icon.png',
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ),
@@ -177,147 +236,157 @@ class _MainScaffoldState extends State<MainScaffold> {
       ),
     );
   }
-
   Widget _buildBottomNav(BuildContext context) {
+    // Bar height: 72px. Events icon col = 50+2+11+2+3 = 68px. Others = 44+2+11+2+3 = 62px. Safe.
+    const double barHeight = 72;
+    // Meditation icon floats above bar — icon stays 80px, circle is 86px.
+    const double medIconSize = 80;
+    const double medCircleSize = 86; // just 3px padding each side around icon
+
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.cardSurface,
-        border: Border(
-          top: BorderSide(
-            color: AppTheme.tagBorder,
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.textPrimary.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, -6),
-          ),
-        ],
-      ),
+      color: AppTheme.cream,
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 72,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          height: barHeight,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              _NavItem(
-                icon: Icons.cottage_outlined,
-                activeIcon: Icons.cottage_rounded,
-                label: context.tr('home'),
-                isActive: widget.currentIndex == 0,
-                onTap: () => context.go('/'),
-              ),
-              _NavItem(
-                icon: Icons.auto_stories_outlined,
-                activeIcon: Icons.auto_stories,
-                label: context.tr('classes'),
-                isActive: widget.currentIndex == 1,
-                onTap: () => context.go('/learnings'),
-              ),
-              // Centre notification button — sits inline like all other items
-              GestureDetector(
-                onTap: () => _onNotificationTap(context),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 68,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Active dot indicator (matches _NavItem pattern)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        width: widget.currentIndex == 2 ? 20 : 4,
-                        height: 3,
-                        margin: const EdgeInsets.only(bottom: 4),
-                        decoration: BoxDecoration(
-                          color: widget.currentIndex == 2
-                              ? AppTheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+              // ── Bar background ──────────────────────────────────────────
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardSurface,
+                    border: Border(
+                      top: BorderSide(
+                        color: AppTheme.gold.withValues(alpha: 0.40),
+                        width: 1.5,
                       ),
-                      // Bell icon with gradient circle
-                      Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 44,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(17),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primary.withValues(alpha: 0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.notifications_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                          if (_unreadCount > 0)
-                            Positioned(
-                              right: -2,
-                              top: -2,
-                              child: Container(
-                                width: 15,
-                                height: 15,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFF3B30),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    _unreadCount > 9 ? '9+' : _unreadCount.toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        context.tr('notifications'),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.primary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.textPrimary.withValues(alpha: 0.10),
+                        blurRadius: 20,
+                        offset: const Offset(0, -4),
                       ),
                     ],
                   ),
                 ),
               ),
-              _NavItem(
-                icon: Icons.self_improvement_outlined,
-                activeIcon: Icons.self_improvement,
-                label: context.tr('kalpataru'),
-                isActive: widget.currentIndex == 3,
-                onTap: () => context.go('/kalpataru'),
+              // ── 4 regular items + 1 placeholder for meditation ──────────
+              Positioned.fill(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _NavImageItem(
+                      iconPath: 'assets/images/icons/home-icon.png',
+                      label: context.tr('home'),
+                      isActive: widget.currentIndex == 0,
+                      onTap: () => context.go('/'),
+                    ),
+                    _NavImageItem(
+                      iconPath: 'assets/images/icons/classes-icon.png',
+                      label: context.tr('classes'),
+                      isActive: widget.currentIndex == 1,
+                      onTap: () => context.go('/learnings'),
+                    ),
+                    // Placeholder — same width as other items, keeps spacing
+                    SizedBox(width: MediaQuery.of(context).size.width / 5),
+                    _NavImageItem(
+                      iconPath: 'assets/images/icons/ringtone-icon.png',
+                      label: context.tr('songs'),
+                      isActive: widget.currentIndex == 3,
+                      onTap: () => context.push('/all-songs'),
+                    ),
+                    _NavImageItem(
+                      iconPath: 'assets/images/icons/events-icon.png',
+                      label: context.tr('events'),
+                      isActive: widget.currentIndex == 4,
+                      onTap: () => context.go('/events'),
+                      iconSize: 50,
+                    ),
+                  ],
+                ),
               ),
-              _NavItem(
-                icon: Icons.calendar_month_outlined,
-                activeIcon: Icons.calendar_month_rounded,
-                label: context.tr('events'),
-                isActive: widget.currentIndex == 4,
-                onTap: () => context.go('/events'),
+              // ── Meditation icon — floats above the bar centred ───────────
+              Positioned(
+                top: -(medIconSize - barHeight) / 2 - 8, // rises above bar
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () => context.push('/meditation/timer'),
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Circle behind the icon — same centre, slightly larger
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Gold-rimmed white circle
+                            Container(
+                              width: medCircleSize,
+                              height: medCircleSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppTheme.cardSurface,
+                                border: Border.all(
+                                  color: AppTheme.gold.withValues(alpha: 0.70),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primary.withValues(alpha: 0.20),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                  BoxShadow(
+                                    color: AppTheme.gold.withValues(alpha: 0.15),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Icon sits on top — size unchanged
+                            Image.asset(
+                              'assets/images/icons/meditation-icon.png',
+                              width: medIconSize,
+                              height: medIconSize,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          context.tr('meditation'),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: widget.currentIndex == 2
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: widget.currentIndex == 2
+                                ? AppTheme.primary
+                                : AppTheme.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          width: widget.currentIndex == 2 ? 16 : 0,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -328,17 +397,76 @@ class _MainScaffoldState extends State<MainScaffold> {
 
 }
 
-/// Individual bottom nav item
-class _NavItem extends StatelessWidget {
+/// Individual bottom nav item — fixed icon box + label + active dot.
+class _NavImageItem extends StatelessWidget {
+  final String iconPath;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+  final double iconSize;
+
+  const _NavImageItem({
+    required this.iconPath,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+    this.iconSize = 44,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width / 5,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: Image.asset(iconPath, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? AppTheme.primary : AppTheme.textSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 2),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: isActive ? 16 : 0,
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Nav item using a Material IconData — for items without a custom PNG.
+class _NavIconItem extends StatelessWidget {
   final IconData icon;
-  final IconData activeIcon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
 
-  const _NavItem({
+  const _NavIconItem({
     required this.icon,
-    required this.activeIcon,
     required this.label,
     required this.isActive,
     required this.onTap,
@@ -350,36 +478,17 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 68,
+        width: MediaQuery.of(context).size.width / 5,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Active dot indicator
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: isActive ? 20 : 4,
-              height: 3,
-              margin: const EdgeInsets.only(bottom: 4),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? AppTheme.primary
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Icon with warm pill background when active
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? AppTheme.primary.withValues(alpha: 0.10)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-              ),
+            SizedBox(
+              width: 44,
+              height: 44,
               child: Icon(
-                isActive ? activeIcon : icon,
-                size: 22,
+                icon,
+                size: 28,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
               ),
             ),
@@ -387,13 +496,23 @@ class _NavItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                fontSize: 9,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
-                letterSpacing: isActive ? 0.2 : 0,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 2),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: isActive ? 16 : 0,
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ],
         ),

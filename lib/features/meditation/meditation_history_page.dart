@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/widgets/login_gate.dart';
 
 class MeditationHistoryPage extends StatefulWidget {
   const MeditationHistoryPage({Key? key}) : super(key: key);
@@ -192,74 +193,10 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
   Widget build(BuildContext context) {
     // Show login prompt if not logged in
     if (!_isLoggedIn) {
-      return Scaffold(
-        backgroundColor: AppTheme.white,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Meditation History'),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.saffron.withValues(alpha: 0.2),
-                        AppTheme.saffron.withValues(alpha: 0.1),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.lock_outline,
-                    size: 60,
-                    color: AppTheme.saffron,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Login Required',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Login to view your meditation history, track your progress, and see your streaks.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textSecondary,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: () => context.push('/login'),
-                  icon: const Icon(Icons.login),
-                  label: const Text('Login Now'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.saffron,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      return LoginGate(
+        title: 'Meditation History',
+        featureHint: '🧘 Track your sessions, streaks and daily progress',
+        showBackButton: true,
       );
     }
     

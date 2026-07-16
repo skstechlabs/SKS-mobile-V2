@@ -20,7 +20,6 @@ import '../features/profile/profile_selection_screen.dart';
 import '../features/reminders/reminders_screen.dart';
 import '../features/reminders/reminder_form_screen.dart';
 import '../features/meditation/meditation_timer_page.dart';
-import '../features/meditation/meditation_history_page.dart';
 import '../features/meditation/meditation_journey_page.dart';
 import '../features/meditation/meditation_sessions_page.dart';
 import '../features/learnings/class_days_list_screen.dart';
@@ -141,19 +140,17 @@ final GoRouter appRouter = GoRouter(
     ShellRoute(
       builder: (context, state, child) {
         int currentIndex = 0;
-        switch (state.matchedLocation) {
-          case '/':
-            currentIndex = 0;
-            break;
-          case '/learnings':
-            currentIndex = 1;
-            break;
-          case '/kalpataru':
-            currentIndex = 3; // Kalpataru tab is at index 3
-            break;
-          case '/events':
-            currentIndex = 4; // Events tab is at index 4
-            break;
+        final loc = state.matchedLocation;
+        if (loc == '/' || loc.startsWith('/home')) {
+          currentIndex = 0;
+        } else if (loc.startsWith('/learnings')) {
+          currentIndex = 1;
+        } else if (loc.startsWith('/meditation')) {
+          currentIndex = 2;
+        } else if (loc.startsWith('/all-songs')) {
+          currentIndex = 3;
+        } else if (loc.startsWith('/events')) {
+          currentIndex = 4;
         }
         return MainScaffold(
           currentIndex: currentIndex,
@@ -163,26 +160,38 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: const HomePage(),
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: HomePage(),
           ),
         ),
         GoRoute(
           path: '/learnings',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: const LearningsPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: LearningsPage(),
           ),
         ),
         GoRoute(
-          path: '/kalpataru',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: const KalpataruPage(),
+          path: '/meditation/timer',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: MeditationTimerPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/all-songs',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: AllSongsPage(),
           ),
         ),
         GoRoute(
           path: '/events',
-          pageBuilder: (context, state) => NoTransitionPage(
-            child: const EventsPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: EventsPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/kalpataru',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: KalpataruPage(),
           ),
         ),
       ],
@@ -224,8 +233,8 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
-      path: '/all-songs',
-      builder: (context, state) => const AllSongsPage(),
+      path: '/kalpataru',
+      builder: (context, state) => const KalpataruPage(),
     ),
     GoRoute(
       path: '/youtube-player',
@@ -284,10 +293,6 @@ final GoRouter appRouter = GoRouter(
           },
         ),
       ],
-    ),
-    GoRoute(
-      path: '/meditation/timer',
-      builder: (context, state) => const MeditationTimerPage(),
     ),
     GoRoute(
       path: '/meditation/history',

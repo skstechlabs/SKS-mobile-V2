@@ -69,6 +69,7 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   Future<bool> _onWillPop() async {
     if (widget.currentIndex == 0) {
+      // On Home tab — double-back-press to exit
       final now = DateTime.now();
       if (_lastBackPressTime == null ||
           now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
@@ -89,6 +90,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       }
       return true;
     }
+    // On any other tab — back always goes to Home, never exits app
     if (mounted) context.go('/');
     return false;
   }
@@ -106,6 +108,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
+      // Always intercept — we fully control back behavior
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
@@ -117,12 +120,10 @@ class _MainScaffoldState extends State<MainScaffold> {
         appBar: _buildAppBar(context),
         body: Stack(
           children: [
-            // Main content — padding so it doesn't hide behind the nav bar
             Padding(
               padding: const EdgeInsets.only(bottom: 72),
               child: OfflineBanner(child: widget.child),
             ),
-            // Bottom nav pinned to bottom
             Positioned(
               left: 0,
               right: 0,
@@ -144,14 +145,23 @@ class _MainScaffoldState extends State<MainScaffold> {
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final titleFontSize = (screenWidth / 20).clamp(16.0, 22.0);
+    // Show a back-to-home button on non-home tabs
+    final bool showBackButton = widget.currentIndex != 0;
 
     return AppBar(
       backgroundColor: AppTheme.cream,
       elevation: 0,
       scrolledUnderElevation: 0,
-      titleSpacing: 16,
+      titleSpacing: showBackButton ? 0 : 16,
       centerTitle: false,
       automaticallyImplyLeading: false,
+      leading: showBackButton
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: AppTheme.primary, size: 20),
+              onPressed: () => context.go('/'),
+            )
+          : null,
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
@@ -168,60 +178,80 @@ class _MainScaffoldState extends State<MainScaffold> {
         overflow: TextOverflow.ellipsis,
       ),
       actions: [
-        // Notification icon — right-aligned with proper spacing
+        // Notification icon — small tight circle, icon clearly visible
         GestureDetector(
           onTap: () => _onNotificationTap(context),
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 52,
-                height: 52,
-                child: Image.asset(
-                  'assets/images/icons/notification-icon.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              if (_unreadCount > 0)
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: Container(
-                    width: 15,
-                    height: 15,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF3B30),
-                      shape: BoxShape.circle,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 6),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.tagBg,
+                    border: Border.all(color: AppTheme.tagBorder, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/icons/notification-icon.png',
+                      width: 38,
+                      height: 38,
+                      fit: BoxFit.contain,
                     ),
-                    child: Center(
-                      child: Text(
-                        _unreadCount > 9 ? '9+' : _unreadCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (_unreadCount > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFF3B30),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          _unreadCount > 9 ? '9+' : _unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 7,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
-        // 8px gap between notification and profile
-        const SizedBox(width: 8),
-        // Profile icon — 16px from right edge
+        const SizedBox(width: 6),
+        // Profile icon — same tight circle
         GestureDetector(
           onTap: () => context.push('/profile'),
           child: Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: SizedBox(
-              width: 52,
-              height: 52,
-              child: Image.asset(
-                'assets/images/icons/profile-icon.png',
-                fit: BoxFit.contain,
+            padding: const EdgeInsets.only(right: 16, top: 6, bottom: 6),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.tagBg,
+                border: Border.all(color: AppTheme.tagBorder, width: 1.5),
+              ),
+              child: Center(
+                child: Image.asset(
+                  'assets/images/icons/profile-icon.png',
+                  width: 38,
+                  height: 38,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
@@ -296,7 +326,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                       iconPath: 'assets/images/icons/ringtone-icon.png',
                       label: context.tr('songs'),
                       isActive: widget.currentIndex == 3,
-                      onTap: () => context.push('/all-songs'),
+                      onTap: () => context.go('/all-songs'),
                     ),
                     _NavImageItem(
                       iconPath: 'assets/images/icons/events-icon.png',
@@ -315,7 +345,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 right: 0,
                 child: Center(
                   child: GestureDetector(
-                    onTap: () => context.push('/meditation/timer'),
+                    onTap: () => context.go('/meditation/timer'),
                     behavior: HitTestBehavior.opaque,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -358,31 +388,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          context.tr('meditation'),
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: widget.currentIndex == 2
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: widget.currentIndex == 2
-                                ? AppTheme.primary
-                                : AppTheme.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          width: widget.currentIndex == 2 ? 16 : 0,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
+                        // Icon only — no label under meditation icon
                       ],
                     ),
                   ),

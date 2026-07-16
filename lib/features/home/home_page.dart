@@ -14,6 +14,7 @@ import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
 import '../../core/services/image_preloader_service.dart';
 import '../../core/widgets/cached_image.dart';
+import 'widgets/youtube_playlist_section.dart';
 import '../../core/services/sks_cache_manager.dart';
 
 import '../audio/now_playing_screen.dart';
@@ -264,6 +265,67 @@ class _HomePageState extends State<HomePage>
     }
   }
   
+  /// Sanitize a gathering image URL — replace known broken/dead R2 buckets
+  /// with a local fallback asset so the card always shows something.
+  String _sanitizeGatheringImage(String url) {
+    if (url.isEmpty) return '';
+    // The old bucket pub-355e960f52b74285b588743c0efff20b.r2.dev is dead
+    if (url.contains('pub-355e960f52b74285b588743c0efff20b.r2.dev') ||
+        url.contains('pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev')) {
+      return ''; // Return empty so the fallback icon shows
+    }
+    return url;
+  }
+
+  /// Fallback widget for gatherings whose API image URL is broken.
+  /// Tries to match the title to a known local asset; else shows icon.
+  Widget _buildGatheringFallbackImage(String title) {
+    final t = title.toLowerCase();
+    String? asset;
+    if (t.contains('sivaratri') || t.contains('shivaratri')) {
+      asset = 'assets/images/recentGatherings/MahaSivaratri_2025.jpg';
+    } else if (t.contains('anniversary') || t.contains('sks 8')) {
+      asset = 'assets/images/recentGatherings/SKS_8th_anniversary.jpg';
+    } else if (t.contains('vastra') || t.contains('daanam')) {
+      asset = 'assets/images/recentGatherings/Vastra_Daanam.jpeg';
+    } else if (t.contains('bliss') || t.contains('center')) {
+      asset = 'assets/images/recentGatherings/Bliss_Center.jpeg';
+    } else if (t.contains('guru poornima') || t.contains('janmadinam')) {
+      asset = 'assets/images/recentGatherings/GuruPoornima_2025.jpg';
+    }
+
+    if (asset != null) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Image.asset(
+          asset,
+          width: 300,
+          height: 180,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _gatheringIconFallback(),
+        ),
+      );
+    }
+    return _gatheringIconFallback();
+  }
+
+  Widget _gatheringIconFallback() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.saffron.withValues(alpha: 0.3),
+            AppTheme.gold.withValues(alpha: 0.2),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(Icons.event, color: AppTheme.saffron, size: 52),
+      ),
+    );
+  }
+
   Future<void> _loadGatherings() async {
     if (!mounted) return;
     
@@ -358,6 +420,7 @@ class _HomePageState extends State<HomePage>
           const SizedBox(height: 20),
           _buildRecentGatherings(),
           _buildUpcomingPrograms(),
+          _buildYouTubePlaylists(),
           _buildVisionMission(),
           _buildOurValues(),
           const SizedBox(height: 40),
@@ -1759,7 +1822,8 @@ class _HomePageState extends State<HomePage>
       child: GestureDetector(
         onTap: () => context.push('/settings/ringtone'),
         child: Container(
-          height: 100,
+          // No fixed height — let content determine size
+          constraints: const BoxConstraints(minHeight: 88),
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8F0),
             borderRadius: BorderRadius.circular(20),
@@ -1782,38 +1846,44 @@ class _HomePageState extends State<HomePage>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Image.asset(
                       'assets/images/icons/ringtone-icon.png',
-                      width: 96,
-                      height: 96,
+                      width: 64,
+                      height: 64,
                       fit: BoxFit.contain,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             context.tr('sivoham_ringtone'),
                             style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
+                              fontSize: 15, fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary, height: 1.3,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 3),
                           Text(
                             context.tr('set_as_ringtone'),
                             style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary,
+                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(20),
@@ -1821,8 +1891,10 @@ class _HomePageState extends State<HomePage>
                       child: Text(
                         context.tr('set_now'),
                         style: const TextStyle(
-                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -1841,7 +1913,8 @@ class _HomePageState extends State<HomePage>
       child: GestureDetector(
         onTap: () => context.push('/settings/wallpaper'),
         child: Container(
-          height: 100,
+          // No fixed height — let content determine size
+          constraints: const BoxConstraints(minHeight: 88),
           decoration: BoxDecoration(
             color: AppTheme.tagBg,
             borderRadius: BorderRadius.circular(20),
@@ -1864,37 +1937,56 @@ class _HomePageState extends State<HomePage>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Image.asset(
                       'assets/images/icons/wallpaper-icon.png',
-                      width: 96,
-                      height: 96,
+                      width: 64,
+                      height: 64,
                       fit: BoxFit.contain,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(context.tr('wisdom_wallpaper'),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
-                                  color: AppTheme.textPrimary)),
+                          Text(
+                            context.tr('wisdom_wallpaper'),
+                            style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary, height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           const SizedBox(height: 3),
-                          Text(context.tr('set_daily_wallpaper'),
-                              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                          Text(
+                            context.tr('set_daily_wallpaper'),
+                            style: const TextStyle(
+                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
                         gradient: AppTheme.goldGradient,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text(context.tr('set_now'),
-                          style: const TextStyle(color: Colors.white, fontSize: 12,
-                              fontWeight: FontWeight.w700)),
+                      child: Text(
+                        context.tr('set_now'),
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ),
@@ -1912,7 +2004,7 @@ class _HomePageState extends State<HomePage>
       child: GestureDetector(
         onTap: () => context.push('/reminders'),
         child: Container(
-          height: 100,
+          constraints: const BoxConstraints(minHeight: 88),
           decoration: BoxDecoration(
             color: AppTheme.tagBg,
             borderRadius: BorderRadius.circular(20),
@@ -1935,31 +2027,34 @@ class _HomePageState extends State<HomePage>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Image.asset(
                       'assets/images/icons/remainders-icon.png',
-                      width: 96,
-                      height: 96,
+                      width: 64,
+                      height: 64,
                       fit: BoxFit.contain,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             context.tr('daily_reminders'),
                             style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
+                              fontSize: 15, fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary, height: 1.3,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 3),
                           Text(
                             context.tr('enable_reminders_subtitle'),
                             style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary,
+                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1967,8 +2062,9 @@ class _HomePageState extends State<HomePage>
                         ],
                       ),
                     ),
+                    const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(20),
@@ -1976,8 +2072,10 @@ class _HomePageState extends State<HomePage>
                       child: Text(
                         context.tr('manage'),
                         style: const TextStyle(
-                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -1987,6 +2085,37 @@ class _HomePageState extends State<HomePage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildYouTubePlaylists() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        YouTubePlaylistSection(
+          config: const PlaylistConfig(
+            title: 'Energy and Aura',
+            subtitle: 'Pictures of Pujya Gurudev',
+            playlistId: 'PL5n5gvsTFZLyL154q7-4Bp51EnACr2Kcr',
+            accentColor: Color(0xFFE65100),
+            bgColor: Color(0xFFFFF3EE),
+            emoji: '✨',
+          ),
+        ),
+        const SizedBox(height: 28),
+        YouTubePlaylistSection(
+          config: const PlaylistConfig(
+            title: 'Journeys of Transformation',
+            subtitle: 'Stories of spiritual awakening',
+            playlistId: 'PL5n5gvsTFZLxNeqKLWpTPYfdWBU84zKzE',
+            accentColor: Color(0xFF6A1B9A),
+            bgColor: Color(0xFFFAF4FF),
+            emoji: '🌟',
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 
@@ -2932,7 +3061,8 @@ class _HomePageState extends State<HomePage>
               final title = gathering['title'] as String? ?? 'Untitled';
               final date = gathering['date'] as String? ?? '';
               final description = gathering['description'] as String? ?? '';
-              final imageUrl = gathering['imageUrl'] as String? ?? '';
+              final imageUrl = _sanitizeGatheringImage(
+                  gathering['imageUrl'] as String? ?? '');
               final videoUrl = gathering['videoUrl'] as String? ?? '';
               final participants = gathering['participants'] as String?;
               
@@ -2980,31 +3110,65 @@ class _HomePageState extends State<HomePage>
                     children: [
                       Stack(
                         children: [
-                          Container(
-                            height: 180,
-                            width: 300,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(20)),
-                              color: AppTheme.softGray,
-                            ),
-                            child: imageUrl.isNotEmpty
-                                ? CachedImage(
-                                    imageUrl: imageUrl,
-                                    width: 300,
-                                    height: 180,
-                                    fit: BoxFit.cover,
-                                    borderRadius: BorderRadius.vertical(
-                                        top: Radius.circular(20)),
-                                    showShimmer: true,
-                                  )
-                                : Center(
-                                    child: Icon(
-                                      Icons.event,
-                                      color: AppTheme.textSecondary,
-                                      size: 48,
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(20)),
+                            child: SizedBox(
+                              height: 180,
+                              width: 300,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Saffron gradient — always visible
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppTheme.saffron.withValues(alpha: 0.85),
+                                          AppTheme.gold.withValues(alpha: 0.6),
+                                        ],
+                                      ),
                                     ),
                                   ),
+                                  // Try imageUrl first, then YouTube thumbnail
+                                  if (imageUrl.isNotEmpty)
+                                    Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (_, child, prog) =>
+                                          prog == null ? child : const SizedBox.shrink(),
+                                      errorBuilder: (_, __, ___) {
+                                        // Try YouTube thumbnail as secondary fallback
+                                        final ytId = _extractYouTubeVideoId(videoUrl);
+                                        if (ytId != null) {
+                                          return Image.network(
+                                            'https://i.ytimg.com/vi/$ytId/hqdefault.jpg',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const SizedBox.shrink(),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    )
+                                  else if (videoUrl.isNotEmpty) ...[
+                                    // No imageUrl — use YouTube thumbnail directly
+                                    Builder(builder: (ctx) {
+                                      final ytId = _extractYouTubeVideoId(videoUrl);
+                                      if (ytId == null) return const SizedBox.shrink();
+                                      return Image.network(
+                                        'https://i.ytimg.com/vi/$ytId/hqdefault.jpg',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const SizedBox.shrink(),
+                                      );
+                                    }),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                           // Play button overlay
                           if (videoUrl.isNotEmpty)
@@ -3012,25 +3176,25 @@ class _HomePageState extends State<HomePage>
                               child: IgnorePointer(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.vertical(
+                                    borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(20)),
                                     gradient: LinearGradient(
                                       begin: Alignment.topCenter,
                                       end: Alignment.bottomCenter,
                                       colors: [
                                         Colors.transparent,
-                                        Colors.black.withOpacity(0.3),
+                                        Colors.black.withValues(alpha: 0.3),
                                       ],
                                     ),
                                   ),
                                   child: Center(
                                     child: Container(
-                                      padding: EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.saffron.withOpacity(0.9),
+                                        color: AppTheme.saffron.withValues(alpha: 0.9),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Icon(
+                                      child: const Icon(
                                         Icons.play_arrow,
                                         color: Colors.white,
                                         size: 32,

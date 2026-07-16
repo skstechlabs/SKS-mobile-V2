@@ -101,10 +101,8 @@ class _AllSongsPageState extends State<AllSongsPage> {
         backgroundColor: AppTheme.cream,
         elevation: 0,
         surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: null,
+        automaticallyImplyLeading: false,
         title: Column(
           children: [
             Text(

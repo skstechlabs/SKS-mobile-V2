@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
+import '../home/widgets/youtube_playlist_section.dart';
 
 // ---------------------------------------------------------------------------
 // Inline fallbacks — exact copies of en.json / te.json values.
@@ -168,6 +169,7 @@ class _KalpataruPageState extends State<KalpataruPage> {
             _buildManifestSection(context),
             _buildBenefitsGrid(context),
             _buildProofSection(context),
+            _buildKalpataruPlaylist(),
             _buildCallToAction(context),
             const SizedBox(height: 60),
           ],
@@ -807,6 +809,24 @@ class _KalpataruPageState extends State<KalpataruPage> {
           const SizedBox(height: 4),
           Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[600]), textAlign: TextAlign.center),
         ]),
+      ),
+    );
+  }
+
+  // ── Kalpataru Playlist ────────────────────────────────────────────────────
+
+  Widget _buildKalpataruPlaylist() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 28, 0, 0),
+      child: YouTubePlaylistSection(
+        config: const PlaylistConfig(
+          title: 'Healing & Manifestation Experiences',
+          subtitle: 'Real stories using Kalpataru Technique',
+          playlistId: 'PL5n5gvsTFZLwrGFrtAa3sLgq5BVOpL7K_',
+          accentColor: Color(0xFFC4622D),
+          bgColor: Color(0xFFFFF3EE),
+          emoji: '🙏',
+        ),
       ),
     );
   }

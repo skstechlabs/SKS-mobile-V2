@@ -876,7 +876,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded,
               color: AppTheme.textPrimary, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/'),
         ),
         title: const Text(
           'Meditation',

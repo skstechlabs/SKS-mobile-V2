@@ -1,7 +1,516 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../core/constants/app_env.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
 import '../home/widgets/youtube_playlist_section.dart';
+
+// ---------------------------------------------------------------------------
+// Kalpataru Experiences — fetched live from CDN.
+// Silently hidden on any network / parse failure (no error shown to user).
+// ---------------------------------------------------------------------------
+
+class _ExperienceImage {
+  final String url;
+  final String filename;
+  const _ExperienceImage({required this.url, required this.filename});
+
+  factory _ExperienceImage.fromJson(Map<String, dynamic> j) =>
+      _ExperienceImage(
+        url: j['url'] as String? ?? '',
+        filename: j['filename'] as String? ?? '',
+      );
+}
+
+class _KalpataruExperiencesSection extends StatefulWidget {
+  const _KalpataruExperiencesSection();
+
+  @override
+  State<_KalpataruExperiencesSection> createState() =>
+      _KalpataruExperiencesSectionState();
+}
+
+class _KalpataruExperiencesSectionState
+    extends State<_KalpataruExperiencesSection> {
+  // null  = still loading
+  // []    = loaded but empty (hide section)
+  // [..] = show section
+  List<_ExperienceImage>? _images;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final baseUrl = AppEnv.apiBaseUrl.isNotEmpty
+          ? AppEnv.apiBaseUrl
+          : 'https://app.sivakundalini.org';
+
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ));
+
+      final response =
+          await dio.get('$baseUrl/api/kalpataru/experiences');
+
+      final data = response.data;
+      if (data is Map && data['success'] == true) {
+        final raw = data['images'] as List? ?? [];
+        final images = raw
+            .whereType<Map<String, dynamic>>()
+            .map(_ExperienceImage.fromJson)
+            .where((e) => e.url.isNotEmpty)
+            .toList();
+
+        if (mounted) setState(() => _images = images);
+      } else {
+        // success=false → hide silently
+        if (mounted) setState(() => _images = []);
+      }
+    } catch (_) {
+      // Any failure → hide silently
+      if (mounted) setState(() => _images = []);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Loading — render nothing (no flicker)
+    if (_images == null) return const SizedBox.shrink();
+    // Empty or error — hide section
+    if (_images!.isEmpty) return const SizedBox.shrink();
+
+    return _ExperiencesGallery(images: _images!);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gallery + fullscreen lightbox
+// ---------------------------------------------------------------------------
+
+class _ExperiencesGallery extends StatefulWidget {
+  final List<_ExperienceImage> images;
+  const _ExperiencesGallery({required this.images});
+
+  @override
+  State<_ExperiencesGallery> createState() => _ExperiencesGalleryState();
+}
+
+class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
+  void _openLightbox(int startIndex) {
+    Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black87,
+      pageBuilder: (_, __, ___) => _LightboxScreen(
+        images: widget.images,
+        initialIndex: startIndex,
+      ),
+      transitionsBuilder: (_, anim, __, child) =>
+          FadeTransition(opacity: anim, child: child),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 28, 0, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Section header ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppTheme.saffron, const Color(0xFFFF9933)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.saffron.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Text('🙏', style: TextStyle(fontSize: 20)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kalpataru Experiences',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      Text(
+                        'Real transformations from our practitioners',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // image count badge
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.saffron.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppTheme.saffron.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    '${widget.images.length}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.saffron,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Horizontal scroll strip ─────────────────────────────────────
+          SizedBox(
+            height: 220,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              itemCount: widget.images.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final img = widget.images[index];
+                return GestureDetector(
+                  onTap: () => _openLightbox(index),
+                  child: Container(
+                    width: 170,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDF6EC), // warm cream background
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppTheme.saffron.withValues(alpha: 0.18),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.07),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: CachedNetworkImage(
+                        imageUrl: img.url,
+                        width: 170,
+                        height: 220,
+                        fit: BoxFit.contain, // show full image, no cropping
+                        placeholder: (_, __) => Shimmer.fromColors(
+                          baseColor: const Color(0xFFF5EDE0),
+                          highlightColor: const Color(0xFFFFF8F0),
+                          child: Container(
+                            width: 170,
+                            height: 220,
+                            color: const Color(0xFFFDF6EC),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ── Tap hint ────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(top: 10, right: 24),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.touch_app_outlined,
+                      size: 13, color: Colors.grey[400]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Tap to view full screen',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[400],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Full-screen lightbox with swipe navigation
+// ---------------------------------------------------------------------------
+
+class _LightboxScreen extends StatefulWidget {
+  final List<_ExperienceImage> images;
+  final int initialIndex;
+
+  const _LightboxScreen({
+    required this.images,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_LightboxScreen> createState() => _LightboxScreenState();
+}
+
+class _LightboxScreenState extends State<_LightboxScreen> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _prev() {
+    if (_currentIndex > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _next() {
+    if (_currentIndex < widget.images.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1208), // warm dark, not cold black
+      body: Stack(
+        children: [
+          // ── Swipeable image pages ──────────────────────────────────────
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _currentIndex = i),
+            itemBuilder: (context, index) {
+              return InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 80),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDF6EC), // warm cream bg
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 30,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: CachedNetworkImage(
+                          imageUrl: widget.images[index].url,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => const SizedBox(
+                            width: 200,
+                            height: 200,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFFFF6F00)),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: Colors.white30, size: 64),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // ── Top bar: counter + close ───────────────────────────────────
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // counter pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_currentIndex + 1} / ${widget.images.length}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  // close button
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Prev arrow ─────────────────────────────────────────────────
+          if (_currentIndex > 0)
+            Positioned(
+              left: 8,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _prev,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.chevron_left,
+                        color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Next arrow ─────────────────────────────────────────────────
+          if (_currentIndex < widget.images.length - 1)
+            Positioned(
+              right: 8,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _next,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.chevron_right,
+                        color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Dot indicators ─────────────────────────────────────────────
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.images.length, (i) {
+                  final active = i == _currentIndex;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? AppTheme.saffron
+                          : Colors.white.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Inline fallbacks — exact copies of en.json / te.json values.
@@ -169,6 +678,7 @@ class _KalpataruPageState extends State<KalpataruPage> {
             _buildManifestSection(context),
             _buildBenefitsGrid(context),
             _buildProofSection(context),
+            const _KalpataruExperiencesSection(),
             _buildKalpataruPlaylist(),
             _buildCallToAction(context),
             const SizedBox(height: 60),

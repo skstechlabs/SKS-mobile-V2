@@ -1272,9 +1272,9 @@ class _HomePageState extends State<HomePage>
                               gradient: AppTheme.primaryGradient,
                               borderRadius: BorderRadius.circular(30),
                             ),
-                            child: const Text(
-                              'Start Meditation',
-                              style: TextStyle(
+                            child: Text(
+                              context.tr('meditation_start'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,

@@ -8,7 +8,6 @@ import '../../core/widgets/cached_image.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
 import '../auth/user_model.dart';
-import '../meditation/meditation_journey_page.dart';
 import '../../core/widgets/login_gate.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -28,11 +27,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? _user;
   Map<String, dynamic> _meditationStats = {};
 
+  // ── Safe int parser — handles String, int, double from MSSQL BIGINT ────────
+  static int _parseInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
     _loadMeditationStats();
+    // Rebuild whenever the language changes
+    LocalizationService().addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocalizationService().removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadProfile() async {
@@ -61,7 +81,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final lifetime = result['lifetime'] as Map<String, dynamic>? ?? {};
         final streak   = result['streak']   as Map<String, dynamic>? ?? {};
         setState(() => _meditationStats = {
-          // Use _parseInt everywhere — MSSQL BIGINTs come back as String
           'currentStreak':        _parseInt(streak['current'] ?? result['current_streak']),
           'totalDurationSeconds': _parseInt(lifetime['total_duration_seconds']
               ?? result['summary']?['total_duration_seconds']),
@@ -79,22 +98,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         backgroundColor: AppTheme.cardSurface,
-        title: const Text('Logout',
-            style: TextStyle(
-                color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to logout?',
-            style: TextStyle(color: AppTheme.textSecondary)),
+        title: Text(
+          context.tr('logout'),
+          style: const TextStyle(
+              color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          context.tr('logout_confirmation'),
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(
+              context.tr('cancel'),
+              style: const TextStyle(color: AppTheme.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Logout',
-                style: TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.w600)),
+            child: Text(
+              context.tr('logout'),
+              style: const TextStyle(
+                  color: Colors.red, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -111,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to logout. Please try again.')),
+          SnackBar(content: Text(context.tr('logout_failed'))),
         );
         setState(() => _isLoading = false);
       }
@@ -120,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Not logged in — return the shared gate directly (it has its own Scaffold + AppBar)
+    // Not logged in — return the shared gate directly
     if (!_isLoading && _user == null) {
       return LoginGate(
         title: context.tr('profile'),
@@ -140,9 +167,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: AppTheme.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(
+        title: Text(
+          context.tr('profile'),
+          style: const TextStyle(
             color: AppTheme.primary,
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -155,15 +182,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: CircularProgressIndicator(color: AppTheme.primary))
           : _buildContent(),
     );
-  }
-
-  // ── Safe int parser — handles String, int, double from MSSQL BIGINT ────────
-  static int _parseInt(dynamic v) {
-    if (v == null) return 0;
-    if (v is int) return v;
-    if (v is double) return v.toInt();
-    if (v is String) return int.tryParse(v) ?? 0;
-    return 0;
   }
 
   // ── Main profile content ──────────────────────────────────────────────────
@@ -214,8 +232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   bottom: 2,
                   right: 2,
                   child: GestureDetector(
-                    onTap: () =>
-                        context.push('/edit-profile'),
+                    onTap: () => context.push('/edit-profile'),
                     child: Container(
                       width: 32,
                       height: 32,
@@ -249,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(
             context.tr('seeker_of_truth'),
-            style: TextStyle(
+            style: const TextStyle(
                 fontSize: 14, color: AppTheme.textSecondary),
           ),
 
@@ -264,8 +281,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: _StatCard(
                     icon: '🔥',
                     iconBg: const Color(0xFFFFF3E0),
-                    label: 'Sadhana Streak',
-                    value: '$streakDays Days',
+                    label: context.tr('sadhana_streak'),
+                    value: '$streakDays ${context.tr('days')}',
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -273,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: _StatCard(
                     icon: '⏱',
                     iconBg: const Color(0xFFE0F2F1),
-                    label: 'Meditation Time',
+                    label: context.tr('meditation_time'),
                     value: '${hours}h ${mins}m',
                     valueColor: const Color(0xFF00897B),
                   ),
@@ -300,19 +317,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _MenuItem(
               icon: Icons.edit_outlined,
               label: context.tr('edit_profile'),
-              subtitle: 'Update your information',
+              subtitle: context.tr('update_your_information'),
               onTap: () => context.push('/edit-profile'),
             ),
             _MenuItem(
               icon: Icons.language_outlined,
-              label: 'Change Language',
-              subtitle: 'App language preferences',
+              label: context.tr('change_language'),
+              subtitle: context.tr('app_language_preferences'),
               onTap: () => context.push('/settings/language'),
             ),
             _MenuItem(
               icon: Icons.help_outline_rounded,
-              label: 'Help & Support',
-              subtitle: 'Contact Guruji team',
+              label: context.tr('help_support'),
+              subtitle: context.tr('contact_guruji_team'),
               onTap: () => context.push('/guruji-connect'),
             ),
           ]),
@@ -334,15 +351,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Colors.red.withValues(alpha: 0.2)),
                   boxShadow: [AppTheme.softShadow],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.logout_rounded,
+                    const Icon(Icons.logout_rounded,
                         color: Colors.red, size: 20),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      'Logout',
-                      style: TextStyle(
+                      context.tr('logout'),
+                      style: const TextStyle(
                         color: Colors.red,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -493,8 +510,7 @@ class _StatCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color:
-                        valueColor ?? AppTheme.textPrimary,
+                    color: valueColor ?? AppTheme.textPrimary,
                   ),
                 ),
               ],
@@ -512,9 +528,10 @@ class _MenuItem {
   final String label;
   final String? subtitle;
   final VoidCallback onTap;
-  const _MenuItem(
-      {required this.icon,
-      required this.label,
-      this.subtitle,
-      required this.onTap});
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.onTap,
+  });
 }

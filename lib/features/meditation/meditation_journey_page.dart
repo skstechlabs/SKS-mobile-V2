@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/localization_service.dart';
 import '../../core/widgets/login_gate.dart';
 
 /// Meditation Journey page — replaces the old history page.
@@ -47,14 +48,14 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
   List<dynamic> get _monthly => (_stats?['monthly'] as List?) ?? [];
   List<dynamic> get _yearly  => (_stats?['yearly']  as List?) ?? [];
 
-  String get _motivationalMsg {
-    if (_currentStreak >= 30) return '🌟 Incredible! 30+ days of dedication!';
-    if (_currentStreak >= 21) return '🎯 21 days — you\'ve built a solid habit!';
-    if (_currentStreak >= 14) return '💪 Two weeks strong! Keep going!';
-    if (_currentStreak >= 7)  return '🔥 One week streak — you\'re on fire!';
-    if (_currentStreak >= 3)  return '✨ Great start! Keep building your practice!';
-    if (_totalSessions > 0)   return '🌱 Every session counts. Keep growing!';
-    return '🧘 Begin your journey to inner peace today!';
+  String _motivationalMsg(BuildContext context) {
+    if (_currentStreak >= 30) return context.tr('motivational_30');
+    if (_currentStreak >= 21) return context.tr('motivational_21');
+    if (_currentStreak >= 14) return context.tr('motivational_14');
+    if (_currentStreak >= 7)  return context.tr('motivational_7');
+    if (_currentStreak >= 3)  return context.tr('motivational_3');
+    if (_totalSessions > 0)   return context.tr('motivational_any');
+    return context.tr('motivational_begin');
   }
 
   @override
@@ -62,12 +63,19 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _tabs.addListener(() { if (_tabs.indexIsChanging && _tabs.index == 1) _loadLeaderboard(); });
+    LocalizationService().addListener(_onLocaleChanged);
     if (_isLoggedIn) _loadAll();
     else setState(() { _loadingStats = false; _loadingSessions = false; _loadingLB = false; });
   }
 
   @override
-  void dispose() { _tabs.dispose(); super.dispose(); }
+  void dispose() {
+    _tabs.dispose();
+    LocalizationService().removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() { if (mounted) setState(() {}); }
 
   Future<void> _loadAll() => Future.wait([_loadStats(), _loadSessions(), _loadLeaderboard()]);
 
@@ -159,14 +167,14 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           icon: const Icon(Icons.arrow_back_ios_rounded, color: AppTheme.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Meditation Journey',
-            style: TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Text(context.tr('meditation_journey'),
+            style: const TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.self_improvement, color: AppTheme.primary, size: 22),
             onPressed: () => context.push('/meditation/timer'),
-            tooltip: 'Meditate Now',
+            tooltip: context.tr('meditate_now'),
           ),
         ],
         bottom: TabBar(
@@ -174,10 +182,10 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           labelColor: AppTheme.primary,
           unselectedLabelColor: AppTheme.textSecondary,
           indicatorColor: AppTheme.primary,
-          tabs: const [
-            Tab(icon: Icon(Icons.timeline), text: 'Journey'),
-            Tab(icon: Icon(Icons.leaderboard), text: 'Leaderboard'),
-            Tab(icon: Icon(Icons.emoji_events), text: 'Stats'),
+          tabs: [
+            Tab(icon: const Icon(Icons.timeline),      text: context.tr('journey_tab')),
+            Tab(icon: const Icon(Icons.leaderboard),   text: context.tr('leaderboard_tab')),
+            Tab(icon: const Icon(Icons.emoji_events),  text: context.tr('stats_tab')),
           ],
         ),
       ),
@@ -196,7 +204,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         onPressed: () => context.push('/meditation/timer'),
         backgroundColor: AppTheme.saffron,
         icon: const Icon(Icons.self_improvement),
-        label: const Text('Meditate Now'),
+        label: Text(context.tr('meditate_now')),
       ),
     );
   }
@@ -244,7 +252,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           child: const Icon(Icons.emoji_events, color: Colors.white, size: 28),
         ),
         const SizedBox(width: 14),
-        Expanded(child: Text(_motivationalMsg,
+        Expanded(child: Text(_motivationalMsg(context),
             style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600, height: 1.4))),
       ]),
     );
@@ -254,11 +262,11 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
-        Expanded(child: _streakCard('Current Streak', _currentStreak, Icons.local_fire_department, Colors.orange)),
+        Expanded(child: _streakCard(context.tr('current_streak'), _currentStreak, Icons.local_fire_department, Colors.orange)),
         const SizedBox(width: 12),
-        Expanded(child: _streakCard('Longest Streak', _longestStreak, Icons.emoji_events, Colors.amber)),
+        Expanded(child: _streakCard(context.tr('longest_streak'), _longestStreak, Icons.emoji_events, Colors.amber)),
         const SizedBox(width: 12),
-        Expanded(child: _streakCard('Days Meditated', _totalDays, Icons.calendar_today, Colors.green)),
+        Expanded(child: _streakCard(context.tr('days_meditated'), _totalDays, Icons.calendar_today, Colors.green)),
       ]),
     );
   }
@@ -286,9 +294,9 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(children: [
         Row(children: [
-          Expanded(child: _statCard('Total Time',  _fmtDur(_totalSeconds),   Icons.timer_outlined,      AppTheme.saffron)),
+          Expanded(child: _statCard(context.tr('total_time'),  _fmtDur(_totalSeconds),   Icons.timer_outlined,      AppTheme.saffron)),
           const SizedBox(width: 12),
-          Expanded(child: _statCard('Sessions',    '$_totalSessions',         Icons.self_improvement,    Colors.purple)),
+          Expanded(child: _statCard(context.tr('sessions'),    '$_totalSessions',         Icons.self_improvement,    Colors.purple)),
         ]),
       ]),
     );
@@ -345,7 +353,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
     final maxY = dm.values.isEmpty ? 10.0 : (dm.values.reduce((a,b)=>a>b?a:b)*1.25).ceilToDouble().clamp(10.0, double.infinity);
 
     return _chartCard(
-      title: 'Last 7 Days (minutes)',
+      title: context.tr('last_7_days'),
       child: SizedBox(
         height: 180,
         child: BarChart(BarChartData(
@@ -399,7 +407,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         .fold(0.0, (a, b) => a > b ? a : b);
 
     return _chartCard(
-      title: 'Monthly Hours',
+      title: context.tr('monthly_hours'),
       child: SizedBox(
         height: 160,
         child: BarChart(BarChartData(

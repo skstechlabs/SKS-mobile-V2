@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -172,204 +173,231 @@ class _EventsPageState extends State<EventsPage> {
   }
 
   Widget _buildEventCard(Map<String, dynamic> event) {
-    final eventId = event['id'] as int;
-    final title = event['title'] as String;
-    final description = event['description'] as String?;
-    final eventDate = event['eventDate'] as String?;
-    final eventTime = event['eventTime'] as String?;
-    final location = event['location'] as String?;
-    final isRegistered = event['isRegistered'] as bool? ?? false;
+    final eventId        = event['id'] as int;
+    final title          = event['title'] as String;
+    final description    = event['description'] as String?;
+    final eventDate      = event['eventDate'] as String?;
+    final eventTime      = event['eventTime'] as String?;
+    final location       = event['location'] as String?;
+    final imageUrl       = event['imageUrl'] as String?;
+    final registrationLink = event['registrationLink'] as String?;
+    final isRegistered   = event['isRegistered'] as bool? ?? false;
 
-    // Parse date for the "DD / Mon" badge from the design
-    String? dayStr, monthStr;
-    if (eventDate != null) {
+    // Format date to "22 Jul 2026"
+    String displayDate = '';
+    if (eventDate != null && eventDate.isNotEmpty) {
       try {
-        final parts = eventDate.split(' ');
-        if (parts.length >= 2) {
-          dayStr = parts[0].replaceAll(',', '');
-          monthStr = parts[1].substring(0, 3);
-        }
-      } catch (_) {}
+        final dt = DateTime.parse(eventDate).toLocal();
+        const months = [
+          'Jan','Feb','Mar','Apr','May','Jun',
+          'Jul','Aug','Sep','Oct','Nov','Dec'
+        ];
+        displayDate = '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+      } catch (_) {
+        displayDate = eventDate;
+      }
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: AppTheme.cardSurface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [AppTheme.cardShadow],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Date badge (design: number + month stacked) ──────────────
-          if (dayStr != null)
-            Container(
-              width: 58,
-              margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.tagBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.tagBorder),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    dayStr,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primary,
-                      height: 1,
-                    ),
+          // ── Top image ────────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: SizedBox(
+              width: double.infinity,
+              height: 180,
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      width: double.infinity,
+                      height: 180,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _eventImagePlaceholder(),
+                    )
+                  : _eventImagePlaceholder(),
+            ),
+          ),
+
+          // ── Details ───────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                    height: 1.3,
                   ),
-                  const SizedBox(height: 2),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+                // Description
+                if (description != null && description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
                   Text(
-                    monthStr ?? '',
+                    description,
                     style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                        height: 1.5),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
-            )
-          else
-            Container(
-              width: 58,
-              height: 70,
-              margin: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.event, color: Colors.white, size: 28),
-            ),
 
-          // ── Content ──────────────────────────────────────────────────
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 14, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                      height: 1.3,
-                    ),
-                  ),
-                  if (description != null && description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                const SizedBox(height: 10),
+
+                // Date + time + location row
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  children: [
+                    if (displayDate.isNotEmpty)
+                      _metaChip(Icons.calendar_today_rounded,
+                          displayDate, AppTheme.primary),
+                    if (eventTime != null && eventTime.isNotEmpty)
+                      _metaChip(Icons.access_time_rounded,
+                          eventTime, AppTheme.textSecondary),
+                    if (location != null && location.isNotEmpty)
+                      _metaChip(Icons.location_on_rounded,
+                          location, AppTheme.textSecondary),
                   ],
-                  const SizedBox(height: 8),
-                  if (eventTime != null)
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time_rounded,
-                            size: 13, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          eventTime,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary),
-                        ),
-                        if (location != null && location.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.location_on_outlined,
-                              size: 13, color: AppTheme.textSecondary),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(
-                              location,
-                              style: const TextStyle(
-                                  fontSize: 12, color: AppTheme.textSecondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Register button
+                SizedBox(
+                  width: double.infinity,
+                  child: isRegistered
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.shade200),
                           ),
-                        ],
-                      ],
-                    ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: isRegistered
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  size: 16, color: Colors.green.shade600),
+                              const SizedBox(width: 6),
+                              Text(
+                                context.tr('already_registered'),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : GestureDetector(
+                          onTap: () {
+                            if (registrationLink != null &&
+                                registrationLink.isNotEmpty) {
+                              // External link — open in browser
+                              _launchUrl(registrationLink);
+                            } else {
+                              // In-app backend registration
+                              _registerForEvent(eventId);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: Colors.green.shade200),
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primary
+                                      .withValues(alpha: 0.28),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.check_circle,
-                                    size: 14,
-                                    color: Colors.green.shade600),
-                                const SizedBox(width: 4),
+                                const Icon(Icons.how_to_reg_rounded,
+                                    color: Colors.white, size: 17),
+                                const SizedBox(width: 6),
                                 Text(
-                                  context.tr('already_registered'),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.green.shade700,
+                                  context.tr('register_now'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
                               ],
                             ),
-                          )
-                        : GestureDetector(
-                            onTap: () => _registerForEvent(eventId),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 7),
-                              decoration: BoxDecoration(
-                                gradient: AppTheme.primaryGradient,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary
-                                        .withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                context.tr('register_now'),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
                           ),
-                  ),
-                ],
-              ),
+                        ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _eventImagePlaceholder() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.primary, AppTheme.lightSaffron],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.event_rounded, size: 60, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (!await canLaunchUrl(uri)) return;
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
   }
 }

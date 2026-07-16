@@ -184,7 +184,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           indicatorColor: AppTheme.primary,
           tabs: [
             Tab(icon: const Icon(Icons.timeline),      text: context.tr('journey_tab')),
-            Tab(icon: const Icon(Icons.leaderboard),   text: context.tr('leaderboard_tab')),
+            Tab(icon: const Icon(Icons.workspace_premium), text: context.tr('leaderboard_tab')),
             Tab(icon: const Icon(Icons.emoji_events),  text: context.tr('stats_tab')),
           ],
         ),
@@ -463,10 +463,9 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         child: Row(
           children: [
-            const Text('Recent Sessions',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(context.tr('recent_sessions'),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const Spacer(),
-            // "View All" button → dedicated sessions page with filters + pagination
             GestureDetector(
               onTap: () => context.push('/meditation/sessions'),
               child: Container(
@@ -475,11 +474,11 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
                   color: AppTheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: const [
-                  Text('View All',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primary)),
-                  SizedBox(width: 2),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 11, color: AppTheme.primary),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(context.tr('view_all'),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primary)),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 11, color: AppTheme.primary),
                 ]),
               ),
             ),
@@ -494,7 +493,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           child: Center(child: Column(children: [
             Icon(Icons.self_improvement, size: 56, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
             const SizedBox(height: 12),
-            const Text('No sessions yet', style: TextStyle(color: AppTheme.textSecondary)),
+            Text(context.tr('no_sessions_yet'), style: const TextStyle(color: AppTheme.textSecondary)),
           ])),
         )
       else
@@ -560,11 +559,11 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            _lbChip('All Time',       'total_duration'),
-            _lbChip('Sessions',       'total_sessions'),
-            _lbChip('Most Days',      'total_days'),
-            _lbChip('This Week',      'weekly'),
-            _lbChip('This Month',     'monthly'),
+            _lbChip(context.tr('leaderboard_all_time'),   'total_duration'),
+            _lbChip(context.tr('leaderboard_sessions'),   'total_sessions'),
+            _lbChip(context.tr('leaderboard_most_days'),  'total_days'),
+            _lbChip(context.tr('leaderboard_this_week'),  'weekly'),
+            _lbChip(context.tr('leaderboard_this_month'), 'monthly'),
           ]),
         ),
       ),
@@ -572,7 +571,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
       Expanded(child: _loadingLB
           ? const Center(child: CircularProgressIndicator())
           : _leaderboard.isEmpty
-              ? _emptyState('No data yet for this category')
+              ? _emptyState(context.tr('no_leaderboard_data'))
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                   itemCount: _leaderboard.length,
@@ -603,7 +602,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
 
   Widget _lbCard(Map<String, dynamic> entry, int index) {
     final rank     = _parseI(entry['rank'] ?? (index + 1));
-    final name     = entry['user_name'] as String? ?? 'Anonymous';
+    final name     = entry['user_name'] as String? ?? context.tr('anonymous');
     final photo    = entry['user_photo'] as String?;
     final secs     = _parseI(entry['total_duration_seconds']);
     final sessions = _parseI(entry['total_sessions']);
@@ -644,7 +643,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
           Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
               maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
-          Text('$sessions sessions • $days days', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          Text('$sessions ${context.tr('sessions_label')} • $days ${context.tr('days_label')}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
         ])),
         // Duration badge
         Container(
@@ -663,25 +662,24 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
   // ═══════════════ STATS TAB ════════════════════════════════════════════════
   Widget _buildStatsTab() {
     if (_loadingStats) return const Center(child: CircularProgressIndicator());
-    if (_stats == null) return _emptyState('No stats available yet');
+    if (_stats == null) return _emptyState(context.tr('no_sessions_yet'));
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Lifetime totals ──────────────────────────────────────────────────
-        _sectionTitle('Lifetime'),
+        _sectionTitle(context.tr('lifetime')),
         _lifetimeGrid(),
         const SizedBox(height: 20),
         // ── Yearly breakdown ─────────────────────────────────────────────────
         if (_yearly.isNotEmpty) ...[
-          _sectionTitle('Yearly Breakdown'),
+          _sectionTitle(context.tr('yearly_breakdown')),
           ..._yearly.map((y) => _yearCard(y)),
           const SizedBox(height: 20),
         ],
         // ── Monthly breakdown ────────────────────────────────────────────────
         if (_monthly.isNotEmpty) ...[
-          _sectionTitle('Monthly Breakdown (recent)'),
+          _sectionTitle(context.tr('monthly_breakdown')),
           ..._monthly.take(6).map((m) => _monthCard(m)),
           const SizedBox(height: 20),
         ],
@@ -704,12 +702,12 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
       children: [
-        _miniStat('Total Time',    _fmtDur(_totalSeconds),     Icons.timer_outlined,      AppTheme.saffron),
-        _miniStat('Sessions',      '$_totalSessions',           Icons.self_improvement,    Colors.purple),
-        _miniStat('Days',          '$_totalDays',               Icons.calendar_today,      Colors.green),
-        _miniStat('Current Streak','$_currentStreak days',      Icons.local_fire_department,Colors.orange),
-        _miniStat('Best Streak',   '$_longestStreak days',      Icons.emoji_events,        Colors.amber),
-        _miniStat('First Session', _fmtDate(lt?['first_meditation_date']), Icons.flag, Colors.blue),
+        _miniStat(context.tr('total_time'),    _fmtDur(_totalSeconds),               Icons.timer_outlined,       AppTheme.saffron),
+        _miniStat(context.tr('sessions'),      '$_totalSessions',                     Icons.self_improvement,     Colors.purple),
+        _miniStat(context.tr('days_meditated'),'$_totalDays',                         Icons.calendar_today,       Colors.green),
+        _miniStat(context.tr('current_streak'),'$_currentStreak ${context.tr('days_label')}', Icons.local_fire_department, Colors.orange),
+        _miniStat(context.tr('best_streak'),   '$_longestStreak ${context.tr('days_label')}', Icons.emoji_events, Colors.amber),
+        _miniStat(context.tr('first_session'), _fmtDate(lt?['first_meditation_date']), Icons.flag,                Colors.blue),
       ],
     );
   }
@@ -747,14 +745,17 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         const SizedBox(width: 16),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_fmtDur(secs), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          Text('$sess sessions', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          Text('$sess ${context.tr('sessions_label')}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
         ])),
       ]),
     );
   }
 
   Widget _monthCard(Map<String, dynamic> m) {
-    final monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final bool isTe = LocalizationService().currentLocale.languageCode == 'te';
+    final monthNamesEn = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final monthNamesTe = ['','జన','ఫిబ్ర','మార్చి','ఏప్రి','మే','జూన్','జూలై','ఆగ','సెప్ట','అక్టో','నవం','డిసెం'];
+    final monthNames = isTe ? monthNamesTe : monthNamesEn;
     final mon  = _parseI(m['month']);
     final year = _parseI(m['year']);
     final secs = _parseI(m['total_duration_seconds']);
@@ -769,7 +770,7 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_fmtDur(secs), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          Text('$sess sessions', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          Text('$sess ${context.tr('sessions_label')}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
         ])),
       ]),
     );
@@ -791,8 +792,8 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
 
   // ── Login gate ────────────────────────────────────────────────────────────
   Widget _buildLoginGate() => LoginGate(
-    title: 'Meditation Journey',
-    featureHint: '🧘 Track streaks, stats and compete on the leaderboard',
+    title: context.tr('meditation_journey'),
+    featureHint: context.tr('journey_login_hint'),
     showBackButton: true,
   );
 }

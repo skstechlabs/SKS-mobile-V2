@@ -251,22 +251,6 @@ class _KundaliniSciencePageState extends State<KundaliniSciencePage>
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Sanskrit label
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6A1B9A).withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.4)),
-                  ),
-                  child: const Text(
-                    'कुण्डलिनी शक्ति',
-                    style: TextStyle(
-                      color: Color(0xFFCE93D8), fontSize: 16,
-                      fontWeight: FontWeight.bold, letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

@@ -214,15 +214,36 @@ class _EventsPageState extends State<EventsPage> {
             child: SizedBox(
               width: double.infinity,
               height: 180,
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Saffron gradient — always visible even if image fails
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppTheme.primary, AppTheme.lightSaffron],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.event_rounded, size: 52,
+                          color: Colors.white54),
+                    ),
+                  ),
+                  // Network image on top — loads silently, shows when available
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    Image.network(
                       imageUrl,
                       width: double.infinity,
                       height: 180,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _eventImagePlaceholder(),
-                    )
-                  : _eventImagePlaceholder(),
+                      loadingBuilder: (_, child, progress) =>
+                          progress == null ? child : const SizedBox.shrink(),
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                ],
+              ),
             ),
           ),
 
@@ -357,21 +378,6 @@ class _EventsPageState extends State<EventsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _eventImagePlaceholder() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.primary, AppTheme.lightSaffron],
-        ),
-      ),
-      child: const Center(
-        child: Icon(Icons.event_rounded, size: 60, color: Colors.white),
       ),
     );
   }

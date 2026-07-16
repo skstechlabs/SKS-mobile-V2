@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/widgets/cached_image.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_state.dart';
@@ -130,6 +131,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // Stop all playing audio immediately on logout
+      await EnhancedAudioPlayerService().stop();
       await _apiService.logout();
       await _oneSignal.removeExternalUserId();
       await _authService.signOut();

@@ -38,7 +38,7 @@ class AssetCacheService {
 
     // ── Core images used on multiple screens ─────────────────────────────────
     'assets/images/Guruji_logo.JPG',         // splash, login, loader, audio
-    'assets/images/guruji_meditation.PNG',   // meditation timer
+    'assets/images/Guruji_Meditation.PNG',   // meditation timer
     'assets/images/Guruji-quotes.png',       // home daily quote card
 
     // ── Background / decorative ───────────────────────────────────────────────

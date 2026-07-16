@@ -121,7 +121,6 @@ flutter:
     # All other images loaded from Cloudflare R2 dynamically
     - assets/images/Guruji_logo.JPG
     - assets/images/Guruji_Meditation.PNG
-    - assets/images/guruji_meditation.PNG
     - assets/images/guruji-kalpatharu.png
     - assets/images/meditation-icon.jpeg
     - assets/images/Guruji-quotes.png

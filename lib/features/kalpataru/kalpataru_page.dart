@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/constants/app_env.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
 import '../home/widgets/youtube_playlist_section.dart';
+import 'kalpataru_experiences_widget.dart';
 
 // ---------------------------------------------------------------------------
 // Kalpataru Experiences — fetched live from CDN.
@@ -678,7 +680,7 @@ class _KalpataruPageState extends State<KalpataruPage> {
             _buildManifestSection(context),
             _buildBenefitsGrid(context),
             _buildProofSection(context),
-            const _KalpataruExperiencesSection(),
+            const KalpataruExperiencesWidget(),
             _buildKalpataruPlaylist(),
             _buildCallToAction(context),
             const SizedBox(height: 60),
@@ -716,6 +718,24 @@ class _KalpataruPageState extends State<KalpataruPage> {
                     Colors.white.withValues(alpha: 0.35),
                   ],
                   stops: const [0.0, 0.72, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Back button — top-left, same style as Kundalini/Chakra pages
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 8,
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                  onPressed: () => context.go('/'),
                 ),
               ),
             ),

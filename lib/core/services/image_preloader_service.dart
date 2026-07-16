@@ -1,7 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../constants/cdn_images.dart';
 import '../services/sks_cache_manager.dart';
+import '../services/api_service.dart';
+import '../services/localization_service.dart';
 import 'dart:developer' as developer;
 
 /// Service to preload critical images for better performance
@@ -125,5 +130,56 @@ class ImagePreloaderService {
   /// Clear preload status (for testing)
   void reset() {
     _isPreloaded = false;
+  }
+
+  /// Preload meditation sounds in the background so they're ready when the
+  /// user navigates to the Meditation page (zero wait time on play).
+  /// Call this once after app boot — it caches files to disk and pre-buffers
+  /// the audio players so `play()` is instant.
+  static Future<void> preloadMeditationSounds() async {
+    try {
+      final languageCode = LocalizationService().currentLocale.languageCode;
+      final languageMap = {
+        'en': 'english', 'hi': 'hindi', 'te': 'telugu', 'kn': 'kannada',
+      };
+      final lang = languageMap[languageCode] ?? 'english';
+
+      final response = await ApiService().get(
+        '/api/audios',
+        queryParameters: {'category': 'meditation_sound', 'language': lang},
+      );
+
+      if (response['success'] != true) return;
+      final audios = response['audios'] as List? ?? [];
+
+      final directory = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${directory.path}/meditation_sounds');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+
+      for (final audio in audios) {
+        final url = audio['audio_url'] as String?;
+        final title = (audio['title'] as String? ?? '').toLowerCase();
+        if (url == null) continue;
+        final filename = title.contains('start')
+            ? 'meditation_start_$lang.mp3'
+            : title.contains('end')
+                ? 'meditation_end_$lang.mp3'
+                : null;
+        if (filename == null) continue;
+
+        final file = File('${cacheDir.path}/$filename');
+        if (!await file.exists()) {
+          final res = await http.get(Uri.parse(url));
+          if (res.statusCode == 200) {
+            await file.writeAsBytes(res.bodyBytes);
+            debugPrint('✅ Pre-cached meditation sound: $filename');
+          }
+        } else {
+          debugPrint('✅ Meditation sound already cached: $filename');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Background meditation sound preload failed: $e');
+    }
   }
 }

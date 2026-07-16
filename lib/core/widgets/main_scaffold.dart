@@ -267,11 +267,12 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
   Widget _buildBottomNav(BuildContext context) {
-    // Bar height: 72px. Events icon col = 50+2+11+2+3 = 68px. Others = 44+2+11+2+3 = 62px. Safe.
     const double barHeight = 72;
-    // Meditation icon floats above bar — icon stays 80px, circle is 86px.
-    const double medIconSize = 80;
-    const double medCircleSize = 86; // just 3px padding each side around icon
+    // Responsive icon size — scales with screen width, clamped between 90–120px
+    final double medIconSize =
+        (MediaQuery.of(context).size.width * 0.26).clamp(90.0, 120.0);
+    // How far the icon rises above the bar top
+    final double riseAbove = (medIconSize - barHeight) / 2 + 4;
 
     return Container(
       color: AppTheme.cream,
@@ -320,7 +321,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                       isActive: widget.currentIndex == 1,
                       onTap: () => context.go('/learnings'),
                     ),
-                    // Placeholder — same width as other items, keeps spacing
+                    // Centre placeholder — same width keeps spacing symmetric
                     SizedBox(width: MediaQuery.of(context).size.width / 5),
                     _NavImageItem(
                       iconPath: 'assets/images/icons/ringtone-icon.png',
@@ -338,58 +339,20 @@ class _MainScaffoldState extends State<MainScaffold> {
                   ],
                 ),
               ),
-              // ── Meditation icon — floats above the bar centred ───────────
+              // ── Meditation icon — rises above bar, no circle ─────────────
               Positioned(
-                top: -(medIconSize - barHeight) / 2 - 8, // rises above bar
+                top: -riseAbove,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: GestureDetector(
                     onTap: () => context.go('/meditation/timer'),
                     behavior: HitTestBehavior.opaque,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Circle behind the icon — same centre, slightly larger
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Gold-rimmed white circle
-                            Container(
-                              width: medCircleSize,
-                              height: medCircleSize,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppTheme.cardSurface,
-                                border: Border.all(
-                                  color: AppTheme.gold.withValues(alpha: 0.70),
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary.withValues(alpha: 0.20),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                  BoxShadow(
-                                    color: AppTheme.gold.withValues(alpha: 0.15),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Icon sits on top — size unchanged
-                            Image.asset(
-                              'assets/images/icons/meditation-icon.png',
-                              width: medIconSize,
-                              height: medIconSize,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                        // Icon only — no label under meditation icon
-                      ],
+                    child: Image.asset(
+                      'assets/images/icons/meditation-icon.png',
+                      width: medIconSize,
+                      height: medIconSize,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),

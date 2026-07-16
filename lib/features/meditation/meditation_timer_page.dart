@@ -64,8 +64,9 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
 
-    // Download, cache, AND pre-buffer both sounds on page open
-    _downloadAndCacheSounds();
+    // Sounds are pre-cached on app start by ImagePreloaderService.
+    // Just load from disk (instant) — no network wait.
+    _loadSoundsFromCache();
   }
 
   @override
@@ -77,8 +78,62 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     super.dispose();
   }
 
-  /// Fetch URLs from API, download to disk, then pre-buffer into the players
-  /// so playback starts instantly with zero latency.
+  /// Load pre-cached sounds from disk instantly (no network).
+  /// Falls back to downloading if cache miss (e.g. first run before home loaded).
+  Future<void> _loadSoundsFromCache() async {
+    try {
+      final languageCode = LocalizationService().currentLocale.languageCode;
+      final lang = const {'en': 'english', 'hi': 'hindi', 'te': 'telugu', 'kn': 'kannada'}[languageCode] ?? 'english';
+      final directory = await getApplicationDocumentsDirectory();
+      final cacheDir = '${directory.path}/meditation_sounds';
+
+      final startFile = File('$cacheDir/meditation_start_$lang.mp3');
+      final endFile   = File('$cacheDir/meditation_end_$lang.mp3');
+
+      // Load in parallel — file reads are instant
+      await Future.wait([
+        _loadFileIntoPlayer(startFile, _startPlayer, 'start', () {
+          if (mounted) setState(() => _startSoundState = 'ready');
+        }, () {
+          if (mounted) setState(() => _startSoundState = 'error');
+        }),
+        _loadFileIntoPlayer(endFile, _endPlayer, 'end', () {
+          if (mounted) setState(() => _endSoundState = 'ready');
+        }, () {
+          if (mounted) setState(() => _endSoundState = 'error');
+        }),
+      ]);
+    } catch (e) {
+      debugPrint('⚠️ _loadSoundsFromCache error: $e');
+      // Fall back to full download
+      _downloadAndCacheSounds();
+    }
+  }
+
+  Future<void> _loadFileIntoPlayer(
+    File file,
+    AudioPlayer player,
+    String label,
+    VoidCallback onReady,
+    VoidCallback onError,
+  ) async {
+    try {
+      if (await file.exists()) {
+        await player.setFilePath(file.path);
+        debugPrint('✅ Loaded $label sound from cache instantly');
+        onReady();
+      } else {
+        // Cache miss — trigger download in background
+        debugPrint('⚠️ $label sound not cached yet — downloading');
+        _downloadAndCacheSounds();
+      }
+    } catch (e) {
+      debugPrint('⚠️ $label sound load error: $e');
+      onError();
+    }
+  }
+
+  /// Full download+cache (fallback when cache is empty on first run).
   Future<void> _downloadAndCacheSounds() async {
     try {
       final languageCode = LocalizationService().currentLocale.languageCode;
@@ -486,9 +541,10 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         context.push('/login');
       }
       
-      // Reset timer
+      // Reset timer — also clear target so next session starts fresh
       setState(() {
         _seconds = 0;
+        _targetSeconds = 0;
         _startTime = null;
         _hasStarted = false;
       });
@@ -520,9 +576,10 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       await _saveMeditationSession(startTime, endTime, actualDuration);
     }
     
-    // Reset timer
+    // Reset timer — also clear target so next session starts fresh
     setState(() {
       _seconds = 0;
+      _targetSeconds = 0;
       _startTime = null;
       _hasStarted = false;
     });
@@ -864,40 +921,19 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   @override
   Widget build(BuildContext context) {
     final isSmall = MediaQuery.of(context).size.height < 700;
-    // Show timer screen when a session is running or started
-    final showTimer = _hasStarted || _isRunning || _seconds > 0;
+    // Show timer screen when a session is running, started, or a duration is set
+    final showTimer = _hasStarted || _isRunning || _seconds > 0 || _targetSeconds > 0;
 
     return Scaffold(
       backgroundColor: AppTheme.cream,
       appBar: AppBar(
-        backgroundColor: AppTheme.cream,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.textPrimary, size: 20),
-          onPressed: () => context.go('/'),
-        ),
-        title: const Text(
-          'Meditation',
-          style: TextStyle(color: AppTheme.primary, fontSize: 22,
-              fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          if (_isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.bar_chart_rounded,
-                  color: AppTheme.primary, size: 22),
-              onPressed: () async {
-                final wasRunning = _isRunning;
-                if (_isRunning) _pauseTimer();
-                await context.push('/meditation/history');
-                if (wasRunning && mounted) _startTimer();
-              },
-            ),
-        ],
+        automaticallyImplyLeading: false,
+        leading: null,
       ),
+      extendBodyBehindAppBar: true,
       body: showTimer ? _buildTimerView(isSmall) : _buildHomeView(isSmall),
     );
   }
@@ -907,13 +943,14 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Full-page background
+        // Full-screen background image
         Image.asset(
-          'assets/images/guruji_meditation.PNG',
+          'assets/images/Guruji_Meditation.PNG',
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
         ),
-        // Footer panel pinned to bottom
+
+        // Footer pinned to bottom
         Positioned(
           left: 0, right: 0, bottom: 0,
           child: _buildFooterPanel(isSmall, isTimerView: false),
@@ -927,11 +964,11 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Full-page background with subtle brightness pulse when running
+        // Full-page background
         AnimatedBuilder(
           animation: _breathingAnimation,
           builder: (_, __) => Image.asset(
-            'assets/images/guruji_meditation.PNG',
+            'assets/images/Guruji_Meditation.PNG',
             fit: BoxFit.cover,
             alignment: Alignment.topCenter,
             opacity: AlwaysStoppedAnimation(
@@ -939,10 +976,67 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
             ),
           ),
         ),
-        // Footer panel
-        Positioned(
-          left: 0, right: 0, bottom: 0,
-          child: _buildFooterPanel(isSmall, isTimerView: true),
+
+        // Timer + footer column
+        Column(
+          children: [
+            // Flexible spacer — takes remaining space but keeps timer close to buttons
+            const Spacer(flex: 3),
+
+            // Timer
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isRunning || _seconds > 0
+                        ? _formatDuration(_seconds)
+                        : _targetSeconds > 0
+                            ? _formatDuration(_targetSeconds)
+                            : _formatDuration(0),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: isSmall ? 52 : 64,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 4,
+                      shadows: const [
+                        Shadow(color: Colors.black54, blurRadius: 12),
+                      ],
+                    ),
+                  ),
+                  if (_targetSeconds > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Target: ${_formatDuration(_targetSeconds)}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.85)),
+                    ),
+                  ],
+                  if (!_isLoggedIn) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      context.tr('login_to_save_sessions'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Small gap between timer and footer
+            const SizedBox(height: 16),
+
+            // Footer — buttons
+            _buildFooterPanel(isSmall, isTimerView: true),
+          ],
         ),
       ],
     );
@@ -961,43 +1055,12 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 16, 24, isSmall ? 16 : 24),
+          padding: EdgeInsets.fromLTRB(24, 0, 24, isSmall ? 16 : 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // Sivoham status removed per user request
-
-              // ── Timer display ─────────────────────────────────────────
-              Text(
-                _formatDuration(_seconds),
-                style: TextStyle(
-                  fontSize: isSmall ? 52 : 60,
-                  fontWeight: FontWeight.w200,
-                  color: Colors.white,
-                  letterSpacing: 6,
-                  shadows: const [Shadow(color: Colors.black54, blurRadius: 8)],
-                ),
-              ),
-
-              if (_targetSeconds > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  isTimerView
-                      ? 'Target: ${_formatDuration(_targetSeconds)}'
-                      : 'Duration: ${_formatDuration(_targetSeconds)}',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.75)),
-                ),
-              ],
-
-              if (!_isLoggedIn) ...[
-                const SizedBox(height: 4),
-                Text(context.tr('login_to_save_sessions'),
-                    style: TextStyle(fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontStyle: FontStyle.italic)),
-              ],
-
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
 
               // ── Icon buttons row — light pill background ──────────────
               Container(

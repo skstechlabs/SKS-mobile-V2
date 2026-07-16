@@ -151,6 +151,8 @@ final GoRouter appRouter = GoRouter(
           currentIndex = 3;
         } else if (loc.startsWith('/events')) {
           currentIndex = 4;
+        } else if (loc.startsWith('/kalpataru')) {
+          currentIndex = 5; // not a footer tab but not home — show back button
         }
         return MainScaffold(
           currentIndex: currentIndex,
@@ -231,10 +233,6 @@ final GoRouter appRouter = GoRouter(
         final initialIndex = extra?['initialIndex'] as int? ?? 0;
         return ChakraDetailPage(initialIndex: initialIndex);
       },
-    ),
-    GoRoute(
-      path: '/kalpataru',
-      builder: (context, state) => const KalpataruPage(),
     ),
     GoRoute(
       path: '/youtube-player',

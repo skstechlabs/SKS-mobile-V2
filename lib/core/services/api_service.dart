@@ -1633,20 +1633,36 @@ class ApiService {
     }
   }
 
-  // ── 35. GET /api/classes-v2/user/language - Get user's language preference ─
-  Future<Map<String, dynamic>> getUserLanguage() async {
+  // ── 36. GET /api/kalpataru/experiences ────────────────────────────────────
+  /// Returns a list of Kalpataru experience image URLs from the CDN folder.
+  /// The backend reads the `kalpatharu_experience/` folder from R2 and returns
+  /// the filenames so the client constructs the full CDN URLs dynamically.
+  Future<Map<String, dynamic>> getKalpataruExperiences({
+    bool forceRefresh = false,
+  }) async {
+    const cacheKey = 'kalpataru_experiences';
+    if (!forceRefresh) {
+      final cached =
+          DataCacheService().get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) return cached;
+    }
+
+    if (ConnectivityService().isOffline) {
+      return {
+        'success': false,
+        'message': 'No internet connection',
+        'images': <String>[],
+      };
+    }
+
     try {
-      final idToken = await _getIdToken();
-      if (idToken == null) {
-        return {'success': false, 'message': 'Not authenticated'};
+      final response = await _client.get('/api/kalpataru/experiences');
+      final data = response.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        DataCacheService()
+            .set(cacheKey, data, ttl: const Duration(minutes: 10));
       }
-
-      final response = await _client.get(
-        '/api/classes-v2/user/language',
-        options: Options(headers: {'Authorization': 'Bearer $idToken'}),
-      );
-
-      return response.data as Map<String, dynamic>;
+      return data;
     } on DioException catch (e) {
       return _handleError(e);
     }

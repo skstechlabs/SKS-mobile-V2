@@ -373,8 +373,10 @@ class _HomePageState extends State<HomePage>
     try {
       // Use cached data by default
       await _audioProvider.fetchAllAudios();
-      // Preload remaining images in background after audios load
+      // Preload images in background after audios load
       ImagePreloaderService().preloadAllImages(context);
+      // Preload meditation sounds so they're ready when user opens Meditation page
+      ImagePreloaderService.preloadMeditationSounds();
     } catch (e) {
       debugPrint('Error loading audios: $e');
     }

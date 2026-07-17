@@ -46,11 +46,20 @@ class CdnImages {
   static const String kundaliniSlide5 = gurujiMeditation;  // Path of Awakening
   static const String kundaliniSlide6 = guruji30;          // Safe for Every Seeker
   static const String guruJourneySlide1 = guruji;           // Cover — Guruji main
-  static const String guruJourneySlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/Kundalini%20Awakened%20from%20birth.png'; // Awakening (age 8)
+  static const String guruJourneySlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/About%20Gurudev%20born%20with%20awakened%20Kundalini%20.png'; // Awakening (age 8)
   static const String guruJourneySlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/Divine%20Encounter%20at%20Srisailam.png';       // Srisailam (age 13)
-  static const String guruJourneySlide4 = meditation;       // Enlightenment / Sadhana
-  static const String guruJourneySlide5 = guruji30;         // Founding SKS mission
-  static const String guruJourneySlide6 = gurujiSmile;      // Gift of Grace
+  static const String guruJourneySlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20-%20attainment%20of%20enlightenment.png';       // Enlightenment / Sadhana
+  static const String guruJourneySlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20founding%20sks.jpeg';         // Founding SKS mission
+  static const String guruJourneySlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20-%20bestowing%20shaktipatam%20and%20shivapatham.png';      // Gift of Grace
+
+  // ── Onboarding Slide Images — update these URLs to change onboarding screens ──
+  static const String onboardingImage1 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-1.png';  // Slide 1 · Welcome
+  static const String onboardingImage2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-2.png';   // Slide 2 · Gurudev
+  static const String onboardingImage3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-3.png';            // Slide 3 · Kundalini
+  static const String onboardingImage4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-4.jpeg';    // Slide 4 · Classes
+  static const String onboardingImage5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-5.png';           // Slide 5 · Meditation Timer
+  static const String onboardingImage6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-6.png';          // Slide 6 · Bhajans
+  static const String onboardingImage7 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-7.png';             // Slide 7 · Begin
   static const String blissCenter = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/bliss-center-id/public'; // TODO: Add actual ID
   static const String guruPoornima2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/guru-poornima-id/public'; // TODO: Add actual ID
   static const String mahaSivaratri2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/maha-sivaratri-id/public'; // TODO: Add actual ID

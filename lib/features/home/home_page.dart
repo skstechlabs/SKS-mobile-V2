@@ -2127,13 +2127,13 @@ class _HomePageState extends State<HomePage>
       child: Column(
         children: [
           _buildInfoCard(
-            icon: Icons.visibility_outlined,
+            iconAsset: 'assets/images/icons/our-vision.png',
             title: context.tr('our_vision'),
             body: context.tr('vision_text'),
           ),
           const SizedBox(height: 16),
           _buildInfoCard(
-            icon: Icons.explore_outlined,
+            iconAsset: 'assets/images/icons/our-mission.png',
             title: context.tr('our_mission'),
             body: context.tr('mission_text'),
           ),
@@ -2144,7 +2144,7 @@ class _HomePageState extends State<HomePage>
 
   /// Shared warm-themed card for Vision / Mission
   Widget _buildInfoCard({
-    required IconData icon,
+    required String iconAsset,
     required String title,
     required String body,
   }) {
@@ -2167,7 +2167,10 @@ class _HomePageState extends State<HomePage>
                   gradient: AppTheme.primaryGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: Colors.white, size: 22),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Image.asset(iconAsset, fit: BoxFit.contain),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2238,7 +2241,10 @@ class _HomePageState extends State<HomePage>
                   gradient: AppTheme.goldGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Image.asset('assets/images/icons/our-values.png', fit: BoxFit.contain),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
@@ -37,16 +35,11 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   // Auth state — uses cached AuthState, works offline
   bool get _isLoggedIn => AuthState().isAuthenticated;
 
-  // Cached audio file paths (kept for debug logging only)
-  String? _cachedStartSoundPath;  // ignore: unused_field
-  String? _cachedEndSoundPath;    // ignore: unused_field
-
   // Preload states: 'idle' | 'loading' | 'ready' | 'error'
   String _startSoundState = 'idle';
   String _endSoundState = 'idle';
 
-  bool get _soundsLoading =>
-      _startSoundState == 'idle' || _endSoundState == 'idle';
+  bool get _soundsLoading => false; // Assets are always available instantly
 
   // Animation
   late AnimationController _breathingController;
@@ -64,226 +57,56 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
 
-    // Sounds are pre-cached on app start by ImagePreloaderService.
-    // Just load from disk (instant) — no network wait.
-    _loadSoundsFromCache();
+    // Load bundled asset audio files — instant, no network needed.
+    _loadSoundsFromAssets();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    WakelockPlus.disable();
     _breathingController.dispose();
     _startPlayer.dispose();
     _endPlayer.dispose();
     super.dispose();
   }
 
-  /// Load pre-cached sounds from disk instantly (no network).
-  /// Falls back to downloading if cache miss (e.g. first run before home loaded).
-  Future<void> _loadSoundsFromCache() async {
+  /// Load bundled asset audio files directly — no network, no disk cache.
+  /// Called once in initState so both players are buffered before the user
+  /// ever taps Play.
+  Future<void> _loadSoundsFromAssets() async {
     try {
-      final languageCode = LocalizationService().currentLocale.languageCode;
-      final lang = const {'en': 'english', 'hi': 'hindi', 'te': 'telugu', 'kn': 'kannada'}[languageCode] ?? 'english';
-      final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = '${directory.path}/meditation_sounds';
-
-      final startFile = File('$cacheDir/meditation_start_$lang.mp3');
-      final endFile   = File('$cacheDir/meditation_end_$lang.mp3');
-
-      // Load in parallel — file reads are instant
       await Future.wait([
-        _loadFileIntoPlayer(startFile, _startPlayer, 'start', () {
-          if (mounted) setState(() => _startSoundState = 'ready');
-        }, () {
-          if (mounted) setState(() => _startSoundState = 'error');
+        _startPlayer.setAsset('assets/audio/Meditation_start.mp3').then((_) {
+          _startSoundState = 'ready';
+          debugPrint('✅ Start sound loaded from assets');
         }),
-        _loadFileIntoPlayer(endFile, _endPlayer, 'end', () {
-          if (mounted) setState(() => _endSoundState = 'ready');
-        }, () {
-          if (mounted) setState(() => _endSoundState = 'error');
+        _endPlayer.setAsset('assets/audio/Meditation_end.mp3').then((_) {
+          _endSoundState = 'ready';
+          debugPrint('✅ End sound loaded from assets');
         }),
       ]);
     } catch (e) {
-      debugPrint('⚠️ _loadSoundsFromCache error: $e');
-      // Fall back to full download
-      _downloadAndCacheSounds();
-    }
-  }
-
-  Future<void> _loadFileIntoPlayer(
-    File file,
-    AudioPlayer player,
-    String label,
-    VoidCallback onReady,
-    VoidCallback onError,
-  ) async {
-    try {
-      if (await file.exists()) {
-        await player.setFilePath(file.path);
-        debugPrint('✅ Loaded $label sound from cache instantly');
-        onReady();
-      } else {
-        // Cache miss — trigger download in background
-        debugPrint('⚠️ $label sound not cached yet — downloading');
-        _downloadAndCacheSounds();
-      }
-    } catch (e) {
-      debugPrint('⚠️ $label sound load error: $e');
-      onError();
-    }
-  }
-
-  /// Full download+cache (fallback when cache is empty on first run).
-  Future<void> _downloadAndCacheSounds() async {
-    try {
-      final languageCode = LocalizationService().currentLocale.languageCode;
-      final languageMap = {
-        'en': 'english',
-        'hi': 'hindi',
-        'te': 'telugu',
-        'kn': 'kannada',
-      };
-      final dbLanguage = languageMap[languageCode] ?? 'english';
-
-      debugPrint('Fetching meditation sounds for language: $dbLanguage');
-
-      final response = await _apiService.get(
-        '/api/audios',
-        queryParameters: {'category': 'meditation_sound', 'language': dbLanguage},
-      );
-
-      if (response['success'] == true && response['audios'] != null) {
-        final audios = response['audios'] as List;
-
-        final startAudio = audios.firstWhere(
-          (a) => a['title']?.toString().contains('Start') ?? false,
-          orElse: () => null,
-        );
-        final endAudio = audios.firstWhere(
-          (a) => a['title']?.toString().contains('End') ?? false,
-          orElse: () => null,
-        );
-
-        // Download both in parallel
-        await Future.wait([
-          if (startAudio?['audio_url'] != null)
-            _cacheAndPreload(
-              url: startAudio['audio_url'] as String,
-              filename: 'meditation_start_$dbLanguage.mp3',
-              player: _startPlayer,
-              onReady: () {
-                if (mounted) setState(() => _startSoundState = 'ready');
-              },
-              onError: () {
-                if (mounted) setState(() => _startSoundState = 'error');
-              },
-            ),
-          if (endAudio?['audio_url'] != null)
-            _cacheAndPreload(
-              url: endAudio['audio_url'] as String,
-              filename: 'meditation_end_$dbLanguage.mp3',
-              player: _endPlayer,
-              onReady: () {
-                if (mounted) setState(() => _endSoundState = 'ready');
-              },
-              onError: () {
-                if (mounted) setState(() => _endSoundState = 'error');
-              },
-            ),
-        ]);
-
-        debugPrint('✅ Meditation sounds ready — start:$_startSoundState end:$_endSoundState');
-      } else {
-        debugPrint('⚠️ No meditation sounds in API response');
-        if (mounted) {
-          setState(() {
-            _startSoundState = 'error';
-            _endSoundState = 'error';
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error fetching meditation sounds: $e');
-      if (mounted) {
-        setState(() {
-          _startSoundState = 'error';
-          _endSoundState = 'error';
-        });
-      }
-    }
-  }
-
-  /// Download audio to disk (skips if already cached), then pre-buffer it
-  /// into [player] so it's ready for instant playback.
-  Future<void> _cacheAndPreload({
-    required String url,
-    required String filename,
-    required AudioPlayer player,
-    required VoidCallback onReady,
-    required VoidCallback onError,
-  }) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/meditation_sounds');
-      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
-
-      final cachedFile = File('${cacheDir.path}/$filename');
-
-      if (!await cachedFile.exists()) {
-        debugPrint('Downloading: $url');
-        final response = await http.get(Uri.parse(url));
-        if (response.statusCode == 200) {
-          await cachedFile.writeAsBytes(response.bodyBytes);
-          debugPrint('✅ Cached: ${cachedFile.path}');
-        } else {
-          debugPrint('❌ Download failed (${response.statusCode}): $url');
-          onError();
-          return;
-        }
-      } else {
-        debugPrint('✅ Using cached: ${cachedFile.path}');
-      }
-
-      // setFilePath() already loads AND buffers the audio.
-      // Do NOT call player.load() after it — that resets the player to idle
-      // and wipes the buffer, causing silence when play() is called.
-      await player.setFilePath(cachedFile.path);
-
-      // Store path for reference
-      if (filename.contains('start')) {
-        _cachedStartSoundPath = cachedFile.path;
-      } else {
-        _cachedEndSoundPath = cachedFile.path;
-      }
-
-      onReady();
-      debugPrint('✅ Preloaded and ready: $filename (state: ${player.processingState})');
-    } catch (e) {
-      debugPrint('❌ Error caching/preloading $filename: $e');
-      onError();
+      debugPrint('❌ Failed to load meditation sounds from assets: $e');
+      _startSoundState = 'error';
+      _endSoundState = 'error';
     }
   }
 
   /// Play the start sound then begin the timer tick.
-  Future<void> _playStartSoundAndBeginTimer() async {
+  void _playStartSoundAndBeginTimer() {
+    // Start the timer immediately — fire-and-forget the sound.
+    _beginTimerTick();
+
     if (_startSoundState != 'ready') {
-      debugPrint('⚠️ Start sound not ready (state: $_startSoundState), starting timer without audio');
-      _beginTimerTick();
+      debugPrint('⚠️ Start sound not ready (state: $_startSoundState), skipping audio');
       return;
     }
-
-    try {
-      // Seek to beginning in case it was played before
-      await _startPlayer.seek(Duration.zero);
-      await _startPlayer.play();
-      debugPrint('✅ Start sound play() called');
-    } catch (e) {
+    // Fire and forget — no await so the timer is never delayed by audio.
+    _startPlayer.seek(Duration.zero).then((_) => _startPlayer.play()).catchError((e) {
       debugPrint('⚠️ Start sound play error: $e');
-    }
-
-    // Start the timer immediately — don't wait for audio confirmation.
-    // Waiting on playerStateStream can hang if AudioService holds audio focus.
-    _beginTimerTick();
+    });
+    debugPrint('✅ Start sound triggered');
   }
 
   void _beginTimerTick() {
@@ -337,8 +160,15 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _startTimer() async {
     if (_isRunning) return;
-
     if (!mounted) return;
+
+    // Stop end sound if it's still playing from a previous session
+    if (_endPlayer.playing) {
+      await _endPlayer.stop();
+      await _endPlayer.setAsset('assets/audio/Meditation_end.mp3'); // re-buffer for next use
+      _endSoundState = 'ready';
+    }
+
     setState(() {
       _isRunning = true;
       _startTime = _startTime ?? DateTime.now();
@@ -347,24 +177,20 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
       }
     });
 
-    // Pause the global audio/bhajan player if it's running so it doesn't
-    // hold the audio session and block the meditation sounds from playing.
+    // Pause the global bhajan player in the background — don't block the timer.
     final globalPlayer = EnhancedAudioPlayerService();
     if (globalPlayer.isPlaying) {
-      await globalPlayer.pause();
-      debugPrint('⏸️ Paused global audio player for meditation');
+      globalPlayer.pause().catchError((e) => debugPrint('⚠️ Could not pause global player: $e'));
+      debugPrint('⏸️ Pausing global audio player for meditation');
     }
 
     if (!_hasStarted) {
       _hasStarted = true;
-      await _playStartSoundAndBeginTimer();
+      WakelockPlus.enable();
+      _playStartSoundAndBeginTimer(); // sync — timer starts immediately
     } else {
-      // Resume after pause
-      if (_startPlayer.processingState != ProcessingState.idle &&
-          _startPlayer.processingState != ProcessingState.completed &&
-          !_startPlayer.playing) {
-        _startPlayer.play();
-      }
+      // Resume after pause — don't replay start sound
+      WakelockPlus.enable();
       _beginTimerTick();
     }
   }
@@ -373,6 +199,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     if (!_isRunning) return;
 
     _timer?.cancel();
+    WakelockPlus.disable();
     if (mounted) setState(() => _isRunning = false);
 
     // Pause the start-sound if it's still playing
@@ -381,97 +208,22 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
 
   Future<void> _completeTimer() async {
     _timer?.cancel();
+    WakelockPlus.disable();
     if (_startPlayer.playing) _startPlayer.pause();
     if (mounted) setState(() => _isRunning = false);
 
     final endTime = DateTime.now();
-    final actualDuration =
-        _targetSeconds > 0 ? _targetSeconds : _seconds;
+    final actualDuration = _targetSeconds > 0 ? _targetSeconds : _seconds;
     final startTime =
         _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
 
-    // Play end sound — already pre-buffered
+    // Play end sound
     await _playEndSound();
 
     if (!mounted) return;
-    
-    // Auto-save for logged-in users
-    if (_isLoggedIn) {
-      await _saveMeditationSession(startTime, endTime, actualDuration);
-      
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 12),
-                Expanded(child: Text('Meditation Complete!')),
-              ],
-            ),
-            content: Text(
-              'Congratulations! You meditated for ${_formatDuration(actualDuration)}.\n\n'
-              'Your session has been saved.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push('/meditation/history');
-                },
-                child: const Text('View History'),
-              ),
-            ],
-          ),
-        );
-      }
-    } else {
-      // Show login prompt for non-logged-in users
-      if (mounted) {
-        final shouldLogin = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 12),
-                Expanded(child: Text('Meditation Complete!')),
-              ],
-            ),
-            content: Text(
-              'Congratulations! You meditated for ${_formatDuration(actualDuration)}.\n\n'
-              'Login to save your meditation sessions and track your progress over time.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Skip'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Login'),
-              ),
-            ],
-          ),
-        );
-        
-        if (shouldLogin == true && mounted) {
-          context.push('/login');
-        }
-      }
-    }
-    
-    // Reset timer
-    setState(() {
-      _seconds = 0;
-      _startTime = null;
-      _hasStarted = false;
-    });
+
+    // Same save flow as _stopTimer
+    await _handleSessionEnd(startTime, endTime, actualDuration, completed: true);
   }
 
   void _resetTimer() {
@@ -492,8 +244,8 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     if (_seconds == 0 && _targetSeconds == 0) return;
 
     _timer?.cancel();
+    WakelockPlus.disable();
     if (_startPlayer.playing) _startPlayer.pause();
-
     if (mounted) setState(() => _isRunning = false);
 
     final endTime = DateTime.now();
@@ -502,27 +254,79 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
     final startTime =
         _startTime ?? endTime.subtract(Duration(seconds: actualDuration));
 
-    // Play end sound — it's already pre-buffered so this is instant
+    // Play end sound
     await _playEndSound();
 
     if (!mounted) return;
-    
-    // Check if user is logged in
-    if (!_isLoggedIn) {
-      // Show login prompt
-      final shouldLogin = await showDialog<bool>(
+
+    await _handleSessionEnd(startTime, endTime, actualDuration, completed: false);
+  }
+
+  /// Shared post-session flow: ask to save (logged-in) or prompt login (guest).
+  /// [completed] = true when the timer ran to zero; false when stopped early.
+  Future<void> _handleSessionEnd(
+    DateTime startTime,
+    DateTime endTime,
+    int actualDuration, {
+    required bool completed,
+  }) async {
+    if (!mounted) return;
+
+    final title = completed ? 'Meditation Complete! 🎉' : 'End Meditation?';
+    final durationText = _formatDuration(actualDuration);
+
+    if (_isLoggedIn) {
+      // Ask to save
+      final shouldSave = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.info_outline, color: AppTheme.saffron),
-              SizedBox(width: 12),
-              Expanded(child: Text('Login Required')),
+              Icon(completed ? Icons.check_circle : Icons.stop_circle,
+                  color: completed ? Colors.green : AppTheme.saffron),
+              const SizedBox(width: 12),
+              Expanded(child: Text(title)),
             ],
           ),
           content: Text(
-            'You meditated for ${_formatDuration(actualDuration)}.\n\n'
-            'Login to save your meditation sessions and track your progress over time.',
+            'You meditated for $durationText.\nWould you like to save this session?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Discard'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.saffron,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldSave == true && mounted) {
+        await _saveMeditationSession(startTime, endTime, actualDuration);
+      }
+    } else {
+      // Guest — prompt login
+      final shouldLogin = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(completed ? Icons.check_circle : Icons.info_outline,
+                  color: completed ? Colors.green : AppTheme.saffron),
+              const SizedBox(width: 12),
+              Expanded(child: Text(title)),
+            ],
+          ),
+          content: Text(
+            'You meditated for $durationText.\n\n'
+            'Login to save your sessions and track your progress.',
           ),
           actions: [
             TextButton(
@@ -531,58 +335,32 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.saffron,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Login'),
             ),
           ],
         ),
       );
-      
+
       if (shouldLogin == true && mounted) {
         context.push('/login');
       }
-      
-      // Reset timer — also clear target so next session starts fresh
+    }
+
+    // Reset for next session
+    if (mounted) {
+      // Stop end sound in case it's still playing
+      _endPlayer.stop().catchError((_) {});
       setState(() {
         _seconds = 0;
         _targetSeconds = 0;
         _startTime = null;
         _hasStarted = false;
       });
-      return;
     }
-    
-    // Show confirmation dialog for logged-in users
-    final shouldSave = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save Meditation Session?'),
-        content: Text(
-          'You meditated for ${_formatDuration(actualDuration)}.\nWould you like to save this session?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Discard'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    
-    if (shouldSave == true) {
-      await _saveMeditationSession(startTime, endTime, actualDuration);
-    }
-    
-    // Reset timer — also clear target so next session starts fresh
-    setState(() {
-      _seconds = 0;
-      _targetSeconds = 0;
-      _startTime = null;
-      _hasStarted = false;
-    });
   }
 
   Future<void> _saveMeditationSession(
@@ -977,66 +755,48 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
           ),
         ),
 
-        // Timer + footer column
-        Column(
-          children: [
-            // Flexible spacer — takes remaining space but keeps timer close to buttons
-            const Spacer(flex: 3),
+        // Timer + footer pinned to bottom
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Timer display
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _isRunning || _seconds > 0
+                          ? _formatDuration(_seconds)
+                          : _targetSeconds > 0
+                              ? _formatDuration(_targetSeconds)
+                              : _formatDuration(0),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: isSmall ? 52 : 64,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 4,
+                        shadows: const [
+                          Shadow(color: Colors.black54, blurRadius: 12),
+                        ],
+                      ),
+                    ),
 
-            // Timer
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _isRunning || _seconds > 0
-                        ? _formatDuration(_seconds)
-                        : _targetSeconds > 0
-                            ? _formatDuration(_targetSeconds)
-                            : _formatDuration(0),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: isSmall ? 52 : 64,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 4,
-                      shadows: const [
-                        Shadow(color: Colors.black54, blurRadius: 12),
-                      ],
-                    ),
-                  ),
-                  if (_targetSeconds > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Target: ${_formatDuration(_targetSeconds)}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withValues(alpha: 0.85)),
-                    ),
                   ],
-                  if (!_isLoggedIn) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      context.tr('login_to_save_sessions'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.65),
-                          fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
 
-            // Small gap between timer and footer
-            const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-            // Footer — buttons
-            _buildFooterPanel(isSmall, isTimerView: true),
-          ],
+              // Footer — buttons
+              _buildFooterPanel(isSmall, isTimerView: true),
+            ],
+          ),
         ),
       ],
     );
@@ -1063,49 +823,63 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
               const SizedBox(height: 8),
 
               // ── Icon buttons row — light pill background ──────────────
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.70),
-                  borderRadius: BorderRadius.circular(40),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.60), width: 1),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (!isTimerView) ...[
-                      _buildImgBtn('assets/images/icons/timer-icon.png', _showDurationPicker),
-                      const SizedBox(width: 28),
-                      _buildImgBtn('assets/images/icons/play-icon.png',
-                          _soundsLoading ? () {} : _startTimer, large: true),
-                      const SizedBox(width: 28),
-                      _buildImgBtn('assets/images/icons/stats-icon.png',
-                          () => context.push('/meditation/history')),
-                    ] else ...[
-                      if (_isRunning || _seconds > 0 || _targetSeconds > 0) ...[
-                        _buildImgBtn('assets/images/icons/stop-icon.png',
-                            _isRunning ? _stopTimer : _resetTimer),
-                        const SizedBox(width: 28),
-                      ],
-                      _buildImgBtn(
-                        _isRunning
-                            ? 'assets/images/icons/pause-icon.png'
-                            : 'assets/images/icons/play-icon.png',
-                        _soundsLoading && !_isRunning
-                            ? () {}
-                            : (_isRunning ? _pauseTimer : _startTimer),
-                        large: true,
-                      ),
-                      if (!_isRunning && _seconds == 0) ...[
-                        const SizedBox(width: 28),
-                        _buildImgBtn('assets/images/icons/timer-icon.png', _showDurationPicker),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
+              Builder(builder: (context) {
+                final screenW = MediaQuery.of(context).size.width;
+                // Icons sized as % of screen width — always fits, never overflows
+                final large = screenW * 0.22; // ~80px on 360px screen
+                final small = screenW * 0.16; // ~58px on 360px screen
+
+                final iconRow = isTimerView
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isRunning || _seconds > 0 || _targetSeconds > 0) ...[
+                            _buildImgBtn('assets/images/icons/stop-icon.png',
+                                _isRunning ? _stopTimer : _resetTimer, size: small),
+                            SizedBox(width: screenW * 0.04),
+                          ],
+                          _buildImgBtn(
+                            _isRunning
+                                ? 'assets/images/icons/pause-icon.png'
+                                : 'assets/images/icons/play-icon.png',
+                            _soundsLoading && !_isRunning
+                                ? () {}
+                                : (_isRunning ? _pauseTimer : _startTimer),
+                            size: large,
+                          ),
+                          if (!_isRunning && _seconds == 0) ...[
+                            SizedBox(width: screenW * 0.04),
+                            _buildImgBtn('assets/images/icons/timer-icon.png',
+                                _showDurationPicker, size: small),
+                          ],
+                        ],
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildImgBtn('assets/images/icons/timer-icon.png',
+                              _showDurationPicker, size: small),
+                          SizedBox(width: screenW * 0.06),
+                          _buildImgBtn('assets/images/icons/play-icon.png',
+                              _soundsLoading ? () {} : _startTimer, size: large),
+                          SizedBox(width: screenW * 0.06),
+                          _buildImgBtn('assets/images/icons/stats-icon.png',
+                              () => context.push('/meditation/history'), size: small),
+                        ],
+                      );
+
+                return Container(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenW * 0.06, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.70),
+                    borderRadius: BorderRadius.circular(40),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.60), width: 1),
+                  ),
+                  child: iconRow,
+                );
+              }),
 
               if (_soundsLoading) ...[
                 const SizedBox(height: 8),
@@ -1122,17 +896,14 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
   }
 
   /// Bare image button — no background circle, just the icon.
-  /// [large] = play/pause (bigger).
-  Widget _buildImgBtn(String iconPath, VoidCallback onTap, {bool large = false}) {
-    final w = large ? 90.0 : 64.0;
-    final h = w * 1.5; // 2:3 portrait ratio
+  Widget _buildImgBtn(String iconPath, VoidCallback onTap, {double size = 80.0}) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Image.asset(
         iconPath,
-        width: w,
-        height: h,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
       ),
     );

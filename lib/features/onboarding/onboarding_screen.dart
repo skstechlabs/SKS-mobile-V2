@@ -83,7 +83,7 @@ class _Bullet {
 final _slides = <_SlideData>[
   // 1 · Welcome — full Guruji portrait
   _SlideData(
-    imageUrl: 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/mobile/Guruji_dashboard.png',
+    imageUrl: CdnImages.onboardingImage1,
     accentEmoji: '🕉️',
     tagKey: 'onb_tag_welcome',
     titleKey: 'onb_slide1_title',
@@ -100,7 +100,7 @@ final _slides = <_SlideData>[
 
   // 2 · Gurudev — divine encounter image
   _SlideData(
-    imageUrl: CdnImages.guruJourneySlide2,
+    imageUrl: CdnImages.onboardingImage2,
     accentEmoji: '🙏',
     tagKey: 'onb_tag_gurudev',
     titleKey: 'onb_slide2_title',
@@ -116,7 +116,7 @@ final _slides = <_SlideData>[
 
   // 3 · Kundalini — kundalini/chakra energy image
   _SlideData(
-    imageUrl: CdnImages.kundalini,
+    imageUrl: CdnImages.onboardingImage3,
     accentEmoji: '🌀',
     tagKey: 'onb_tag_kundalini',
     titleKey: 'onb_slide3_title',
@@ -132,7 +132,7 @@ final _slides = <_SlideData>[
 
   // 4 · Classes — meditation/guruji teaching image
   _SlideData(
-    imageUrl: CdnImages.gurujiMeditation,
+    imageUrl: CdnImages.onboardingImage4,
     accentEmoji: '📚',
     tagKey: 'onb_tag_learn',
     titleKey: 'onb_slide4_title',
@@ -148,7 +148,7 @@ final _slides = <_SlideData>[
 
   // 5 · Meditation timer — serene meditation image
   _SlideData(
-    imageUrl: CdnImages.meditation,
+    imageUrl: CdnImages.onboardingImage5,
     accentEmoji: '🧘',
     tagKey: 'onb_tag_meditate',
     titleKey: 'onb_slide5_title',
@@ -163,7 +163,7 @@ final _slides = <_SlideData>[
 
   // 6 · Bhajans — guruji smile / devotional image
   _SlideData(
-    imageUrl: CdnImages.gurujiSmile,
+    imageUrl: CdnImages.onboardingImage6,
     accentEmoji: '🎵',
     tagKey: 'onb_tag_bhajans',
     titleKey: 'onb_slide6_title',
@@ -179,7 +179,7 @@ final _slides = <_SlideData>[
 
   // 7 · Begin — guruji30 contemplative
   _SlideData(
-    imageUrl: CdnImages.guruji30,
+    imageUrl: CdnImages.onboardingImage7,
     accentEmoji: '🌟',
     tagKey: 'onb_tag_begin',
     titleKey: 'onb_slide7_title',

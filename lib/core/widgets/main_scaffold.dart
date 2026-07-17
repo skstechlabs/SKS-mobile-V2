@@ -324,7 +324,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                     // Centre placeholder — same width keeps spacing symmetric
                     SizedBox(width: MediaQuery.of(context).size.width / 5),
                     _NavImageItem(
-                      iconPath: 'assets/images/icons/ringtone-icon.png',
+                      iconPath: 'assets/images/icons/songs-icon.png',
                       label: context.tr('songs'),
                       isActive: widget.currentIndex == 3,
                       onTap: () => context.go('/all-songs'),

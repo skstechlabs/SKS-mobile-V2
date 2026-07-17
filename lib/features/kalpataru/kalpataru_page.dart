@@ -695,34 +695,20 @@ class _KalpataruPageState extends State<KalpataruPage> {
   Widget _buildHeroSection(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
-    return Container(
+    return SizedBox(
       height: screenHeight * 0.65,
       width: screenWidth,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/kalpataru-bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.center,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    Colors.white.withValues(alpha: 0.35),
-                  ],
-                  stops: const [0.0, 0.72, 1.0],
-                ),
-              ),
-            ),
+          // Full-bleed image at 100% opacity
+          Image.asset(
+            'assets/images/kalpataru-image.png',
+            fit: BoxFit.cover,
+            width: screenWidth,
+            height: screenHeight * 0.65,
           ),
-          // Back button — top-left, same style as Kundalini/Chakra pages
+          // Back button — top-left
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 8,
@@ -737,25 +723,6 @@ class _KalpataruPageState extends State<KalpataruPage> {
                   icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
                   onPressed: () => context.go('/'),
                 ),
-              ),
-            ),
-          ),
-          Center(
-            child: Container(
-              height: screenHeight * 0.50,
-              constraints: BoxConstraints(maxWidth: screenWidth * 0.75),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.saffron.withValues(alpha: 0.3),
-                    blurRadius: 40, spreadRadius: 10, offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.asset('assets/images/guruji-kalpatharu.png', fit: BoxFit.contain),
               ),
             ),
           ),

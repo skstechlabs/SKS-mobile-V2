@@ -189,7 +189,7 @@ class LoginGate extends StatelessWidget {
                 _QuickTile(
                   icon: Icons.help_outline_rounded,
                   title: context.tr('help_support'),
-                  subtitle: 'Contact the Guruji team',
+                  subtitle: 'Contact the Gurudev team',
                   onTap: () => context.push('/guruji-connect'),
                 ),
 

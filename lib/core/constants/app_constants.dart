@@ -70,6 +70,18 @@ class AppConstants {
   static const String guruJourneySlide4 = CdnImages.guruJourneySlide4;
   static const String guruJourneySlide5 = CdnImages.guruJourneySlide5;
   static const String guruJourneySlide6 = CdnImages.guruJourneySlide6;
+  static const String guruJourneyYouTubeSlide = CdnImages.guruJourneyYouTubeSlide;
+
+  // Kalpataru Slide Images
+  static const String kalpataruSlide1 = CdnImages.kalpataruSlide1;
+  static const String kalpataruSlide2 = CdnImages.kalpataruSlide2;
+  static const String kalpataruSlide3 = CdnImages.kalpataruSlide3;
+  static const String kalpataruSlide4 = CdnImages.kalpataruSlide4;
+  static const String kalpataruSlide5 = CdnImages.kalpataruSlide5;
+  static const String kalpataruSlide6 = CdnImages.kalpataruSlide6;
+  static const String kalpataruSlide7 = CdnImages.kalpataruSlide7;
+  static const String kalpataruSlide8 = CdnImages.kalpataruSlide8;
+  static const String kalpataruSlide9 = CdnImages.kalpataruSlide9;
 
   // About Guruji
   static const String aboutGuruji = '''Our revered Guru is an enlightened Sadguru who has dedicated over three decades to the study and practice of Kundalini Sadhana. Having attained the highest states of consciousness, the Guru now shares this divine knowledge to help humanity transcend its limitations and realize its true potential.

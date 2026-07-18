@@ -3,9 +3,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_env.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/localization_service.dart';
+import '../../core/widgets/cached_image.dart';
 import '../home/widgets/youtube_playlist_section.dart';
 import 'kalpataru_experiences_widget.dart';
 
@@ -72,22 +74,17 @@ class _KalpataruExperiencesSectionState
 
         if (mounted) setState(() => _images = images);
       } else {
-        // success=false → hide silently
         if (mounted) setState(() => _images = []);
       }
     } catch (_) {
-      // Any failure → hide silently
       if (mounted) setState(() => _images = []);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Loading — render nothing (no flicker)
     if (_images == null) return const SizedBox.shrink();
-    // Empty or error — hide section
     if (_images!.isEmpty) return const SizedBox.shrink();
-
     return _ExperiencesGallery(images: _images!);
   }
 }
@@ -126,7 +123,6 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Section header ──────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
@@ -175,7 +171,6 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
                     ],
                   ),
                 ),
-                // image count badge
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -198,8 +193,6 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // ── Horizontal scroll strip ─────────────────────────────────────
           SizedBox(
             height: 220,
             child: ListView.separated(
@@ -215,7 +208,7 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
                     width: 170,
                     height: 220,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFDF6EC), // warm cream background
+                      color: const Color(0xFFFDF6EC),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: AppTheme.saffron.withValues(alpha: 0.18),
@@ -235,7 +228,7 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
                         imageUrl: img.url,
                         width: 170,
                         height: 220,
-                        fit: BoxFit.contain, // show full image, no cropping
+                        fit: BoxFit.contain,
                         placeholder: (_, __) => Shimmer.fromColors(
                           baseColor: const Color(0xFFF5EDE0),
                           highlightColor: const Color(0xFFFFF8F0),
@@ -253,8 +246,6 @@ class _ExperiencesGalleryState extends State<_ExperiencesGallery> {
               },
             ),
           ),
-
-          // ── Tap hint ────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.only(top: 10, right: 24),
             child: Align(
@@ -338,10 +329,9 @@ class _LightboxScreenState extends State<_LightboxScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1208), // warm dark, not cold black
+      backgroundColor: const Color(0xFF1A1208),
       body: Stack(
         children: [
-          // ── Swipeable image pages ──────────────────────────────────────
           PageView.builder(
             controller: _pageController,
             itemCount: widget.images.length,
@@ -356,7 +346,7 @@ class _LightboxScreenState extends State<_LightboxScreen> {
                         horizontal: 16, vertical: 80),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFDF6EC), // warm cream bg
+                        color: const Color(0xFFFDF6EC),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -394,15 +384,12 @@ class _LightboxScreenState extends State<_LightboxScreen> {
               );
             },
           ),
-
-          // ── Top bar: counter + close ───────────────────────────────────
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // counter pill
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 5),
@@ -418,7 +405,6 @@ class _LightboxScreenState extends State<_LightboxScreen> {
                           fontWeight: FontWeight.w600),
                     ),
                   ),
-                  // close button
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
@@ -436,19 +422,14 @@ class _LightboxScreenState extends State<_LightboxScreen> {
               ),
             ),
           ),
-
-          // ── Prev arrow ─────────────────────────────────────────────────
           if (_currentIndex > 0)
             Positioned(
-              left: 8,
-              top: 0,
-              bottom: 0,
+              left: 8, top: 0, bottom: 0,
               child: Center(
                 child: GestureDetector(
                   onTap: _prev,
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    width: 40, height: 40,
                     decoration: const BoxDecoration(
                       color: Colors.black45,
                       shape: BoxShape.circle,
@@ -459,19 +440,14 @@ class _LightboxScreenState extends State<_LightboxScreen> {
                 ),
               ),
             ),
-
-          // ── Next arrow ─────────────────────────────────────────────────
           if (_currentIndex < widget.images.length - 1)
             Positioned(
-              right: 8,
-              top: 0,
-              bottom: 0,
+              right: 8, top: 0, bottom: 0,
               child: Center(
                 child: GestureDetector(
                   onTap: _next,
                   child: Container(
-                    width: 40,
-                    height: 40,
+                    width: 40, height: 40,
                     decoration: const BoxDecoration(
                       color: Colors.black45,
                       shape: BoxShape.circle,
@@ -482,13 +458,9 @@ class _LightboxScreenState extends State<_LightboxScreen> {
                 ),
               ),
             ),
-
-          // ── Dot indicators ─────────────────────────────────────────────
           if (widget.images.length > 1)
             Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
+              bottom: 24, left: 0, right: 0,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(widget.images.length, (i) {
@@ -564,6 +536,7 @@ const Map<String, String> _enFb = {
   'kalpataru_brings_6_title': 'Spiritual Growth',
   'kalpataru_brings_6': 'An ever-deepening connection with your true Self.',
   'kalpataru_proof_para': 'Across the world, thousands of practitioners have already stepped onto this sacred path — and for them, Kalpataru is no longer a technique they practise, but a way of living. From the healing of chronic, life-altering conditions to the fulfilment of lifelong dreams, the miraculous has quietly become their everyday reality.',
+  'kalpataru_proof_heading': 'Transforming Lives Across the World',
   'kalpataru_proof_highlight': 'For thousands across the world, Kalpataru is no longer a practice they follow — it has become the way they live.',
   'kalpataru_cta_title': 'Are You Ready to Transform?',
   'kalpataru_cta_sub': 'Kalpataru is waiting for you',
@@ -602,7 +575,7 @@ const Map<String, String> _teFb = {
   'kalpataru_levels_closing': 'కారణ శరీర స్థాయిలోని కర్మ ముద్రలను తొలగించడం ద్వారా, కల్పతరు బాధల చక్రాన్నే పూర్తిగా ఛేదిస్తుంది. ఈ పరివర్తన సంపూర్ణమైనది, శాశ్వతమైనది.',
   'kalpataru_levels_highlight': 'ఆ సమస్య మీ జీవితంలోకి మళ్లీ ఎప్పటికీ తిరిగి రాదు.',
   'kalpataru_manifest_title': 'మీ తలరాతను మీరే మార్చుకునే సృష్టికర్తగా మారండి',
-  'kalpataru_manifest_para': 'కల్పతరు కేవలం రుగ్మతలను నయం చేయడం మాత్రమే కాదు — అది మీలో సహజంగా ఉన్న సంకల్ప సిద్ధి శక్తిని జాగృతం చేస్తుంది.\n\nఈ ప్రయాణం చిన్న చిన్న మేనిఫెస్టేషన్లతో మొదలవుతుంది. ఆ తర్వాత సరైన అవకాశాలు, వ్యక్తులు, స్పష్టత అన్నీ మీ జీవితంలోకి ప్రవహించడం మొదలవుతుంది.',
+  'kalpataru_manifest_para': 'కల్పతరు కేవలం రుగ్మతలను నయం చేయడం మాత్రమే కాదు — అది మీలో సహజంగా ఉన్న సంకల్ప సిద్ధి శక్తిని జాగృతం చేస్తుంది.\n\nఈ ప్రయాణం చిన్న చిన్న మేనిఫెస్టేషన్లతో మొదలవుతుంది. అప్పటి నుంచి, అడుగడుగునా ఆ శక్తి రెట్టింపవుతూ — సరైన అవకాశాలు, సరైన వ్యక్తులు, లోతైన భావోద్వేగ స్వేచ్ఛ, సంపూర్ణ స్పష్టత మీ జీవితంలోకి సహజంగా ప్రవహించడం మొదలవుతాయి.',
   'kalpataru_manifest_highlight': 'మీ చైతన్యం, శక్తి మరియు కోరిక ఒకే ఫ్రీక్వెన్స లో ఏకమైనప్పుడు — సాకారం అప్రయత్నంగా జరిగిపోతుంది.',
   'kalpataru_brings_title': 'కల్పతరువు మీ జీవితంలోకి తీసుకువచ్చే మార్పులు',
   'kalpataru_brings_1_title': 'లోతైన స్వస్థత',
@@ -618,6 +591,7 @@ const Map<String, String> _teFb = {
   'kalpataru_brings_6_title': 'ఆధ్యాత్మిక వికాసం',
   'kalpataru_brings_6': 'మీ నిజ స్వరూపంతో నానాటికీ లోతైన అనుసంధానం.',
   'kalpataru_proof_para': 'ప్రపంచవ్యాప్తంగా వేలాది మంది సాధకులు ఈ దివ్య మార్గంలో అడుగుపెట్టారు. వారికి కల్పతరు ఒక జీవన విధానంగా మారిపోయింది.',
+  'kalpataru_proof_heading': 'ప్రపంచవ్యాప్తంగా జీవితాలను మారుస్తున్న కల్పతరు',
   'kalpataru_proof_highlight': 'ప్రపంచవ్యాప్తంగా వేలాది మందికి కల్పతరు ఒక సాధన కాదు — అదే వారి జీవన విధానం.',
   'kalpataru_cta_title': 'పరివర్తనకు మీరు సిద్ధమేనా?',
   'kalpataru_cta_sub': 'కల్పతరు మీ కోసం వేచి ఉంది',
@@ -626,6 +600,17 @@ const Map<String, String> _teFb = {
   'kalpataru_cta_button': '✨ మీ పరివర్తనను ప్రారంభించండి ✨',
 };
 
+// Chapter accent colours — one per chapter slide (slides 1–7)
+const List<Color> _accentColors = [
+  Color(0xFFC4622D), // 1 Introduction
+  Color(0xFFBF360C), // 2 Principle
+  Color(0xFFE65100), // 3 How It Works
+  Color(0xFFFF6F00), // 4 Transformation
+  Color(0xFF6A1B9A), // 5 Manifestation
+  Color(0xFFD84315), // 6 Benefits
+  Color(0xFF4E342E), // 7 Proof & Experiences
+];
+
 class KalpataruPage extends StatefulWidget {
   const KalpataruPage({super.key});
 
@@ -633,543 +618,846 @@ class KalpataruPage extends StatefulWidget {
   State<KalpataruPage> createState() => _KalpataruPageState();
 }
 
-class _KalpataruPageState extends State<KalpataruPage> {
-  final ScrollController _scrollController = ScrollController();
+class _KalpataruPageState extends State<KalpataruPage>
+    with TickerProviderStateMixin {
+
+  static const int _totalSlides = 9;
+  late PageController _pageController;
+  late AnimationController _bounceCtrl;
+  late AnimationController _pulseCtrl;
+  late Animation<double> _bounceAnim;
+  int _currentPage = 0;
+  bool _hintDismissed = false;
+
+  String _tr(String key) {
+    final live = LocalizationService().translate(key);
+    if (live != key) return live;
+    final lang = LocalizationService().currentLocale.languageCode;
+    return (lang == 'te' ? _teFb : _enFb)[key] ?? key;
+  }
 
   @override
   void initState() {
     super.initState();
-    // Inject kalpataru keys into the live localization service so
-    // translate() finds them and never prints "Missing translation".
-    // putIfAbsent means live bundle values always win once re-built.
     final lang = LocalizationService().currentLocale.languageCode;
     LocalizationService().patchStrings(lang == 'te' ? _teFb : _enFb);
-  }
 
-  /// Simple passthrough — now that patchStrings() has populated the service,
-  /// context.tr() will find all keys. _tr() is kept as a safe wrapper.
-  String _tr(String key) {
-    return LocalizationService().translate(key);
+    _pageController = PageController();
+
+    _bounceCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600))
+      ..repeat(reverse: true);
+    _bounceAnim = Tween<double>(begin: 0, end: 16).animate(
+        CurvedAnimation(parent: _bounceCtrl, curve: Curves.easeInOut));
+
+    _pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _hintDismissed = true);
+    });
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _pageController.dispose();
+    _bounceCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFF8F0), Color(0xFFFFF4E0), Color(0xFFFFF8F0)],
-        ),
-      ),
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        child: Column(
-          children: [
-            _buildHeroSection(context),
-            _buildDivineIntroduction(context),
-            _buildPrincipleSection(context),
-            _buildHowItWorksSection(context),
-            _buildTransformationSection(context),
-            _buildManifestSection(context),
-            _buildBenefitsGrid(context),
-            _buildProofSection(context),
-            const KalpataruExperiencesWidget(),
-            _buildKalpataruPlaylist(),
-            _buildCallToAction(context),
-            const SizedBox(height: 60),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Hero ───────────────────────────────────────────────────────────────────
-
-  Widget _buildHeroSection(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-    return SizedBox(
-      height: screenHeight * 0.65,
-      width: screenWidth,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Full-bleed image at 100% opacity
-          Image.asset(
-            'assets/images/kalpataru-image.png',
-            fit: BoxFit.cover,
-            width: screenWidth,
-            height: screenHeight * 0.65,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              onPressed: () => context.go('/'),
+            ),
           ),
-          // Back button — top-left
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 8,
-            child: SafeArea(
-              child: Container(
-                margin: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-                  onPressed: () => context.go('/'),
-                ),
+        ),
+        actions: [
+          SafeArea(
+            child: Container(
+              margin: const EdgeInsets.only(right: 14, top: 8, bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+              ),
+              child: Text(
+                '${_currentPage + 1} / $_totalSlides',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
         ],
       ),
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (i) {
+              setState(() {
+                _currentPage = i;
+                if (i > 0) _hintDismissed = true;
+              });
+            },
+            itemCount: _totalSlides,
+            itemBuilder: (ctx, i) {
+              if (i == 0) return _buildCoverSlide(ctx);
+              if (i == 1) return _buildClosingSlide(ctx);
+              return _buildChapterSlide(ctx, i - 2); // chapters 0–6
+            },
+          ),
+          if (!_hintDismissed && _currentPage < _totalSlides - 1)
+            _buildSwipeHint(context),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: _buildDotNav(),
+          ),
+        ],
+      ),
     );
   }
 
-  // ── 1 · Divine Introduction ────────────────────────────────────────────────
+  // ── Slide 0: Cover ────────────────────────────────────────────────────────
 
-  Widget _buildDivineIntroduction(BuildContext context) {
-    final paras = _tr('kalpataru_intro_para')
-        .split('\n\n').where((p) => p.trim().isNotEmpty).toList();
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 0),
-      child: Column(
-        children: [
-          // Headline
-          Text(
-            _tr('kalpataru_hero_headline'),
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.grey[800], height: 1.4),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _tr('kalpataru_hero_sub'),
-            style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: AppTheme.saffron, height: 1.6),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-          // Intro card
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.18)),
-              boxShadow: [
-                BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.07), blurRadius: 24, offset: const Offset(0, 8)),
+  Widget _buildCoverSlide(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CachedImage(
+          imageUrl: AppConstants.kalpataruSlide1,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+        // Top vignette
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: const Alignment(0, 0.2),
+              colors: [
+                Colors.black.withValues(alpha: 0.45),
+                Colors.transparent,
               ],
+            ),
+          ),
+        ),
+        // Bottom dark gradient band
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 110),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  const Color(0xFF1A0A00).withValues(alpha: 0.97),
+                  const Color(0xFF3E1A00).withValues(alpha: 0.80),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.saffron.withValues(alpha: 0.07),
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(19), topRight: Radius.circular(19)),
-                    border: Border(bottom: BorderSide(color: AppTheme.saffron.withValues(alpha: 0.15))),
+                // _ornamentalRule(AppTheme.gold),
+                const SizedBox(height: 14),
+                // Text(
+                //   'MOKSHA GURU',
+                //   style: TextStyle(
+                //     color: AppTheme.gold,
+                //     fontSize: 11,
+                //     fontWeight: FontWeight.w700,
+                //     letterSpacing: 4,
+                //   ),
+                //   textAlign: TextAlign.center,
+                // ),
+                const SizedBox(height: 8),
+                // const Text(
+                //   'Sri Jeeveswara Yogi',
+                //   style: TextStyle(
+                //     color: Colors.white,
+                //     fontSize: 30,
+                //     fontWeight: FontWeight.bold,
+                //     letterSpacing: 0.5,
+                //     height: 1.2,
+                //   ),
+                //   textAlign: TextAlign.center,
+                // ),
+                const SizedBox(height: 6),
+                Text(
+                  _tr('kalpataru_hero_sub'),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.70),
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                    fontStyle: FontStyle.italic,
+                    height: 1.5,
                   ),
-                  child: Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(
-                        color: AppTheme.saffron.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.3)),
-                      ),
-                      child: const Center(child: Text('🌳', style: TextStyle(fontSize: 20))),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _tr('kalpataru_intro_title'),
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppTheme.saffron),
-                      ),
-                    ),
-                  ]),
+                  textAlign: TextAlign.center,
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (int i = 0; i < paras.length; i++) ...[
-                        if (i > 0) ...[
-                          const SizedBox(height: 8),
-                          _paraDivider(AppTheme.saffron),
-                          const SizedBox(height: 10),
-                        ],
-                        Text(paras[i].trim(),
-                            style: const TextStyle(fontSize: 14.5, height: 1.85, color: Color(0xFF4A3728), letterSpacing: 0.1),
-                            textAlign: TextAlign.justify),
-                      ],
-                    ],
-                  ),
-                ),
-                _highlightBox(_tr('kalpataru_intro_highlight'), AppTheme.saffron),
+                // const SizedBox(height: 18),
+                // _ornamentalRule(AppTheme.gold),
+                // const SizedBox(height: 18),
+                // Stats row
+                // Row(
+                //   mainAxisAlignment: MainAxisAlignment.center,
+                //   children: [
+                //     _buildCoverStat('1,00,000+', 'Lives Transformed'),
+                //     Container(width: 1, height: 36,
+                //         color: Colors.white.withValues(alpha: 0.25),
+                //         margin: const EdgeInsets.symmetric(horizontal: 14)),
+                //     _buildCoverStat('2,316', 'Shaktipatham\nIn a Single Night'),
+                //     Container(width: 1, height: 36,
+                //         color: Colors.white.withValues(alpha: 0.25),
+                //         margin: const EdgeInsets.symmetric(horizontal: 14)),
+                //     _buildCoverStat('Asia', 'Book of Records'),
+                //   ],
+                // ),
+                const SizedBox(height: 18),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ── 2 · Principle ──────────────────────────────────────────────────────────
-
-  Widget _buildPrincipleSection(BuildContext context) {
-    final pillars = [
-      {'icon': '🌟', 'title': 'Energy & Consciousness', 'body': _tr('kalpataru_pillar_1')},
-      {'icon': '🔄', 'title': 'Karmic Healing', 'body': _tr('kalpataru_pillar_2')},
-      {'icon': '✨', 'title': 'Direct Experience', 'body': _tr('kalpataru_pillar_3')},
-    ];
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [AppTheme.saffron.withValues(alpha: 0.08), AppTheme.gold.withValues(alpha: 0.05)],
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.2), width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        // Gold top accent line
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            height: 3,
             decoration: BoxDecoration(
-              color: AppTheme.saffron.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-            child: Text('THE PRINCIPLE',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.saffron, letterSpacing: 2)),
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                AppTheme.gold.withValues(alpha: 0.9),
+                Colors.transparent,
+              ]),
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(_tr('kalpataru_principle_title'),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFBF360C)),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(_tr('kalpataru_principle_para'),
-              style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.6),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          for (int i = 0; i < pillars.length; i++) ...[
-            if (i > 0) const SizedBox(height: 16),
-            _buildPrincipleItem(pillars[i]['icon']!, pillars[i]['title']!, pillars[i]['body']!),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrincipleItem(String icon, String title, String body) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2))],
-          ),
-          child: Center(child: Text(icon, style: const TextStyle(fontSize: 24))),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.grey[800])),
-            const SizedBox(height: 4),
-            Text(body, style: TextStyle(fontSize: 13.5, height: 1.65, color: Colors.grey[600])),
-          ]),
         ),
       ],
     );
   }
 
-  // ── 3 · How It Works ──────────────────────────────────────────────────────
+  Widget _buildCoverStat(String value, String label) {
+    return Column(
+      children: [
+        Text(value,
+            style: TextStyle(
+                color: AppTheme.gold,
+                fontSize: 16,
+                fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.65),
+                fontSize: 10,
+                height: 1.3),
+            textAlign: TextAlign.center),
+      ],
+    );
+  }
 
-  Widget _buildHowItWorksSection(BuildContext context) {
+  // ── Chapter image header (slides 1–7) ─────────────────────────────────────
+
+  Widget _buildChapterImage(Color accent, String imageUrl) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CachedImage(
+          imageUrl: imageUrl,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.08),
+                accent.withValues(alpha: 0.65),
+              ],
+              stops: const [0.35, 1.0],
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                AppTheme.gold.withValues(alpha: 0.7),
+                Colors.transparent,
+              ]),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Slides 1–7: Chapter slides ─────────────────────────────────────────────
+
+  Widget _buildChapterSlide(BuildContext context, int idx) {
+    final accent = _accentColors[idx];
+    // CDN image per chapter slide (slides 1–7 map to kalpataruSlide3–9,
+    // since slide1=cover, slide2=CTA)
+    final cdnImages = [
+      AppConstants.kalpataruSlide3, // idx 0 · Introduction
+      AppConstants.kalpataruSlide4, // idx 1 · Principle
+      AppConstants.kalpataruSlide5, // idx 2 · How It Works
+      AppConstants.kalpataruSlide6, // idx 3 · Transformation
+      AppConstants.kalpataruSlide7, // idx 4 · Manifestation
+      AppConstants.kalpataruSlide8, // idx 5 · Benefits
+      AppConstants.kalpataruSlide9, // idx 6 · Proof & Experiences
+    ];
+
+    return Container(
+      color: const Color(0xFFF8F2EC),
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: Colors.transparent,
+            expandedHeight: 310,
+            pinned: false,
+            flexibleSpace: FlexibleSpaceBar(
+              background: _buildChapterImage(accent, cdnImages[idx]),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildChapterContent(context, idx, accent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterContent(BuildContext context, int idx, Color accent) {
+    switch (idx) {
+      case 0:
+        return _buildSlide1Introduction(context, accent);
+      case 1:
+        return _buildSlide2Principle(context, accent);
+      case 2:
+        return _buildSlide3HowItWorks(context, accent);
+      case 3:
+        return _buildSlide4Transformation(context, accent);
+      case 4:
+        return _buildSlide5Manifestation(context, accent);
+      case 5:
+        return _buildSlide6Benefits(context, accent);
+      case 6:
+        return _buildSlide7Proof(context, accent);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  // ── Slide 1: Introduction ─────────────────────────────────────────────────
+
+  Widget _buildSlide1Introduction(BuildContext context, Color accent) {
+    final paras = _tr('kalpataru_intro_para')
+        .split('\n\n').where((p) => p.trim().isNotEmpty).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Title card
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('INTRODUCTION',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
+            ),
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_intro_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 6),
+            Text(_tr('kalpataru_hero_headline'),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                    color: Colors.grey[700], height: 1.4)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ]),
+        ),
+        // Hero sub
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.2)),
+          ),
+          child: Text(_tr('kalpataru_hero_sub'),
+              style: TextStyle(fontSize: 13.5, fontStyle: FontStyle.italic,
+                  color: accent, height: 1.6),
+              textAlign: TextAlign.center),
+        ),
+        // Body paragraphs
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (int i = 0; i < paras.length; i++) ...[
+              if (i > 0) ...[
+                const SizedBox(height: 10),
+                _paraDivider(accent),
+                const SizedBox(height: 10),
+              ],
+              Text(paras[i].trim(),
+                  style: const TextStyle(fontSize: 15, height: 1.85,
+                      color: Color(0xFF4A3728), letterSpacing: 0.1),
+                  textAlign: TextAlign.justify),
+            ],
+          ]),
+        ),
+        _highlightBox(_tr('kalpataru_intro_highlight'), accent),
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  // ── Slide 2: Principle ────────────────────────────────────────────────────
+
+  Widget _buildSlide2Principle(BuildContext context, Color accent) {
+    final pillars = [
+      {'icon': '🌟', 'body': _tr('kalpataru_pillar_1')},
+      {'icon': '🔄', 'body': _tr('kalpataru_pillar_2')},
+      {'icon': '✨', 'body': _tr('kalpataru_pillar_3')},
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('THE PRINCIPLE',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
+            ),
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_principle_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Column(children: [
+            Text(_tr('kalpataru_principle_para'),
+                style: TextStyle(fontSize: 15, height: 1.8,
+                    color: const Color(0xFF4A3728), letterSpacing: 0.1),
+                textAlign: TextAlign.justify),
+            const SizedBox(height: 20),
+            for (int i = 0; i < pillars.length; i++) ...[
+              if (i > 0) ...[
+                const SizedBox(height: 16),
+                _paraDivider(accent),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: accent.withValues(alpha: 0.2)),
+                    ),
+                    child: Center(child: Text(pillars[i]['icon']!,
+                        style: const TextStyle(fontSize: 22))),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(pillars[i]['body']!,
+                        style: TextStyle(fontSize: 14, height: 1.7,
+                            color: const Color(0xFF4A3728))),
+                  ),
+                ],
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  // ── Slide 3: How It Works ─────────────────────────────────────────────────
+
+  Widget _buildSlide3HowItWorks(BuildContext context, Color accent) {
     final paras = _tr('kalpataru_works_para')
         .split('\n\n').where((p) => p.trim().isNotEmpty).toList();
     final steps = [
-      {'num': '1', 'title': 'Identify the Challenge', 'body': _tr('kalpataru_step_1')},
-      {'num': '2', 'title': 'Practice Kalpataru', 'body': _tr('kalpataru_step_2')},
-      {'num': '3', 'title': 'Karmic Transformation', 'body': _tr('kalpataru_step_3')},
-      {'num': '4', 'title': 'Natural Manifestation', 'body': _tr('kalpataru_step_4')},
+      {'num': '1', 'title': 'Identify', 'body': _tr('kalpataru_step_1')},
+      {'num': '2', 'title': 'Connect', 'body': _tr('kalpataru_step_2')},
+      {'num': '3', 'title': 'Heal', 'body': _tr('kalpataru_step_3')},
+      {'num': '4', 'title': 'Manifest', 'body': _tr('kalpataru_step_4')},
     ];
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(_tr('kalpataru_works_title'),
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.grey[800]),
-                textAlign: TextAlign.center),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
           ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(_tr('kalpataru_works_sub'),
-                style: TextStyle(fontSize: 15, fontStyle: FontStyle.italic, color: AppTheme.saffron, fontWeight: FontWeight.w500)),
-          ),
-          const SizedBox(height: 20),
-          // Body paras
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 4))],
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('HOW IT WORKS',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (int i = 0; i < paras.length; i++) ...[
-                  if (i > 0) ...[
-                    const SizedBox(height: 8),
-                    _paraDivider(AppTheme.saffron),
-                    const SizedBox(height: 10),
-                  ],
-                  Text(paras[i].trim(),
-                      style: const TextStyle(fontSize: 14.5, height: 1.85, color: Color(0xFF4A3728)),
-                      textAlign: TextAlign.justify),
-                ],
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_works_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 4),
+            Text(_tr('kalpataru_works_sub'),
+                style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic,
+                    color: accent.withValues(alpha: 0.8))),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (int i = 0; i < paras.length; i++) ...[
+              if (i > 0) ...[
+                const SizedBox(height: 10),
+                _paraDivider(accent),
+                const SizedBox(height: 10),
               ],
-            ),
+              Text(paras[i].trim(),
+                  style: const TextStyle(fontSize: 15, height: 1.85,
+                      color: Color(0xFF4A3728), letterSpacing: 0.1),
+                  textAlign: TextAlign.justify),
+            ],
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Column(
+            children: [
+              for (int i = 0; i < steps.length; i++) ...[
+                if (i > 0) const SizedBox(height: 12),
+                _buildProcessStep(steps[i]['num']!, steps[i]['title']!,
+                    steps[i]['body']!, accent),
+              ],
+            ],
           ),
-          const SizedBox(height: 20),
-          // Steps
-          for (int i = 0; i < steps.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            _buildProcessStep(steps[i]['num']!, steps[i]['title']!, steps[i]['body']!),
-          ],
-          const SizedBox(height: 16),
-          _highlightBox(_tr('kalpataru_works_highlight'), AppTheme.saffron),
-        ],
-      ),
+        ),
+        _highlightBox(_tr('kalpataru_works_highlight'), accent),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
-  Widget _buildProcessStep(String number, String title, String description) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppTheme.saffron, const Color(0xFFFFAA00)]),
-              shape: BoxShape.circle,
-            ),
-            child: Center(child: Text(number, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white))),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.grey[800])),
-              const SizedBox(height: 4),
-              Text(description, style: TextStyle(fontSize: 13.5, height: 1.6, color: Colors.grey[600])),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── Slide 4: Transformation ───────────────────────────────────────────────
 
-  // ── 4 · Three-Level Transformation ────────────────────────────────────────
-
-  Widget _buildTransformationSection(BuildContext context) {
+  Widget _buildSlide4Transformation(BuildContext context, Color accent) {
     final levels = [
       {
         'title': _tr('kalpataru_level_1_title'),
         'body': _tr('kalpataru_level_1'),
-        'color': const Color(0xFFE53935),
       },
       {
         'title': _tr('kalpataru_level_2_title'),
         'body': _tr('kalpataru_level_2'),
-        'color': const Color(0xFF1565C0),
       },
       {
         'title': _tr('kalpataru_level_3_title'),
         'body': _tr('kalpataru_level_3'),
-        'color': const Color(0xFF6A1B9A),
       },
     ];
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [AppTheme.saffron, const Color(0xFFFF9933)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.3), blurRadius: 28, offset: const Offset(0, 10))],
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.self_improvement, size: 48, color: Colors.white),
-          const SizedBox(height: 16),
-          Text(_tr('kalpataru_levels_title'),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 10),
-          Text(_tr('kalpataru_levels_para'),
-              style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.9), height: 1.6),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 20),
-          for (int i = 0; i < levels.length; i++) ...[
-            if (i > 0) const SizedBox(height: 14),
-            _buildTransformationLevel(
-              levels[i]['title'] as String,
-              levels[i]['body'] as String,
-            ),
-          ],
-          const SizedBox(height: 16),
-          // Closing para
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-            ),
-            child: Text(
-              _tr('kalpataru_levels_closing'),
-              style: TextStyle(fontSize: 14, height: 1.75, color: Colors.white.withValues(alpha: 0.95)),
-              textAlign: TextAlign.justify,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
           ),
-          const SizedBox(height: 14),
-          // Highlight pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('TRANSFORMATION',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check_circle, color: AppTheme.saffron, size: 20),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    _tr('kalpataru_levels_highlight'),
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.saffron),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_levels_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTransformationLevel(String title, String body) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-            const SizedBox(width: 10),
-            Expanded(child: Text(title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
           ]),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: 18),
-            child: Text(body,
-                style: TextStyle(fontSize: 13.5, height: 1.65, color: Colors.white.withValues(alpha: 0.9)),
-                textAlign: TextAlign.justify),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8, offset: const Offset(0, 3))],
           ),
-        ],
-      ),
+          child: Column(children: [
+            Text(_tr('kalpataru_levels_para'),
+                style: const TextStyle(fontSize: 15, height: 1.8,
+                    color: Color(0xFF4A3728)),
+                textAlign: TextAlign.justify),
+            const SizedBox(height: 20),
+            for (int i = 0; i < levels.length; i++) ...[
+              if (i > 0) const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: accent.withValues(alpha: 0.2)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(width: 8, height: 8,
+                        decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(levels[i]['title']!,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                            color: accent))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 18),
+                    child: Text(levels[i]['body']!,
+                        style: const TextStyle(fontSize: 13.5, height: 1.65,
+                            color: Color(0xFF4A3728)),
+                        textAlign: TextAlign.justify),
+                  ),
+                ]),
+              ),
+            ],
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+          ),
+          child: Text(_tr('kalpataru_levels_closing'),
+              style: const TextStyle(fontSize: 14.5, height: 1.75,
+                  color: Color(0xFF4A3728)),
+              textAlign: TextAlign.justify),
+        ),
+        _highlightBox(_tr('kalpataru_levels_highlight'), accent),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
-  // ── 5 · Manifestation ─────────────────────────────────────────────────────
+  // ── Slide 5: Manifestation ────────────────────────────────────────────────
 
-  Widget _buildManifestSection(BuildContext context) {
+  Widget _buildSlide5Manifestation(BuildContext context, Color accent) {
     final paras = _tr('kalpataru_manifest_para')
         .split('\n\n').where((p) => p.trim().isNotEmpty).toList();
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6A1B9A).withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF6A1B9A).withValues(alpha: 0.07), blurRadius: 18, offset: const Offset(0, 5)),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF6A1B9A).withValues(alpha: 0.07),
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(19), topRight: Radius.circular(19)),
-              border: Border(bottom: BorderSide(color: const Color(0xFF6A1B9A).withValues(alpha: 0.15))),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('MANIFESTATION',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
             ),
-            child: Row(children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6A1B9A).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF6A1B9A).withValues(alpha: 0.3)),
-                ),
-                child: const Center(child: Text('🌟', style: TextStyle(fontSize: 20))),
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_manifest_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(_tr('kalpataru_manifest_title'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF6A1B9A))),
-              ),
-            ]),
+            ),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8, offset: const Offset(0, 3))],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (int i = 0; i < paras.length; i++) ...[
-                if (i > 0) ...[
-                  const SizedBox(height: 8),
-                  _paraDivider(const Color(0xFF6A1B9A)),
-                  const SizedBox(height: 10),
-                ],
-                Text(paras[i].trim(),
-                    style: const TextStyle(fontSize: 14.5, height: 1.85, color: Color(0xFF4A3728)),
-                    textAlign: TextAlign.justify),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (int i = 0; i < paras.length; i++) ...[
+              if (i > 0) ...[
+                const SizedBox(height: 10),
+                _paraDivider(accent),
+                const SizedBox(height: 10),
               ],
-            ]),
-          ),
-          _highlightBox(_tr('kalpataru_manifest_highlight'), const Color(0xFF6A1B9A)),
-        ],
-      ),
+              Text(paras[i].trim(),
+                  style: const TextStyle(fontSize: 15, height: 1.85,
+                      color: Color(0xFF4A3728), letterSpacing: 0.1),
+                  textAlign: TextAlign.justify),
+            ],
+          ]),
+        ),
+        _highlightBox(_tr('kalpataru_manifest_highlight'), accent),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
-  // ── 6 · Benefits Grid ─────────────────────────────────────────────────────
+  // ── Slide 6: Benefits ─────────────────────────────────────────────────────
 
-  Widget _buildBenefitsGrid(BuildContext context) {
+  Widget _buildSlide6Benefits(BuildContext context, Color accent) {
     final benefits = [
       {'icon': Icons.favorite, 'titleKey': 'kalpataru_brings_1_title', 'descKey': 'kalpataru_brings_1'},
       {'icon': Icons.psychology, 'titleKey': 'kalpataru_brings_2_title', 'descKey': 'kalpataru_brings_2'},
@@ -1178,20 +1466,54 @@ class _KalpataruPageState extends State<KalpataruPage> {
       {'icon': Icons.trending_up, 'titleKey': 'kalpataru_brings_5_title', 'descKey': 'kalpataru_brings_5'},
       {'icon': Icons.auto_awesome, 'titleKey': 'kalpataru_brings_6_title', 'descKey': 'kalpataru_brings_6'},
     ];
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      child: Column(
-        children: [
-          Text(_tr('kalpataru_brings_title'),
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.grey[800]),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          GridView.builder(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('BENEFITS',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
+            ),
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_brings_title'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+          child: GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2, childAspectRatio: 0.87,
-              crossAxisSpacing: 14, mainAxisSpacing: 14,
+              crossAxisCount: 2,
+              childAspectRatio: 0.87,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
             ),
             itemCount: benefits.length,
             itemBuilder: (context, index) {
@@ -1199,8 +1521,10 @@ class _KalpataruPageState extends State<KalpataruPage> {
               return Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white, borderRadius: BorderRadius.circular(18),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))],
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 16, offset: const Offset(0, 4))],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1210,24 +1534,26 @@ class _KalpataruPageState extends State<KalpataruPage> {
                       width: 56, height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: [
-                          AppTheme.saffron.withValues(alpha: 0.18),
+                          accent.withValues(alpha: 0.18),
                           AppTheme.gold.withValues(alpha: 0.12),
                         ]),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(b['icon'] as IconData, size: 28, color: AppTheme.saffron),
+                      child: Icon(b['icon'] as IconData, size: 28, color: accent),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      context.tr(b['titleKey'] as String),
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey[800]),
+                      _tr(b['titleKey'] as String),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                          color: Colors.grey[800]),
                       textAlign: TextAlign.center, maxLines: 2,
                     ),
                     const SizedBox(height: 5),
                     Flexible(
                       child: Text(
-                        context.tr(b['descKey'] as String),
-                        style: TextStyle(fontSize: 11.5, height: 1.4, color: Colors.grey[600]),
+                        _tr(b['descKey'] as String),
+                        style: TextStyle(fontSize: 11.5, height: 1.4,
+                            color: Colors.grey[600]),
                         textAlign: TextAlign.center, maxLines: 3,
                       ),
                     ),
@@ -1236,181 +1562,432 @@ class _KalpataruPageState extends State<KalpataruPage> {
               );
             },
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
-  // ── 7 · Social Proof ──────────────────────────────────────────────────────
+  // ── Slide 7: Social Proof + Experiences ──────────────────────────────────
 
-  Widget _buildProofSection(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF8F0),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.2), width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Text(_tr('kalpataru_proof_para'),
-              style: TextStyle(fontSize: 14.5, height: 1.85, color: Colors.grey[700]),
-              textAlign: TextAlign.justify),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _buildStatCard('5000+', 'Practitioners'),
-            const SizedBox(width: 12),
-            _buildStatCard('10K+', 'Sadhaks'),
-          ]),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _buildStatCard('40+', 'Countries'),
-            const SizedBox(width: 12),
-            _buildStatCard('4 hrs', 'One Miracle'),
-          ]),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.format_quote, color: AppTheme.saffron.withValues(alpha: 0.5), size: 22),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    _tr('kalpataru_proof_highlight'),
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.saffron, fontStyle: FontStyle.italic, height: 1.5),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildSlide7Proof(BuildContext context, Color accent) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.15)),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.1),
+                blurRadius: 18, offset: const Offset(0, 4))],
           ),
-        ],
-      ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Text('SOCIAL PROOF',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: accent, letterSpacing: 1.5)),
+            ),
+            const SizedBox(height: 10),
+            Text(_tr('kalpataru_proof_heading'),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold,
+                    color: accent, height: 1.25)),
+            const SizedBox(height: 10),
+            Container(height: 2, width: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [accent, Colors.transparent]),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.1)),
+          ),
+          child: Column(children: [
+            Text(_tr('kalpataru_proof_para'),
+                style: const TextStyle(fontSize: 14.5, height: 1.85,
+                    color: Color(0xFF4A3728)),
+                textAlign: TextAlign.justify),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: _buildStatCard('5000+', 'Practitioners')),
+              const SizedBox(width: 12),
+              Expanded(child: _buildStatCard('10K+', 'Sadhaks')),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _buildStatCard('40+', 'Countries')),
+              const SizedBox(width: 12),
+              Expanded(child: _buildStatCard('4 hrs', 'One Miracle')),
+            ]),
+          ]),
+        ),
+        _highlightBox(_tr('kalpataru_proof_highlight'), accent),
+        const SizedBox(height: 28),
+        const KalpataruExperiencesWidget(),
+        const SizedBox(height: 36),
+        YouTubePlaylistSection(
+          config: const PlaylistConfig(
+            title: 'Healing & Manifestation Experiences',
+            subtitle: 'Real stories using Kalpataru Technique',
+            playlistId: 'PL5n5gvsTFZLwrGFrtAa3sLgq5BVOpL7K_',
+            accentColor: Color(0xFFC4622D),
+            bgColor: Color(0xFFFFF3EE),
+            emoji: '🙏',
+          ),
+        ),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
   Widget _buildStatCard(String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 2))],
-        ),
-        child: Column(children: [
-          Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: AppTheme.saffron)),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[600]), textAlign: TextAlign.center),
-        ]),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3EE),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.08),
+            blurRadius: 10, offset: const Offset(0, 2))],
       ),
+      child: Column(children: [
+        Text(value,
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700,
+                color: AppTheme.saffron)),
+        const SizedBox(height: 4),
+        Text(label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                color: Colors.grey[600]),
+            textAlign: TextAlign.center),
+      ]),
     );
   }
 
-  // ── Kalpataru Playlist ────────────────────────────────────────────────────
+  // ── Slide 8: Closing / CTA ────────────────────────────────────────────────
 
-  Widget _buildKalpataruPlaylist() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 28, 0, 0),
-      child: YouTubePlaylistSection(
-        config: const PlaylistConfig(
-          title: 'Healing & Manifestation Experiences',
-          subtitle: 'Real stories using Kalpataru Technique',
-          playlistId: 'PL5n5gvsTFZLwrGFrtAa3sLgq5BVOpL7K_',
-          accentColor: Color(0xFFC4622D),
-          bgColor: Color(0xFFFFF3EE),
-          emoji: '🙏',
-        ),
-      ),
-    );
-  }
-
-  // ── 8 · CTA ────────────────────────────────────────────────────────────────
-
-  Widget _buildCallToAction(BuildContext context) {
+  Widget _buildClosingSlide(BuildContext context) {
+    const accent = Color(0xFFC4622D);
     final ctaLines = _tr('kalpataru_cta_para')
         .split('\n').where((l) => l.trim().isNotEmpty).toList();
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [const Color(0xFFFFF8F0), AppTheme.gold.withValues(alpha: 0.15)],
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CachedImage(
+          imageUrl: AppConstants.kalpataruSlide2,
+          width: double.infinity,
+          fit: BoxFit.cover,
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.saffron.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        children: [
-          Text(_tr('kalpataru_cta_title'),
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.grey[800]),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(_tr('kalpataru_cta_sub'),
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.saffron, fontStyle: FontStyle.italic),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 20),
-          // Rhetorical questions
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 4))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final line in ctaLines.take(3))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.check_circle_outline, color: AppTheme.saffron, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(line.trim(),
-                              style: TextStyle(fontSize: 14.5, height: 1.6, color: Colors.grey[700])),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (ctaLines.length > 3) ...[
-                  _paraDivider(AppTheme.saffron),
-                  const SizedBox(height: 10),
-                  for (final line in ctaLines.skip(3))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(line.trim(),
-                          style: TextStyle(fontSize: 14.5, height: 1.75, color: Colors.grey[700])),
-                    ),
-                ],
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF3E1A00).withValues(alpha: 0.7),
+                const Color(0xFF1A0A00).withValues(alpha: 0.97),
               ],
+              stops: const [0.2, 1.0],
             ),
           ),
-          const SizedBox(height: 16),
-          _highlightBox(_tr('kalpataru_cta_highlight'), AppTheme.saffron),
-          const SizedBox(height: 20),
-          // CTA button
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        // Gold top accent line
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            height: 3,
             decoration: BoxDecoration(
-              gradient: AppTheme.saffronGradient,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.4), blurRadius: 18, offset: const Offset(0, 6))],
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                AppTheme.gold.withValues(alpha: 0.9),
+                Colors.transparent,
+              ]),
             ),
-            child: Center(
-              child: Text(
-                _tr('kalpataru_cta_button'),
-                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ),
+        // Content
+        SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              24, MediaQuery.of(context).padding.top + 80, 24, 110),
+          child: Column(
+            children: [
+              _ornamentalRule(accent),
+              const SizedBox(height: 20),
+              Text(
+                _tr('kalpataru_cta_title'),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                    height: 1.2),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _tr('kalpataru_cta_sub'),
+                style: TextStyle(
+                    color: AppTheme.gold,
+                    fontSize: 15,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              // White card with rhetorical questions
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 20, offset: const Offset(0, 8))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final line in ctaLines.take(3))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.check_circle_outline,
+                                color: accent, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(line.trim(),
+                                  style: TextStyle(fontSize: 14.5, height: 1.6,
+                                      color: Colors.grey[700])),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (ctaLines.length > 3) ...[
+                      _paraDivider(accent),
+                      const SizedBox(height: 10),
+                      for (final line in ctaLines.skip(3))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(line.trim(),
+                              style: TextStyle(fontSize: 14.5, height: 1.75,
+                                  color: Colors.grey[700])),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Highlight box
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A0E00).withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border(left: BorderSide(color: accent, width: 4)),
+                ),
+                child: Text(
+                  _tr('kalpataru_cta_highlight'),
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.gold,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                      height: 1.6),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Gradient CTA button
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.saffronGradient,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [BoxShadow(
+                      color: accent.withValues(alpha: 0.5),
+                      blurRadius: 18, offset: const Offset(0, 6))],
+                ),
+                child: Center(
+                  child: Text(
+                    _tr('kalpataru_cta_button'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              // Jai Gurudev pill
+              // Container(
+              //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              //   decoration: BoxDecoration(
+              //     color: Colors.white.withValues(alpha: 0.1),
+              //     borderRadius: BorderRadius.circular(24),
+              //     border: Border.all(color: AppTheme.gold.withValues(alpha: 0.4)),
+              //   ),
+              //   child: Text(
+              //     '🙏  Jai Gurudev  🙏',
+              //     style: TextStyle(
+              //         color: AppTheme.gold,
+              //         fontSize: 14,
+              //         fontWeight: FontWeight.w600,
+              //         letterSpacing: 0.5),
+              //   ),
+              // ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Swipe Hint ─────────────────────────────────────────────────────────────
+
+  Widget _buildSwipeHint(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Stack(
+      children: [
+        Positioned(
+          right: 12,
+          top: screenHeight * 0.42,
+          child: AnimatedBuilder(
+            animation: _bounceAnim,
+            builder: (_, __) => Transform.translate(
+              offset: Offset(-_bounceAnim.value, 0),
+              child: const Icon(Icons.swipe_left_rounded, color: Colors.white, size: 48),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 100, left: 0, right: 0,
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _pulseCtrl,
+              builder: (_, __) => Opacity(
+                opacity: 0.6 + (_pulseCtrl.value * 0.4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swipe_left_rounded, color: AppTheme.gold, size: 16),
+                      const SizedBox(width: 6),
+                      const Text('Swipe to Explore',
+                          style: TextStyle(color: Colors.white, fontSize: 12,
+                              fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // ── Bottom dot nav ─────────────────────────────────────────────────────────
+
+  Widget _buildDotNav() {
+    Color dotColorFor(int i) {
+      if (i == 0) return AppTheme.gold;
+      if (i == 1) return AppTheme.saffron;
+      return _accentColors[i - 2];
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (_currentPage > 0)
+            GestureDetector(
+              onTap: () => _pageController.previousPage(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut),
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(Icons.arrow_back_ios,
+                    color: Colors.white, size: 15),
+              ),
+            )
+          else
+            const SizedBox(width: 36),
+          const SizedBox(width: 12),
+          Row(
+            children: List.generate(_totalSlides, (i) {
+              final isActive = i == _currentPage;
+              final c = dotColorFor(i);
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: isActive ? 22 : 7,
+                height: 7,
+                margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                decoration: BoxDecoration(
+                  color: isActive ? c : Colors.white.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: isActive
+                      ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 6)]
+                      : null,
+                ),
+              );
+            }),
+          ),
+          const SizedBox(width: 12),
+          if (_currentPage < _totalSlides - 1)
+            GestureDetector(
+              onTap: () => _pageController.nextPage(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut),
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: dotColorFor(_currentPage),
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(
+                      color: dotColorFor(_currentPage).withValues(alpha: 0.45),
+                      blurRadius: 8)],
+                ),
+                child: const Icon(Icons.arrow_forward_ios,
+                    color: Colors.white, size: 15),
+              ),
+            )
+          else
+            const SizedBox(width: 36),
         ],
       ),
     );
@@ -1418,18 +1995,44 @@ class _KalpataruPageState extends State<KalpataruPage> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  Widget _ornamentalRule(Color color) {
+    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      _dot(color.withValues(alpha: 0.3), size: 5),
+      const SizedBox(width: 4),
+      Container(width: 28, height: 1, color: color.withValues(alpha: 0.4)),
+      const SizedBox(width: 4),
+      _dot(color.withValues(alpha: 0.7), size: 7),
+      const SizedBox(width: 4),
+      Container(width: 28, height: 1, color: color.withValues(alpha: 0.4)),
+      const SizedBox(width: 4),
+      _dot(color.withValues(alpha: 0.3), size: 5),
+    ]);
+  }
+
+  Widget _dot(Color color, {double size = 6}) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+
   Widget _highlightBox(String text, Color color) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border(left: BorderSide(color: color, width: 3)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: color, width: 4)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.07),
+            blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic, height: 1.6),
+        style: TextStyle(
+            fontSize: 14,
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontStyle: FontStyle.italic,
+            height: 1.6),
       ),
     );
   }
@@ -1439,10 +2042,53 @@ class _KalpataruPageState extends State<KalpataruPage> {
       Container(width: 18, height: 1, color: color.withValues(alpha: 0.2)),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: Container(width: 4, height: 4,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.4), shape: BoxShape.circle)),
+        child: Container(
+            width: 4, height: 4,
+            decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.4), shape: BoxShape.circle)),
       ),
       Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.08))),
     ]);
+  }
+
+  Widget _buildProcessStep(
+      String number, String title, String description, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.08),
+            blurRadius: 16, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [accent, accent.withValues(alpha: 0.7)]),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+                child: Text(number,
+                    style: const TextStyle(fontSize: 17,
+                        fontWeight: FontWeight.w800, color: Colors.white))),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                      color: Colors.grey[800])),
+              const SizedBox(height: 4),
+              Text(description,
+                  style: TextStyle(fontSize: 13.5, height: 1.6,
+                      color: Colors.grey[600])),
+            ]),
+          ),
+        ],
+      ),
+    );
   }
 }

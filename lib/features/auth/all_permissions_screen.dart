@@ -210,7 +210,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           ],
         ),
         content: const Text(
-          'Allow notifications to receive blessings and updates from Guruji.',
+          'Allow notifications to receive blessings and updates from Gurudev.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
         actions: [
@@ -259,7 +259,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
           ],
         ),
         content: const Text(
-          'Notifications are required to receive updates from Guruji.\n\n'
+          'Notifications are required to receive updates from Gurudev.\n\n'
           'Please go to Settings → App → Notifications and enable them.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
@@ -331,7 +331,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                     const SizedBox(height: 12),
 
                     Text(
-                      'Allow notifications to receive blessings and updates from Guruji',
+                      'Allow notifications to receive blessings and updates from Gurudev',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppTheme.textSecondary,
                         height: 1.6,
@@ -396,7 +396,7 @@ class _AllPermissionsScreenState extends State<AllPermissionsScreen>
                                       ? 'Allowed'
                                       : _notificationPermanentlyDenied
                                           ? 'Blocked — open Settings to enable'
-                                          : 'Required to receive Guruji updates',
+                                          : 'Required to receive Gurudev updates',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: _notificationGranted

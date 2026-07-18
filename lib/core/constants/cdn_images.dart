@@ -32,34 +32,51 @@ class CdnImages {
   static const String guruji30 = '$_baseUrl/d82f348e-6b86-4be8-31c9-565ef2112300/public';
   static const String guruji32 = '$_baseUrl/238879d8-5b8d-473d-5061-cb28c7e2b700/public';
   
-  // Chakra Landing Slide Images - CDN URLs
+  // Chakra Slide Images - CDN URLs
   static const String chakraSlide1 = chakras;           // Cover
-  static const String chakraSlide2 = kundalini;         // What Are Chakras
-  static const String chakraSlide3 = meditation;        // Activation vs Awakening
-  static const String chakraSlide4 = gurujiMeditation;  // How Kundalini Rises
-  static const String chakraSlide5 = guruji30;          // Blocks & Balance
-  static const String chakraSlide6 = gurujiSmile;       // Physical Experiences
-  static const String kundaliniSlide1 = kundalini;         // Cover
-  static const String kundaliniSlide2 = kundalini;         // Primordial Energy
-  static const String kundaliniSlide3 = meditation;        // Inner Technology
-  static const String kundaliniSlide4 = chakras;           // Seven Chakras
-  static const String kundaliniSlide5 = gurujiMeditation;  // Path of Awakening
-  static const String kundaliniSlide6 = guruji30;          // Safe for Every Seeker
-  static const String guruJourneySlide1 = guruji;           // Cover — Guruji main
-  static const String guruJourneySlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/About%20Gurudev%20born%20with%20awakened%20Kundalini%20.png'; // Awakening (age 8)
-  static const String guruJourneySlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/Divine%20Encounter%20at%20Srisailam.png';       // Srisailam (age 13)
-  static const String guruJourneySlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20-%20attainment%20of%20enlightenment.png';       // Enlightenment / Sadhana
-  static const String guruJourneySlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20founding%20sks.jpeg';         // Founding SKS mission
-  static const String guruJourneySlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about%20gurudev%20-%20bestowing%20shaktipatam%20and%20shivapatham.png';      // Gift of Grace
+  static const String chakraSlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/chakras/what%20are%20chakras.png';         // What Are Chakras
+  static const String chakraSlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/chakras/chakars%20-%20Chakra%20awakening%20Vs%20Kundalini%20awakening.png';        // Activation vs Awakening
+  static const String chakraSlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/chakras/How%20does%20Kundalini%20Rise.png';  // How Kundalini Rises
+  static const String chakraSlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/chakras/Blocks%2C%20balance%20and%20the%20opening%20of%20the%20chakras.png';          // Blocks & Balance
+  static const String chakraSlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/chakras/Physical%20experiences%20during%20Spiritual%20Practice.png';       // Physical Experiences
+
+  // Kundalini Slide Images - CDN URLs
+  static const String kundaliniSlide1 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/the%20science%20of%20kundalini%20awakening%20-%20main%20pic.png';         // Cover
+  static const String kundaliniSlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/kundalini%20-%20the%20science%20of%20kundalini%20awakening.png';         // Primordial Energy
+  static const String kundaliniSlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/kundalini%20-%20A%20sacred%20science%20and%20inner%20technology.png';        // Inner Technology
+  static const String kundaliniSlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/kundalini%20-%20The%20journey%20through%20the%20seven%20chakras.png';           // Seven Chakras
+  static const String kundaliniSlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/chakars%20-%20Chakra%20awakening%20Vs%20Kundalini%20awakening.png';  // Path of Awakening
+  static const String kundaliniSlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kundalini/Safe%2C%20simple%20and%20for%20every%20seeker.png';          // Safe for Every Seeker
+  
+  // Gurudev Slide Images - CDN URLs
+  static const String guruJourneySlide1 = guruji;           // Cover — Guruji main  
+  static const String guruJourneySlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/About%20Gurudev%20born%20with%20awakened%20Kundalini%20.png'; // Awakening (age 8)
+  static const String guruJourneySlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/Divine%20Encounter%20at%20Srisailam.png';       // Srisailam (age 13)
+  static const String guruJourneySlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/about%20gurudev%20-%20attainment%20of%20enlightenment.png';       // Enlightenment / Sadhana
+  static const String guruJourneySlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/about%20gurudev%20founding%20sks.jpeg';         // Founding SKS mission
+  static const String guruJourneySlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/about%20gurudev%20-%20bestowing%20shaktipatam%20and%20shivapatham.png';      // Gift of Grace
+  static const String guruJourneyYouTubeSlide = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/about_gurudev/about%20gurudev%20youtube%20page.png'; // YouTube slide background
 
   // ── Onboarding Slide Images — update these URLs to change onboarding screens ──
-  static const String onboardingImage1 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-1.png';  // Slide 1 · Welcome
-  static const String onboardingImage2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-2.png';   // Slide 2 · Gurudev
-  static const String onboardingImage3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-3.png';            // Slide 3 · Kundalini
-  static const String onboardingImage4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-4.jpeg';    // Slide 4 · Classes
-  static const String onboardingImage5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-5.png';           // Slide 5 · Meditation Timer
-  static const String onboardingImage6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-6.png';          // Slide 6 · Bhajans
-  static const String onboardingImage7 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding-7.png';             // Slide 7 · Begin
+  static const String onboardingImage1 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-1.png';  // Slide 1 · Welcome
+  static const String onboardingImage2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-2.png';   // Slide 2 · Gurudev
+  static const String onboardingImage3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-3.png';            // Slide 3 · Kundalini
+  static const String onboardingImage4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-4.jpeg';    // Slide 4 · Classes
+  static const String onboardingImage5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-5.png';           // Slide 5 · Meditation Timer
+  static const String onboardingImage6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-6.png';          // Slide 6 · Bhajans
+  static const String onboardingImage7 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/onboarding/onboarding-img-7.png';             // Slide 7 · Begin
+
+  // ── Kalpataru Slide Images — update these URLs to change kalpataru slides ──
+  static const String kalpataruSlide1 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/kalpataru-image.png';  // Slide 1 · Cover
+  static const String kalpataruSlide2 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/kalpataru-image.png';  // Slide 2 · CTA
+  static const String kalpataruSlide3 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/Welcome%20to%20kalpataru%20.png';  // Slide 3 · Introduction
+  static const String kalpataruSlide4 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/The%20principle%2C%20Shiva%20and%20Shakti%2C%20the%20foundation..png';  // Slide 4 · Principle
+  static const String kalpataruSlide5 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/Shift%20your%20frequency%2C%20transform%20your%20reality..png';  // Slide 5 · How It Works
+  static const String kalpataruSlide6 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/Healing%20at%20the%20Absolute%20Root.png';  // Slide 6 · Transformation
+  static const String kalpataruSlide7 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/become%20the%20conscious%20creator%20of%20your%20destiny..png';  // Slide 7 · Manifestation
+  static const String kalpataruSlide8 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/Benefits%20-%20What%20Kalpataru%20brings.png';  // Slide 8 · Benefits
+  static const String kalpataruSlide9 = 'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sks-mobile-app-guruji-images/kalpataru/social%20proof.png';  // Slide 9 · Proof & Experiences
+  
   static const String blissCenter = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/bliss-center-id/public'; // TODO: Add actual ID
   static const String guruPoornima2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/guru-poornima-id/public'; // TODO: Add actual ID
   static const String mahaSivaratri2025 = 'https://imagedelivery.net/JNNt29TDY0xWT64sZ4K8wQ/maha-sivaratri-id/public'; // TODO: Add actual ID

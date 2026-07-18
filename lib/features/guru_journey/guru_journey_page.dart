@@ -146,8 +146,8 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
             },
           ),
 
-          // Swipe hint — only on cover
-          if (!_hintDismissed && _currentPage == 0)
+          // Swipe hint — show on all slides except the last
+          if (!_hintDismissed && _currentPage < _totalSlides - 1)
             _buildSwipeHint(context),
 
           // Bottom dot nav — always visible
@@ -243,16 +243,16 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
                 _ornamentalRule(),
                 const SizedBox(height: 20),
                 // Impact stats row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _coverStat('1,00,000+', _tr(context, 'guru_journey_seekers_label')),
-                    _statDivider(),
-                    _coverStat('2,316', _tr(context, 'guru_journey_shaktipatham_label')),
-                    _statDivider(),
-                    _coverStat('Asia', 'Book of Records'),
-                  ],
-                ),
+                // Row(
+                //   mainAxisAlignment: MainAxisAlignment.center,
+                //   children: [
+                //     _coverStat('1,00,000+', _tr(context, 'guru_journey_seekers_label')),
+                //     _statDivider(),
+                //     _coverStat('2,316', _tr(context, 'guru_journey_shaktipatham_label')),
+                //     _statDivider(),
+                //     _coverStat('Asia', 'Book of Records'),
+                //   ],
+                // ),
               ],
             ),
           ),
@@ -479,13 +479,6 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
             ),
           ),
         ),
-        // Large watermark number
-        Positioned(
-          top: 90, right: 16,
-          child: Text(number,
-              style: TextStyle(fontSize: 110, fontWeight: FontWeight.w900,
-                  color: Colors.white.withValues(alpha: 0.07), height: 1)),
-        ),
         // Gold bottom accent line
         Positioned(
           bottom: 0, left: 0, right: 0,
@@ -509,9 +502,9 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // YouTube thumbnail — full screen
+        // CDN background image for YouTube slide
         CachedImage(
-          imageUrl: 'https://img.youtube.com/vi/$_videoId/maxresdefault.jpg',
+          imageUrl: AppConstants.guruJourneyYouTubeSlide,
           width: double.infinity,
           fit: BoxFit.cover,
         ),
@@ -541,7 +534,7 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
             ),
           ),
         ),
-        // Center: play button
+        // Centre: circular YouTube play button
         Center(
           child: GestureDetector(
             onTap: () => Navigator.push(
@@ -556,91 +549,51 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Pulsing play button
-                AnimatedBuilder(
-                  animation: _swipeHintCtrl,
-                  builder: (_, __) => Transform.scale(
-                    scale: 1.0 + (_swipeHintCtrl.value * 0.06),
-                    child: Container(
-                      width: 88, height: 88,
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade700,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
-                        boxShadow: [
-                          BoxShadow(color: Colors.red.shade900.withValues(alpha: 0.6),
-                              blurRadius: 32, spreadRadius: 6),
-                        ],
+                Container(
+                  width: 96, height: 96,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF0000),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withValues(alpha: 0.6),
+                        blurRadius: 32, spreadRadius: 6,
                       ),
-                      child: const Icon(Icons.play_arrow, color: Colors.white, size: 50),
-                    ),
+                    ],
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 52),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  context.tr('guru_journey_watch_youtube'),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(context.tr('guru_journey_watch_youtube'),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-                    )),
               ],
             ),
           ),
         ),
-        // Bottom: Guruji name + blessing
+        // Bottom: ornamental rule + Jai Gurudev
         Positioned(
           bottom: 100, left: 24, right: 24,
           child: Column(children: [
             _ornamentalRule(),
-            const SizedBox(height: 14),
-            Text(
-              context.tr('sri_jeeveswara_yogi'),
-              style: const TextStyle(
-                color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold,
-                letterSpacing: 0.5, height: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
             const SizedBox(height: 16),
-            // Pull quote
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.gold.withValues(alpha: 0.3)),
-              ),
-              child: Column(children: [
-                Icon(Icons.format_quote, color: AppTheme.gold.withValues(alpha: 0.6), size: 24),
-                const SizedBox(height: 8),
-                Text(
-                  context.tr('guru_journey_quote'),
-                  style: TextStyle(
-                    fontSize: 14, height: 1.7,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontStyle: FontStyle.italic,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text('— ${context.tr('sri_jeeveswara_yogi')}',
-                    style: TextStyle(fontSize: 11, color: AppTheme.gold.withValues(alpha: 0.8),
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ),
-            const SizedBox(height: 16),
-            // Jai Gurudev pill
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: AppTheme.saffronGradient,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.4),
-                    blurRadius: 16, offset: const Offset(0, 5))],
-              ),
-              child: Text(context.tr('jai_gurudev'),
-                  style: const TextStyle(color: Colors.white, fontSize: 17,
-                      fontWeight: FontWeight.bold, letterSpacing: 1)),
-            ),
+            // Container(
+            //   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            //   decoration: BoxDecoration(
+            //     gradient: AppTheme.saffronGradient,
+            //     borderRadius: BorderRadius.circular(28),
+            //     boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.4),
+            //         blurRadius: 16, offset: const Offset(0, 5))],
+            //   ),
+            //   child: Text(context.tr('jai_gurudev'),
+            //       style: const TextStyle(color: Colors.white, fontSize: 17,
+            //           fontWeight: FontWeight.bold, letterSpacing: 1)),
+            // ),
           ]),
         ),
       ],
@@ -650,63 +603,56 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
   // ── Swipe Hint ─────────────────────────────────────────────────────────────
 
   Widget _buildSwipeHint(BuildContext context) {
-    return Positioned(
-      // Vertically centered on screen, just below mid
-      top: MediaQuery.of(context).size.height * 0.62,
-      left: 0, right: 0,
-      child: Column(
-        children: [
-          // Large animated arrow pointing right
-          AnimatedBuilder(
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Stack(
+      children: [
+        // Swipe hand icon — right-middle of screen
+        Positioned(
+          right: 12,
+          top: screenHeight * 0.42,
+          child: AnimatedBuilder(
             animation: _bounceAnim,
             builder: (_, __) => Transform.translate(
-              offset: Offset(_bounceAnim.value, 0),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppTheme.saffron,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.5),
-                        blurRadius: 20, spreadRadius: 4),
-                  ],
-                ),
-                child: const Icon(Icons.arrow_forward, color: Colors.white, size: 32),
-              ),
+              offset: Offset(-_bounceAnim.value, 0),
+              child: const Icon(Icons.swipe_left_rounded, color: Colors.white, size: 48),
             ),
           ),
-          const SizedBox(height: 10),
-          // Label
-          AnimatedBuilder(
-            animation: _swipeHintCtrl,
-            builder: (_, __) => Opacity(
-              opacity: 0.7 + (_swipeHintCtrl.value * 0.3),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.swipe_right, color: AppTheme.gold, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      context.tr('swipe_to_explore'),
-                      style: const TextStyle(
-                        color: Colors.white, fontSize: 13,
-                        fontWeight: FontWeight.w600, letterSpacing: 0.5,
+        ),
+        // Label — bottom of screen above nav
+        Positioned(
+          bottom: 100, left: 0, right: 0,
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _swipeHintCtrl,
+              builder: (_, __) => Opacity(
+                opacity: 0.6 + (_swipeHintCtrl.value * 0.4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swipe_left_rounded, color: AppTheme.gold, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        context.tr('swipe_to_explore'),
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 12,
+                          fontWeight: FontWeight.w600, letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -802,6 +748,7 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
   Widget _buildPullQuote(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -815,38 +762,16 @@ class _GuruJourneyPageState extends State<GuruJourneyPage>
         boxShadow: [BoxShadow(color: AppTheme.saffron.withValues(alpha: 0.22),
             blurRadius: 20, offset: const Offset(0, 8))],
       ),
-      child: Stack(children: [
-        Positioned(right: 18, top: 14,
-            child: Text('ॐ', style: TextStyle(fontSize: 80,
-                color: Colors.white.withValues(alpha: 0.04), height: 1))),
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            Icon(Icons.format_quote, size: 28, color: AppTheme.gold.withValues(alpha: 0.6)),
-            const SizedBox(height: 12),
-            Text(context.tr('guru_journey_quote'),
-                style: const TextStyle(fontSize: 16, height: 1.75, color: Colors.white,
-                    fontStyle: FontStyle.italic, letterSpacing: 0.3),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            Container(width: 48, height: 1.5,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [
-                  Colors.transparent, AppTheme.gold.withValues(alpha: 0.6), Colors.transparent]))),
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(width: 5, height: 5, decoration: BoxDecoration(
-                  color: AppTheme.gold.withValues(alpha: 0.5), shape: BoxShape.circle)),
-              const SizedBox(width: 8),
-              Text('— ${context.tr('sri_jeeveswara_yogi')}',
-                  style: TextStyle(fontSize: 12, color: AppTheme.gold.withValues(alpha: 0.85),
-                      fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-              const SizedBox(width: 8),
-              Container(width: 5, height: 5, decoration: BoxDecoration(
-                  color: AppTheme.gold.withValues(alpha: 0.5), shape: BoxShape.circle)),
-            ]),
-          ]),
-        ),
-      ]),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _coverStat('1,00,000+', 'Lives Transformed'),
+          _statDivider(),
+          _coverStat('2,316', 'Shaktipatham\nIn a Single Night'),
+          _statDivider(),
+          _coverStat('Asia', 'Book of Records'),
+        ],
+      ),
     );
   }
 

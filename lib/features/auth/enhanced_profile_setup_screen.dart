@@ -15,7 +15,7 @@ const List<String> _languages = [
 ];
 const List<String> _referralSources = [
   'Friends-Family', 'SKS YouTube Videos', 'Facebook', 'Instagram',
-  'Guruji Interview in PMC', 'Guruji Interview in Other Channels',
+  'Gurudev Interview in PMC', 'Gurudev Interview in Other Channels',
   'ఇంటర్వ్యూ చూసి', 'Other',
 ];
 
@@ -504,7 +504,7 @@ class _EnhancedProfileSetupScreenState
         const SizedBox(height: 16),
         _field(label: 'Full Address', hint: 'Optional', controller: _fullAddressCtrl, icon: Icons.home_outlined, maxLines: 2),
         const SizedBox(height: 16),
-        _field(label: 'Any message for Guruji?', hint: 'Optional', controller: _commentsCtrl, icon: Icons.message_outlined, maxLines: 3),
+        _field(label: 'Any message for Gurudev', hint: 'Optional', controller: _commentsCtrl, icon: Icons.message_outlined, maxLines: 3),
         const SizedBox(height: 24),
       ],
     );

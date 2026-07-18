@@ -383,7 +383,7 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
                 children: [
                   Icon(Icons.edit_note, color: AppTheme.saffron),
                   const SizedBox(width: 12),
-                  const Expanded(child: Text('Journal Your Experience')),
+                  const Expanded(child: Text('Your Experiences')),
                 ],
               ),
               content: Column(

@@ -413,8 +413,8 @@ class _HomePageState extends State<HomePage>
           _buildGurujiHeaderSection(), // Guruji image + name (as before)
           _buildQuickActions(),        // About Guruji, Kundalini, Chakras, Kalpataru
           _buildDailyQuoteCard(),      // Today's Inspiration (image card)
+          _buildMeditationTimer(),     // Daily Sadhana card
           _buildMeditationMusic(),     // Chanting / Meditation music
-          _buildMeditationTimer(),     // Purple timer card
           _buildSpiritualCalendar(),   // Telugu Spiritual Calendar
           _buildRingtoneSettings(),    // Sivoham Ringtone
           _buildWallpaperSettings(),   // Guruji Wallpapers
@@ -609,8 +609,8 @@ class _HomePageState extends State<HomePage>
       child: Column(
         children: [
           Container(
-            width: 70,
-            height: 70,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: AppTheme.tagBg,
               shape: BoxShape.circle,
@@ -626,8 +626,8 @@ class _HomePageState extends State<HomePage>
             child: ClipOval(
               child: Image.asset(
                 action.iconPath,
-                width: 70,
-                height: 70,
+                width: 80,
+                height: 80,
                 fit: BoxFit.cover,
               ),
             ),
@@ -636,8 +636,8 @@ class _HomePageState extends State<HomePage>
           Text(
             action.label,
             style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
             ),
             textAlign: TextAlign.center,
@@ -1350,7 +1350,6 @@ class _HomePageState extends State<HomePage>
     // Approximate Telugu month (offset ~2 months from Gregorian)
     final teluguMonthIdx = (now.month + 10) % 12;
     final teluguMonth = teluguMonths[teluguMonthIdx];
-    final teluguYear = now.year - (now.month <= 3 ? 57 : 56); // approx Saka era
     final tithi = _getTithi(now);
 
     return Padding(
@@ -1370,7 +1369,7 @@ class _HomePageState extends State<HomePage>
               ),
               const SizedBox(width: 10),
               Text(
-                '🕉️  ${_t('ఆధ్యాత్మిక పంచాంగం', 'Spiritual Calendar')}',
+                _t('ఆధ్యాత్మిక పంచాంగం', 'Spiritual Calendar'),
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -1406,8 +1405,6 @@ class _HomePageState extends State<HomePage>
                   ),
                   child: Row(
                     children: [
-                      const Text('📅', style: TextStyle(fontSize: 18)),
-                      const SizedBox(width: 8),
                       Text(
                         '${_t('నేడు', 'Today')} · ${_formatDate(now)}',
                         style: const TextStyle(
@@ -1442,7 +1439,7 @@ class _HomePageState extends State<HomePage>
                           const SizedBox(width: 8),
                           _panchaangItem('☀️', _t('పక్షం', 'Paksha'), tithi.paksha),
                           const SizedBox(width: 8),
-                          _panchaangItem('✨', _t('శక సంవత్సరం', 'Saka Year'), '$teluguYear'),
+                          _panchaangItem('🌸', _t('మాసం', 'Month'), teluguMonth),
                         ],
                       ),
                       if (todayEvents.isNotEmpty) ...[
@@ -1514,7 +1511,8 @@ class _HomePageState extends State<HomePage>
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
                   child: Row(
                     children: [
-                      const Text('🗓️', style: TextStyle(fontSize: 16)),
+                      Image.asset('assets/images/icons/events-icon.png',
+                          width: 32, height: 32, fit: BoxFit.contain),
                       const SizedBox(width: 8),
                       Text(
                         _t('రాబోయే విశేష తిథులు', 'Upcoming Sacred Days'),
@@ -1598,14 +1596,14 @@ class _HomePageState extends State<HomePage>
         children: [
           // Event type colour dot
           Container(
-            width: 38,
-            height: 38,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
               color: event.color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
               border: Border.all(color: event.color.withValues(alpha: 0.30)),
             ),
-            child: Center(child: Text(event.emoji, style: const TextStyle(fontSize: 18))),
+            child: Center(child: Text(event.emoji, style: const TextStyle(fontSize: 22))),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1763,7 +1761,7 @@ class _HomePageState extends State<HomePage>
       }
     }
 
-    // ── Backend / admin-managed events (festivals, Guruji birthday etc.) ────
+    // ── Backend / admin-managed events (festivals, Gurudev birthday etc.) ────
     for (final e in _backendCalendarEvents) {
       try {
         final dateStr = e['date']?.toString() ?? '';
@@ -1784,7 +1782,7 @@ class _HomePageState extends State<HomePage>
       final festivals = [
         _SpiritualEvent(date: DateTime(year, 1, 14), emoji: '🌾', titleTe: _t('మకర సంక్రాంతి', 'Makar Sankranti'), color: const Color(0xFF2E7D32), type: 'festival'),
         _SpiritualEvent(date: DateTime(year, 3, 30), emoji: '🌸', titleTe: _t('ఉగాది', 'Ugadi'), color: const Color(0xFF1565C0), type: 'festival'),
-        _SpiritualEvent(date: DateTime(year, 7, 22), emoji: '🙏', titleTe: _t('గురుజీ జయంతి', "Guruji's Birthday"), color: AppTheme.primary, type: 'guruji'),
+        _SpiritualEvent(date: DateTime(year, 7, 22), emoji: '🙏', titleTe: _t('గురుదేవ్ జయంతి', "Gurujdev's Birthday"), color: AppTheme.primary, type: 'gurudev'),
         _SpiritualEvent(date: DateTime(year, 8, 26), emoji: '🐘', titleTe: _t('వినాయక చవితి', 'Vinayaka Chavithi'), color: const Color(0xFF2E7D32), type: 'festival'),
         _SpiritualEvent(date: DateTime(year, 10, 20), emoji: '🪔', titleTe: _t('దీపావళి', 'Diwali'), color: AppTheme.gold, type: 'festival'),
       ];
@@ -1875,7 +1873,7 @@ class _HomePageState extends State<HomePage>
                           Text(
                             context.tr('set_as_ringtone'),
                             style: const TextStyle(
-                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
+                              fontSize: 13, color: AppTheme.textSecondary, height: 1.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1893,7 +1891,7 @@ class _HomePageState extends State<HomePage>
                       child: Text(
                         context.tr('set_now'),
                         style: const TextStyle(
-                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700,
                         ),
                         maxLines: 2,
                         textAlign: TextAlign.center,
@@ -1966,7 +1964,7 @@ class _HomePageState extends State<HomePage>
                           Text(
                             context.tr('set_daily_wallpaper'),
                             style: const TextStyle(
-                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
+                              fontSize: 13, color: AppTheme.textSecondary, height: 1.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1984,7 +1982,7 @@ class _HomePageState extends State<HomePage>
                       child: Text(
                         context.tr('set_now'),
                         style: const TextStyle(
-                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700,
                         ),
                         maxLines: 2,
                         textAlign: TextAlign.center,
@@ -2056,7 +2054,7 @@ class _HomePageState extends State<HomePage>
                           Text(
                             context.tr('enable_reminders_subtitle'),
                             style: const TextStyle(
-                              fontSize: 11, color: AppTheme.textSecondary, height: 1.3,
+                              fontSize: 13, color: AppTheme.textSecondary, height: 1.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -2074,7 +2072,7 @@ class _HomePageState extends State<HomePage>
                       child: Text(
                         context.tr('manage'),
                         style: const TextStyle(
-                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
+                          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700,
                         ),
                         maxLines: 2,
                         textAlign: TextAlign.center,
@@ -2335,13 +2333,13 @@ class _HomePageState extends State<HomePage>
         // Title with padding
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-          child: Text(
-            context.tr('daily_meditation'),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
+          // child: Text(
+          //   context.tr('daily_meditation'),
+          //   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          //         fontSize: 20,
+          //         fontWeight: FontWeight.bold,
+          //       ),
+          // ),
         ),
         // Full width image
         GestureDetector(
@@ -2363,93 +2361,95 @@ class _HomePageState extends State<HomePage>
               if (mounted) openNowPlaying(context);
             }
           },
-          child: Container(
-            height: 240,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              border: () {
-                if (firstMeditation == null || _audioService.currentSong == null) return null;
-                final currentSong = _audioService.currentSong;
-                final bool isPlaying;
-                if (currentSong is AudioModel) {
-                  isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
-                } else {
-                  isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
-                }
-                return isPlaying ? Border.all(color: AppTheme.primary, width: 3) : null;
-              }(),
-              image: DecorationImage(
-                image: _getImageProvider(AppConstants.gurujiTeachingImageUrl),
-                fit: BoxFit.contain,
+          child: Stack(
+            children: [
+              // Full image — no cropping, card height adapts to image
+              Image.asset(
+                'assets/images/sivoham chanting.png',
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
               ),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.7),
-                  ],
-                ),
-              ),
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        () {
-                          if (firstMeditation == null || _audioService.currentSong == null) return Icons.play_arrow;
-                          final currentSong = _audioService.currentSong;
-                          final bool isPlaying;
-                          if (currentSong is AudioModel) {
-                            isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
-                          } else {
-                            isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
-                          }
-                          return isPlaying ? Icons.pause : Icons.play_arrow;
-                        }(),
-                        color: Colors.white,
-                        size: 32,
-                      ),
+              // Overlay: play button + title
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.65),
+                      ],
+                      stops: const [0.5, 1.0],
                     ),
+                    border: () {
+                      if (firstMeditation == null || _audioService.currentSong == null) return null;
+                      final currentSong = _audioService.currentSong;
+                      final bool isPlaying;
+                      if (currentSong is AudioModel) {
+                        isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
+                      } else {
+                        isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+                      }
+                      return isPlaying ? Border.all(color: AppTheme.primary, width: 3) : null;
+                    }(),
                   ),
-                  Row(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        context.tr('guided_meditation'),
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
-                      ),
-                      if (firstMeditation != null)
-                        Text(
-                          '${firstMeditation.durationSeconds ~/ 60}:${(firstMeditation.durationSeconds % 60).toString().padLeft(2, '0')}',
-                          style:
-                              Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            () {
+                              if (firstMeditation == null || _audioService.currentSong == null) return Icons.play_arrow;
+                              final currentSong = _audioService.currentSong;
+                              final bool isPlaying;
+                              if (currentSong is AudioModel) {
+                                isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
+                              } else {
+                                isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+                              }
+                              return isPlaying ? Icons.pause : Icons.play_arrow;
+                            }(),
+                            color: Colors.white,
+                            size: 32,
+                          ),
                         ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            context.tr('guided_meditation'),
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                          ),
+                          if (firstMeditation != null)
+                            Text(
+                              '${firstMeditation.durationSeconds ~/ 60}:${(firstMeditation.durationSeconds % 60).toString().padLeft(2, '0')}',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ],

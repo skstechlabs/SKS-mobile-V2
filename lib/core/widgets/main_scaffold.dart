@@ -267,7 +267,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
   Widget _buildBottomNav(BuildContext context) {
-    const double barHeight = 72;
+    const double barHeight = 82;
     // Responsive icon size — scales with screen width, clamped between 90–120px
     final double medIconSize =
         (MediaQuery.of(context).size.width * 0.26).clamp(90.0, 120.0);
@@ -334,7 +334,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                       label: context.tr('events'),
                       isActive: widget.currentIndex == 4,
                       onTap: () => context.go('/events'),
-                      iconSize: 50,
+                      iconSize: 46,
                     ),
                   ],
                 ),
@@ -402,7 +402,7 @@ class _NavImageItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
               ),
@@ -465,7 +465,7 @@ class _NavIconItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
               ),

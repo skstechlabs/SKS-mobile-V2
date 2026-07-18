@@ -475,6 +475,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
                 // ── Sound type cards ─────────────────────────────────────────
                 _buildCard(
                   icon: Icons.phone_in_talk,
+                  iconAsset: 'assets/images/icons/phone-ringtone-icon.png',
                   title: context.tr('phone_ringtone'),
                   description: context.tr('set_default_ringtone'),
                   color: Colors.blue,
@@ -483,6 +484,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
                 ),
                 _buildCard(
                   icon: Icons.notifications,
+                  iconAsset: 'assets/images/icons/notification-icon.png',
                   title: context.tr('app_notification_sound'),
                   description: context.tr('set_app_notification_only'),
                   color: Colors.purple,
@@ -575,6 +577,7 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
 
   Widget _buildCard({
     required IconData icon,
+    String? iconAsset,
     required String title,
     required String description,
     required Color color,
@@ -606,15 +609,17 @@ class _RingtoneSettingsPageState extends State<RingtoneSettingsPage>
         child: Row(
           children: [
             // Icon
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: isEnabled ? 0.18 : 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
+            iconAsset != null
+                ? Image.asset(iconAsset, width: 56, height: 56, fit: BoxFit.contain)
+                : Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: isEnabled ? 0.18 : 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
             const SizedBox(width: 14),
 
             // Text

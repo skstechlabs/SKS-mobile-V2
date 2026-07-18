@@ -225,8 +225,8 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 0,
         selectedLabelStyle:
-            TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: TextStyle(fontSize: 11),
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 12),
       ),
 
       dividerTheme: const DividerThemeData(

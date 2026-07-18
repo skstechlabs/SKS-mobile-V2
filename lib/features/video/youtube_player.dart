@@ -46,35 +46,48 @@ class _YouTubeVideoPlayerState extends State<YouTubeVideoPlayer> {
   void initState() {
     super.initState();
 
-    // Playlists: open in YouTube app directly (IFrame playlist support is limited)
     if (_isPlaylist) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openExternal());
-      return;
+      // For playlists, create controller then cue playlist on ready
+      _controller = YoutubePlayerController(
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
+          enableCaption: false,
+          playsInline: true,
+          loop: false,
+        ),
+      );
+    } else {
+      _controller = YoutubePlayerController(
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
+          enableCaption: false,
+          playsInline: true,
+          strictRelatedVideos: true,
+          loop: false,
+        ),
+      );
     }
-
-    _controller = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        showControls: true,
-        showFullscreenButton: true,
-        enableCaption: false,
-        playsInline: true,
-        strictRelatedVideos: true,
-        loop: false,
-      ),
-    );
 
     // Listen for errors — auto-launch external if embedding is blocked
     _controller!.listen((value) {
       if (value.hasError && !_hasError && mounted) {
         debugPrint('YouTube IFrame error: ${value.error} — opening external');
         setState(() => _hasError = true);
-        // Auto-open in YouTube app after brief delay so user sees the transition
         Future.delayed(const Duration(milliseconds: 300), _openExternal);
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller!.loadVideoById(videoId: widget.videoId);
+      if (_isPlaylist) {
+        _controller!.loadPlaylist(
+          list: [_listId],
+          listType: ListType.playlist,
+        );
+      } else {
+        _controller!.loadVideoById(videoId: widget.videoId);
+      }
     });
   }
 
@@ -109,8 +122,8 @@ class _YouTubeVideoPlayerState extends State<YouTubeVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    // Playlist or error: show loading while opening YouTube
-    if (_isPlaylist || _hasError) {
+    // Error state: show loading while opening YouTube
+    if (_hasError) {
       return Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(

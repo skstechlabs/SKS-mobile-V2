@@ -152,7 +152,8 @@ class _MainScaffoldState extends State<MainScaffold> {
     final isFullScreenSlidePage = currentLocation.startsWith('/kalpataru') ||
         currentLocation.startsWith('/kundalini') ||
         currentLocation.startsWith('/guru-journey') ||
-        currentLocation.startsWith('/chakras');
+        currentLocation.startsWith('/chakras') ||
+        currentLocation.startsWith('/meditation/timer');
     final bool showBackButton = widget.currentIndex != 0 && !isFullScreenSlidePage;
 
     return AppBar(

@@ -212,7 +212,7 @@ class _BenefitsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       if (featureHint != null && featureHint!.isNotEmpty) featureHint!,
-      '🧘 Track your meditation streaks & journey',
+      '🧘 Track your daily practice & meditation journey',
       '📊 See your progress, stats and leaderboard',
       '🔔 Get personalized spiritual reminders',
       '📚 Access your Kundalini Sadhana courses',

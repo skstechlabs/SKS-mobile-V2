@@ -603,7 +603,6 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
   Widget _lbCard(Map<String, dynamic> entry, int index) {
     final rank     = _parseI(entry['rank'] ?? (index + 1));
     final name     = entry['user_name'] as String? ?? context.tr('anonymous');
-    final photo    = entry['user_photo'] as String?;
     final secs     = _parseI(entry['total_duration_seconds']);
     final sessions = _parseI(entry['total_sessions']);
     final days     = _parseI(entry['total_meditation_days']);
@@ -628,15 +627,14 @@ class _MeditationJourneyPageState extends State<MeditationJourneyPage>
             ? Icon(rankIcon, color: rankColor, size: 28)
             : Text('#$rank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: rankColor))),
         const SizedBox(width: 8),
-        // Avatar
+        // Avatar — initials only, no profile picture for privacy
         CircleAvatar(
           radius: 22,
-          backgroundImage: photo != null && photo.isNotEmpty ? NetworkImage(photo) : null,
           backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-          child: photo == null || photo.isEmpty
-              ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold))
-              : null,
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

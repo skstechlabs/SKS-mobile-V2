@@ -1635,7 +1635,7 @@ class ApiService {
 
   // ── 36. GET /api/kalpataru/experiences ────────────────────────────────────
   /// Returns a list of Kalpataru experience image URLs from the CDN folder.
-  /// The backend reads the `kalpatharu_experience/` folder from R2 and returns
+  /// The backend reads the `sadhaks/kalpatharu_experience/` folder from R2 and returns
   /// the filenames so the client constructs the full CDN URLs dynamically.
   Future<Map<String, dynamic>> getKalpataruExperiences({
     bool forceRefresh = false,

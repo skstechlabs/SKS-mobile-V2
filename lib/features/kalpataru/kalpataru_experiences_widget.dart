@@ -4,7 +4,7 @@ import '../../core/theme/app_theme.dart';
 
 // CDN base for the experience images
 const _cdnBase =
-    'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/kalpatharu_experience/';
+    'https://pub-dd90b1233fb04abcb6ca3930721e7056.r2.dev/sadhaks/kalpatharu_experience/';
 
 // Static fallback — images we know exist in the folder.
 // These show instantly while the API call is in-flight or offline.

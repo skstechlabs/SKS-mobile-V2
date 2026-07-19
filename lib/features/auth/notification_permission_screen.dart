@@ -194,7 +194,7 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
         ),
         content: const Text(
           'Notification permissions are already enabled for this app. '
-          'You\'re all set to receive updates from Guruji!',
+          'You\'re all set to receive updates from Gurudev!',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
         actions: [
@@ -242,7 +242,7 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
           ],
         ),
         content: const Text(
-          'To connect with Guruji and receive spiritual guidance, you must allow notifications. '
+          'To connect with Gurudev and receive spiritual guidance, you must allow notifications. '
           'This is essential for staying connected with the community and receiving important updates.',
           style: TextStyle(fontSize: 15, height: 1.5),
         ),
@@ -348,7 +348,7 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
 
                               // Title
                               Text(
-                                'Stay Connected with Guruji',
+                                'Stay Connected with Gurudev',
                                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
                                       fontWeight: FontWeight.bold,
                                       color: AppTheme.primary,
@@ -381,7 +381,7 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
                               _buildBenefitItem(
                                 Icons.auto_awesome_outlined,
                                 'Daily Wisdom',
-                                'Receive daily spiritual messages from Guruji',
+                                'Receive daily spiritual messages from Gurudev',
                               ),
                               const SizedBox(height: 16),
                               _buildBenefitItem(

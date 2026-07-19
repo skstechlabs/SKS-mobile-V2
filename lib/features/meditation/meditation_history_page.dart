@@ -48,7 +48,7 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     } else if (currentStreak >= 14) {
       return '💪 Two weeks strong! Keep the momentum going!';
     } else if (currentStreak >= 7) {
-      return '🔥 One week streak! You\'re on fire!';
+      return '🔥 Seven days in a row — you\'re on fire!';
     } else if (currentStreak >= 3) {
       return '✨ Great start! Keep building your practice!';
     } else if (totalSessions > 0) {
@@ -195,7 +195,7 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
     if (!_isLoggedIn) {
       return LoginGate(
         title: 'Meditation History',
-        featureHint: '🧘 Track your sessions, streaks and daily progress',
+        featureHint: '🧘 Track your sessions, daily practice record and progress',
         showBackButton: true,
       );
     }
@@ -597,7 +597,7 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
         children: [
           Expanded(
             child: _buildStreakCard(
-              'Current Streak',
+              'Days in a Row',
               currentStreak,
               Icons.local_fire_department,
               Colors.orange,
@@ -606,7 +606,7 @@ class _MeditationHistoryPageState extends State<MeditationHistoryPage> {
           const SizedBox(width: 16),
           Expanded(
             child: _buildStreakCard(
-              'Longest Streak',
+              'Best Run',
               longestStreak,
               Icons.emoji_events,
               Colors.amber,

@@ -145,8 +145,16 @@ class _MainScaffoldState extends State<MainScaffold> {
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final titleFontSize = (screenWidth / 20).clamp(16.0, 22.0);
-    // Show a back-to-home button on non-home tabs
-    final bool showBackButton = widget.currentIndex != 0;
+    // Show a back-to-home button on non-home tabs, but NOT for full-screen
+    // slide pages (kalpataru, kundalini, guru-journey, chakras) which have
+    // their own AppBar with a back button overlaid on the slides.
+    final currentLocation = GoRouterState.of(context).uri.path;
+    final isFullScreenSlidePage = currentLocation.startsWith('/kalpataru') ||
+        currentLocation.startsWith('/kundalini') ||
+        currentLocation.startsWith('/guru-journey') ||
+        currentLocation.startsWith('/chakras') ||
+        currentLocation.startsWith('/meditation/timer');
+    final bool showBackButton = widget.currentIndex != 0 && !isFullScreenSlidePage;
 
     return AppBar(
       backgroundColor: AppTheme.cream,
@@ -267,7 +275,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
   Widget _buildBottomNav(BuildContext context) {
-    const double barHeight = 72;
+    const double barHeight = 82;
     // Responsive icon size — scales with screen width, clamped between 90–120px
     final double medIconSize =
         (MediaQuery.of(context).size.width * 0.26).clamp(90.0, 120.0);
@@ -324,7 +332,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                     // Centre placeholder — same width keeps spacing symmetric
                     SizedBox(width: MediaQuery.of(context).size.width / 5),
                     _NavImageItem(
-                      iconPath: 'assets/images/icons/ringtone-icon.png',
+                      iconPath: 'assets/images/icons/songs-icon.png',
                       label: context.tr('songs'),
                       isActive: widget.currentIndex == 3,
                       onTap: () => context.go('/all-songs'),
@@ -334,7 +342,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                       label: context.tr('events'),
                       isActive: widget.currentIndex == 4,
                       onTap: () => context.go('/events'),
-                      iconSize: 50,
+                      iconSize: 46,
                     ),
                   ],
                 ),
@@ -402,7 +410,7 @@ class _NavImageItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
               ),
@@ -465,7 +473,7 @@ class _NavIconItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? AppTheme.primary : AppTheme.textSecondary,
               ),

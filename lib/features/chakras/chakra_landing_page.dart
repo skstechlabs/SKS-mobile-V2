@@ -176,7 +176,7 @@ class _ChakraLandingPageState extends State<ChakraLandingPage>
               return _buildContentSlide(ctx, slide);
             },
           ),
-          if (!_hintDismissed && _currentPage == 0)
+          if (!_hintDismissed && _currentPage < _totalSlides - 1)
             _buildSwipeHint(context),
           Positioned(
             bottom: 0, left: 0, right: 0,
@@ -229,14 +229,14 @@ class _ChakraLandingPageState extends State<ChakraLandingPage>
               children: [
                 _ornamentalRule(),
                 const SizedBox(height: 14),
-                Text(
-                  _tr(context, 'vedic_tradition').toUpperCase(),
-                  style: TextStyle(
-                    color: AppTheme.gold.withValues(alpha: 0.9),
-                    fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                // Text(
+                //   _tr(context, 'vedic_tradition').toUpperCase(),
+                //   style: TextStyle(
+                //     color: AppTheme.gold.withValues(alpha: 0.9),
+                //     fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 4,
+                //   ),
+                //   textAlign: TextAlign.center,
+                // ),
                 const SizedBox(height: 8),
                 Text(
                   _tr(context, 'seven_chakras'),
@@ -259,37 +259,37 @@ class _ChakraLandingPageState extends State<ChakraLandingPage>
                 _ornamentalRule(),
                 const SizedBox(height: 18),
                 // Chakra rainbow strip
-                Container(
-                  height: 5,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    gradient: const LinearGradient(colors: _chakraColors),
-                  ),
-                ),
+                // Container(
+                //   height: 5,
+                //   decoration: BoxDecoration(
+                //     borderRadius: BorderRadius.circular(3),
+                //     gradient: const LinearGradient(colors: _chakraColors),
+                //   ),
+                // ),
                 const SizedBox(height: 18),
                 // Mini chakra pills — tapping jumps to explore slide
-                Wrap(
-                  spacing: 8, runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: List.generate(7, (i) => GestureDetector(
-                    onTap: () => context.push('/chakra-detail', extra: {'initialIndex': i}),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _chakraColors[i].withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: _chakraColors[i].withValues(alpha: 0.5), width: 1.5),
-                      ),
-                      child: Text(
-                        _chakraSanskrit[i],
-                        style: TextStyle(
-                          color: _chakraColors[i],
-                          fontSize: 11, fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  )),
-                ),
+                // Wrap(
+                //   spacing: 8, runSpacing: 8,
+                //   alignment: WrapAlignment.center,
+                //   children: List.generate(7, (i) => GestureDetector(
+                //     onTap: () => context.push('/chakra-detail', extra: {'initialIndex': i}),
+                //     child: Container(
+                //       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                //       decoration: BoxDecoration(
+                //         color: _chakraColors[i].withValues(alpha: 0.18),
+                //         borderRadius: BorderRadius.circular(18),
+                //         border: Border.all(color: _chakraColors[i].withValues(alpha: 0.5), width: 1.5),
+                //       ),
+                //       child: Text(
+                //         _chakraSanskrit[i],
+                //         style: TextStyle(
+                //           color: _chakraColors[i],
+                //           fontSize: 11, fontWeight: FontWeight.w700,
+                //         ),
+                //       ),
+                //     ),
+                //   )),
+                // ),
               ],
             ),
           ),
@@ -446,12 +446,6 @@ class _ChakraLandingPageState extends State<ChakraLandingPage>
           ),
         ),
         Positioned(
-          top: 90, right: 16,
-          child: Text(number,
-              style: TextStyle(fontSize: 110, fontWeight: FontWeight.w900,
-                  color: Colors.white.withValues(alpha: 0.07), height: 1)),
-        ),
-        Positioned(
           bottom: 0, left: 0, right: 0,
           child: Container(height: 3,
             decoration: BoxDecoration(
@@ -604,50 +598,51 @@ class _ChakraLandingPageState extends State<ChakraLandingPage>
   // ── Swipe Hint ─────────────────────────────────────────────────────────────
 
   Widget _buildSwipeHint(BuildContext context) {
-    return Positioned(
-      top: MediaQuery.of(context).size.height * 0.62,
-      left: 0, right: 0,
-      child: Column(children: [
-        AnimatedBuilder(
-          animation: _bounceAnim,
-          builder: (_, __) => Transform.translate(
-            offset: Offset(_bounceAnim.value, 0),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6A1B9A),
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(
-                    color: const Color(0xFF6A1B9A).withValues(alpha: 0.55),
-                    blurRadius: 20, spreadRadius: 4)],
-              ),
-              child: const Icon(Icons.arrow_forward, color: Colors.white, size: 30),
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Stack(
+      children: [
+        Positioned(
+          right: 12,
+          top: screenHeight * 0.42,
+          child: AnimatedBuilder(
+            animation: _bounceAnim,
+            builder: (_, __) => Transform.translate(
+              offset: Offset(-_bounceAnim.value, 0),
+              child: const Icon(Icons.swipe_left_rounded, color: Colors.white, size: 48),
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        AnimatedBuilder(
-          animation: _pulseCtrl,
-          builder: (_, __) => Opacity(
-            opacity: 0.7 + (_pulseCtrl.value * 0.3),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        Positioned(
+          bottom: 100, left: 0, right: 0,
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _pulseCtrl,
+              builder: (_, __) => Opacity(
+                opacity: 0.6 + (_pulseCtrl.value * 0.4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swipe_left_rounded,
+                          color: AppTheme.gold.withValues(alpha: 0.9), size: 16),
+                      const SizedBox(width: 6),
+                      Text(_tr(context, 'swipe_to_explore'),
+                          style: const TextStyle(color: Colors.white, fontSize: 12,
+                              fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                    ],
+                  ),
+                ),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.swipe_right, color: AppTheme.gold.withValues(alpha: 0.9), size: 18),
-                const SizedBox(width: 8),
-                Text(_tr(context, 'swipe_to_explore'),
-                    style: const TextStyle(color: Colors.white, fontSize: 13,
-                        fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-              ]),
             ),
           ),
         ),
-      ]),
+      ],
     );
   }
 

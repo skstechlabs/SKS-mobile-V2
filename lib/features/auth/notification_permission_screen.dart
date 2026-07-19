@@ -116,13 +116,24 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
 
       if (granted) {
         debugPrint('✅ Notification permission granted');
-        
-        // Opt in to notifications
+
+        // Re-link external user ID + opt in together.
+        // OneSignal.login() MUST be called again here because the push token
+        // (FCM/APNs) is only registered AFTER the OS grants permission.
+        // Calling login() before permission was granted linked to a
+        // subscription that had no token yet — re-calling it now ensures
+        // the external_id is bound to the live, token-backed subscription.
+        final user = _authState.user;
+        if (user != null) {
+          await _oneSignal.setExternalUserId(user.uid);
+          debugPrint('✅ OneSignal.login(${user.uid}) re-called after permission granted');
+        }
+
+        // Opt in to push notifications
         await _oneSignal.optIn();
         debugPrint('✅ Opted in to push notifications');
 
         // Save permission to backend (only if user is logged in)
-        final user = _authState.user;
         if (user != null) {
           try {
             debugPrint('💾 Saving permissions to backend...');
@@ -188,9 +199,22 @@ class _NotificationPermissionScreenState extends State<NotificationPermissionScr
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              context.go('/');
+              // Re-link external ID even when permission was already granted.
+              // Handles: re-install, app update, or cleared app data where
+              // the OneSignal subscription lost its external_id binding.
+              final user = _authState.user;
+              if (user != null && !kIsWeb) {
+                try {
+                  await _oneSignal.setExternalUserId(user.uid);
+                  await _oneSignal.optIn();
+                  debugPrint('✅ OneSignal re-linked on already-granted path: ${user.uid}');
+                } catch (e) {
+                  debugPrint('⚠️ OneSignal re-link failed: $e');
+                }
+              }
+              if (context.mounted) context.go('/');
             },
             child: Text('Continue', 
               style: TextStyle(

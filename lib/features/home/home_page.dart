@@ -2,32 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/enhanced_audio_player_service.dart';
 import '../../core/providers/audio_provider.dart';
-import '../../core/models/audio_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/localization_service.dart';
 import '../../core/services/quotes_service.dart';
 import '../../core/services/image_preloader_service.dart';
 import '../../core/widgets/cached_image.dart';
 import 'widgets/youtube_playlist_section.dart';
-import '../../core/services/sks_cache_manager.dart';
-
-import '../audio/now_playing_screen.dart';
 import '../../core/utils/audio_navigation.dart';
-
-/// Returns the correct [ImageProvider] for a URL or asset path.
-/// CDN images use [SksCacheManager] so they are never re-downloaded once cached.
-ImageProvider _getImageProvider(String imageUrl) {
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return CachedNetworkImageProvider(imageUrl, cacheManager: SksCacheManager());
-  }
-  return AssetImage(imageUrl);
-}
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -277,55 +262,6 @@ class _HomePageState extends State<HomePage>
     return url;
   }
 
-  /// Fallback widget for gatherings whose API image URL is broken.
-  /// Tries to match the title to a known local asset; else shows icon.
-  Widget _buildGatheringFallbackImage(String title) {
-    final t = title.toLowerCase();
-    String? asset;
-    if (t.contains('sivaratri') || t.contains('shivaratri')) {
-      asset = 'assets/images/recentGatherings/MahaSivaratri_2025.jpg';
-    } else if (t.contains('anniversary') || t.contains('sks 8')) {
-      asset = 'assets/images/recentGatherings/SKS_8th_anniversary.jpg';
-    } else if (t.contains('vastra') || t.contains('daanam')) {
-      asset = 'assets/images/recentGatherings/Vastra_Daanam.jpeg';
-    } else if (t.contains('bliss') || t.contains('center')) {
-      asset = 'assets/images/recentGatherings/Bliss_Center.jpeg';
-    } else if (t.contains('guru poornima') || t.contains('janmadinam')) {
-      asset = 'assets/images/recentGatherings/GuruPoornima_2025.jpg';
-    }
-
-    if (asset != null) {
-      return ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        child: Image.asset(
-          asset,
-          width: 300,
-          height: 180,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _gatheringIconFallback(),
-        ),
-      );
-    }
-    return _gatheringIconFallback();
-  }
-
-  Widget _gatheringIconFallback() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.saffron.withValues(alpha: 0.3),
-            AppTheme.gold.withValues(alpha: 0.2),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(Icons.event, color: AppTheme.saffron, size: 52),
-      ),
-    );
-  }
-
   Future<void> _loadGatherings() async {
     if (!mounted) return;
     
@@ -429,10 +365,6 @@ class _HomePageState extends State<HomePage>
         ],
       ),
     );
-  }
-
-  Widget _buildHeader() {
-    return const SizedBox.shrink();
   }
 
   // ── Guruji image + name section (exactly as before) ───────────────────────
@@ -728,474 +660,6 @@ class _HomePageState extends State<HomePage>
         ),
       ),
     );
-  }
-
-  Widget _buildDailyQuotes() {
-    // Always show Guruji header, quote card only when quotes are available
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Image with increased height for better presence
-        Container(
-          height: 280,
-          width: double.infinity,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CachedImage(
-                imageUrl: AppConstants.dailyWisdomImages[1], // CDN image
-                fit: BoxFit.cover,
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.5),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        SizedBox(height: 20),
-
-        // Guruji name section with spiritual and respectful styling
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Decorative top element
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 30,
-                    height: 1.5,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          AppTheme.saffron.withValues(alpha: 0.4),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Icon(
-                      Icons.auto_awesome,
-                      size: 14,
-                      color: AppTheme.saffron.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  Container(
-                    width: 30,
-                    height: 1.5,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.saffron.withValues(alpha: 0.4),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Moksha Guru - spiritual styling
-              Text(
-                context.tr('parama_pujya'),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.saffron.withValues(alpha: 0.7),
-                  letterSpacing: 2.5,
-                  height: 1.4,
-                  fontFamily: 'serif',
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 6),
-              
-              // Guruji's name - elegant and respectful
-              Text(
-                context.tr('sri_jeeveswara_yogi'),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFD84315),
-                  letterSpacing: 0.8,
-                  height: 1.3,
-                  fontFamily: 'serif',
-                  shadows: [
-                    Shadow(
-                      color: AppTheme.saffron.withValues(alpha: 0.1),
-                      offset: Offset(0, 1),
-                      blurRadius: 2,
-                    ),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Decorative bottom element
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 30,
-                    height: 1.5,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          AppTheme.saffron.withValues(alpha: 0.4),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Icon(
-                      Icons.auto_awesome,
-                      size: 14,
-                      color: AppTheme.saffron.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  Container(
-                    width: 30,
-                    height: 1.5,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.saffron.withValues(alpha: 0.4),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        SizedBox(height: 16),
-
-        // Quote card - only show if we have quotes
-        if (_quotes.isNotEmpty) ...[
-          // Beautiful quote card with lighter, calming background - Full width
-          Container(
-            height: 180, // Fixed height for consistency
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFFBF5),
-                  Color(0xFFFFF9F0),
-                  Color(0xFFFFF6EB),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.saffron.withValues(alpha: 0.08),
-                  blurRadius: 20,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: AppTheme.saffron.withValues(alpha: 0.15),
-                    width: 1.5,
-                  ),
-                  bottom: BorderSide(
-                    color: AppTheme.saffron.withValues(alpha: 0.15),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Opening quote icon
-                  Icon(
-                    Icons.format_quote,
-                    size: 32,
-                    color: AppTheme.saffron.withValues(alpha: 0.5),
-                  ),
-                  
-                  SizedBox(height: 12),
-                  
-                  // Quote text with beautiful typography and scrollable if needed
-                  Expanded(
-                    child: _QuoteRotatorWidget(quotes: _quotes),
-                  ),
-                  
-                  SizedBox(height: 12),
-                  
-                  // Decorative divider with dots
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: AppTheme.saffron.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 6),
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: AppTheme.saffron.withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 6),
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: AppTheme.saffron.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          SizedBox(height: 16),
-        ],
-      ],
-    );
-  }
-
-  void _togglePresetReminder(String key, String title, String defaultTime) async {
-    final currentState = _presetReminders[key] ?? false;
-    
-    debugPrint('🔄 Toggle $title: $currentState → ${!currentState}');
-    
-    // Optimistically update UI
-    setState(() {
-      _presetReminders[key] = !currentState;
-    });
-    
-    try {
-      if (!currentState) {
-        // Create/activate reminder
-        debugPrint('➕ Creating reminder: $title');
-        await _createOrActivateReminder(title, defaultTime);
-      } else {
-        // Deactivate (delete) reminder
-        debugPrint('🗑️ Deleting reminder: $title');
-        await _deactivateReminder(defaultTime);
-      }
-      
-      // Wait a bit for the server to process the change
-      await Future.delayed(Duration(milliseconds: 500));
-      
-      // After successful toggle, FORCE refresh preset reminders to ensure sync
-      // Use forceRefresh to bypass cache
-      debugPrint('🔄 Refreshing reminders after toggle...');
-      final response = await _apiService.getReminders(forceRefresh: true);
-      
-      debugPrint('📦 API Response: ${response['success']}, reminders count: ${(response['reminders'] as List?)?.length ?? 0}');
-      
-      if (response['success'] == true && mounted) {
-        final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
-        
-        // Log all reminders for debugging
-        for (var reminder in reminders) {
-          debugPrint('  - ${reminder['title']} (active: ${reminder['isActive']}, id: ${reminder['id']})');
-        }
-        
-        setState(() {
-          // Reset to false first
-          _presetReminders['morning_meditation'] = false;
-          _presetReminders['evening_meditation'] = false;
-          
-          // Check which preset reminders exist and are active
-          // Check for BOTH English and Telugu titles (case-insensitive)
-          for (var reminder in reminders) {
-            final reminderTitle = (reminder['title'] as String).toLowerCase();
-            final isActive = reminder['isActive'] as bool;
-            
-            // Check for Morning Meditation (English or Telugu)
-            if (reminderTitle == 'morning meditation' || reminderTitle == 'ఉదయం ధ్యానం') {
-              // Only show as ON if active, ignore inactive ones
-              if (isActive) {
-                _presetReminders['morning_meditation'] = true;
-                debugPrint('✅ Found active Morning Meditation');
-              } else {
-                debugPrint('⚠️ Found inactive Morning Meditation');
-              }
-            } 
-            // Check for Evening Meditation (English or Telugu)
-            else if (reminderTitle == 'evening meditation' || reminderTitle == 'సాయంత్రం ధ్యానం') {
-              // Only show as ON if active, ignore inactive ones
-              if (isActive) {
-                _presetReminders['evening_meditation'] = true;
-                debugPrint('✅ Found active Evening Meditation');
-              } else {
-                debugPrint('⚠️ Found inactive Evening Meditation');
-              }
-            }
-          }
-          
-          debugPrint('📍 After toggle - Preset reminders state: morning=${_presetReminders['morning_meditation']}, evening=${_presetReminders['evening_meditation']}');
-        });
-      }
-      
-    } catch (e) {
-      debugPrint('❌ Toggle error: $e');
-      // Revert on error
-      if (mounted) {
-        setState(() {
-          _presetReminders[key] = currentState;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.tr('failed_to_update')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-  
-  Future<void> _createOrActivateReminder(String title, String defaultTime) async {
-    // Check if reminder already exists - use TITLE for matching (time format is inconsistent)
-    // FORCE REFRESH to get latest data
-    final response = await _apiService.getReminders(forceRefresh: true);
-    if (response['success'] == true) {
-      final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
-      
-      // Find ALL reminders with matching title (case-insensitive)
-      // Check for both English and Telugu variants
-      final matchingReminders = reminders.where((r) {
-        final rTitle = (r['title'] as String).toLowerCase();
-        final targetTitle = title.toLowerCase();
-        
-        // Match exact title OR Telugu equivalent
-        if (targetTitle == 'morning meditation') {
-          return rTitle == 'morning meditation' || rTitle == 'ఉదయం ధ్యానం';
-        } else if (targetTitle == 'evening meditation') {
-          return rTitle == 'evening meditation' || rTitle == 'సాయంత్రం ధ్యానం';
-        }
-        return rTitle == targetTitle;
-      }).toList();
-      
-      debugPrint('🔍 Found ${matchingReminders.length} existing "${title}" reminders');
-      
-      // Delete ALL inactive ones, keep only ONE active one
-      bool hasActiveReminder = false;
-      int? activeReminderId;
-      
-      for (var reminder in matchingReminders) {
-        final isActive = reminder['isActive'] as bool;
-        final id = reminder['id'] as int;
-        
-        if (isActive && !hasActiveReminder) {
-          // Keep the first active one
-          hasActiveReminder = true;
-          activeReminderId = id;
-          debugPrint('✅ Keeping active reminder ID: $id');
-        } else {
-          // Delete duplicates or inactive ones
-          debugPrint('🗑️ Deleting ${isActive ? "duplicate" : "inactive"} reminder ID: $id');
-          await _apiService.deleteReminder(id);
-        }
-      }
-      
-      // If we found an active reminder, we're done
-      if (hasActiveReminder) {
-        debugPrint('✅ Active "$title" reminder already exists (ID: $activeReminderId)');
-        return;
-      }
-      
-      // No active reminder found, create a new one
-      debugPrint('➕ Creating new "$title" reminder');
-      final createResponse = await _apiService.createReminder(
-        title: title,
-        message: 'Time for your meditation practice',
-        reminderTime: defaultTime,
-        daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days
-        isActive: true,
-      );
-      
-      if (createResponse['success'] == true) {
-        debugPrint('✅ Created "$title" reminder successfully');
-      } else {
-        debugPrint('❌ Failed to create "$title" reminder: ${createResponse['message']}');
-      }
-    }
-  }
-  
-  Future<void> _deactivateReminder(String defaultTime) async {
-    // FORCE REFRESH to get latest data
-    final response = await _apiService.getReminders(forceRefresh: true);
-    if (response['success'] == true) {
-      final reminders = List<Map<String, dynamic>>.from(response['reminders'] ?? []);
-      
-      // Determine which type based on time
-      final reminderTitle = defaultTime == '06:00' ? 'Morning Meditation' : 'Evening Meditation';
-      
-      // Find ALL reminders with matching title (case-insensitive)
-      // Check for both English and Telugu variants
-      final matchingReminders = reminders.where((r) {
-        final rTitle = (r['title'] as String).toLowerCase();
-        
-        if (reminderTitle == 'Morning Meditation') {
-          return rTitle == 'morning meditation' || rTitle == 'ఉదయం ధ్యానం';
-        } else {
-          return rTitle == 'evening meditation' || rTitle == 'సాయంత్రం ధ్యానం';
-        }
-      }).toList();
-      
-      debugPrint('🗑️ Deleting ALL ${matchingReminders.length} "$reminderTitle" reminders');
-      
-      // Delete ALL matching reminders (both active and inactive)
-      for (var reminder in matchingReminders) {
-        final id = reminder['id'] as int;
-        final isActive = reminder['isActive'] as bool;
-        
-        debugPrint('🗑️ Deleting reminder ID: $id (${isActive ? "active" : "inactive"})');
-        final deleteResponse = await _apiService.deleteReminder(id);
-        
-        if (deleteResponse['success'] == true) {
-          debugPrint('✅ Deleted reminder ID: $id');
-        } else {
-          debugPrint('❌ Failed to delete reminder ID: $id - ${deleteResponse['message']}');
-        }
-      }
-      
-      if (matchingReminders.isEmpty) {
-        debugPrint('⚠️ No "$reminderTitle" reminders found to delete');
-      }
-    }
   }
 
   Widget _buildMeditationTimer() {
@@ -1594,17 +1058,32 @@ class _HomePageState extends State<HomePage>
       ),
       child: Row(
         children: [
-          // Event type colour dot
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: event.color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-              border: Border.all(color: event.color.withValues(alpha: 0.30)),
-            ),
-            child: Center(child: Text(event.emoji, style: const TextStyle(fontSize: 22))),
-          ),
+          // Event icon — no background for CDN images, circle bg for emoji
+          event.emoji.startsWith('http')
+              ? Image.network(
+                  event.emoji,
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      color: event.color.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(child: Text('🕉️', style: TextStyle(fontSize: 26))),
+                  ),
+                )
+              : Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: event.color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: event.color.withValues(alpha: 0.30)),
+                  ),
+                  child: Center(child: Text(event.emoji, style: const TextStyle(fontSize: 26))),
+                ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2100,7 +1579,6 @@ class _HomePageState extends State<HomePage>
             playlistId: 'PL5n5gvsTFZLyL154q7-4Bp51EnACr2Kcr',
             accentColor: Color(0xFFE65100),
             bgColor: Color(0xFFFFF3EE),
-            emoji: '✨',
           ),
         ),
         const SizedBox(height: 28),
@@ -2111,7 +1589,6 @@ class _HomePageState extends State<HomePage>
             playlistId: 'PL5n5gvsTFZLxNeqKLWpTPYfdWBU84zKzE',
             accentColor: Color(0xFF6A1B9A),
             bgColor: Color(0xFFFAF4FF),
-            emoji: '🌟',
           ),
         ),
         const SizedBox(height: 24),
@@ -2160,13 +1637,13 @@ class _HomePageState extends State<HomePage>
           Row(
             children: [
               Container(
-                width: 44, height: 44,
+                width: 72, height: 72,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppTheme.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   child: Image.asset(iconAsset, fit: BoxFit.contain),
                 ),
               ),
@@ -2234,13 +1711,13 @@ class _HomePageState extends State<HomePage>
           Row(
             children: [
               Container(
-                width: 44, height: 44,
+                width: 72, height: 72,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.goldGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppTheme.gold.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   child: Image.asset('assets/images/icons/our-values.png', fit: BoxFit.contain),
                 ),
               ),
@@ -2318,7 +1795,6 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         ),
-        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.textHint),
       ],
     );
   }
@@ -2349,10 +1825,8 @@ class _HomePageState extends State<HomePage>
               final bool isCurrentlyPlaying;
               if (currentSong == null) {
                 isCurrentlyPlaying = false;
-              } else if (currentSong is AudioModel) {
-                isCurrentlyPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
               } else {
-                isCurrentlyPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
+                isCurrentlyPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
               }
 
               if (!isCurrentlyPlaying) {
@@ -2384,13 +1858,8 @@ class _HomePageState extends State<HomePage>
                     ),
                     border: () {
                       if (firstMeditation == null || _audioService.currentSong == null) return null;
-                      final currentSong = _audioService.currentSong;
-                      final bool isPlaying;
-                      if (currentSong is AudioModel) {
-                        isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
-                      } else {
-                        isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
-                      }
+                      final currentSong = _audioService.currentSong!;
+                      final isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
                       return isPlaying ? Border.all(color: AppTheme.primary, width: 3) : null;
                     }(),
                   ),
@@ -2410,13 +1879,8 @@ class _HomePageState extends State<HomePage>
                           child: Icon(
                             () {
                               if (firstMeditation == null || _audioService.currentSong == null) return Icons.play_arrow;
-                              final currentSong = _audioService.currentSong;
-                              final bool isPlaying;
-                              if (currentSong is AudioModel) {
-                                isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
-                              } else {
-                                isPlaying = (currentSong as Map)['title'] == firstMeditation.title && _audioService.isPlaying;
-                              }
+                              final currentSong = _audioService.currentSong!;
+                              final isPlaying = currentSong.id == firstMeditation.id && _audioService.isPlaying;
                               return isPlaying ? Icons.pause : Icons.play_arrow;
                             }(),
                             color: Colors.white,
@@ -2453,578 +1917,6 @@ class _HomePageState extends State<HomePage>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBhajans() {
-    final bhajans = _audioProvider.bhajans;
-    
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                context.tr('bhajans'),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              Icon(Icons.repeat, color: AppTheme.softGray, size: 24),
-            ],
-          ),
-          SizedBox(height: 16),
-          if (bhajans.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text('Loading bhajans...'),
-              ),
-            )
-          else
-            ...bhajans
-                .take(3)
-                .map((bhajan) => _buildBhajanCard(bhajan))
-                .toList(),
-          SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () {
-              context.push('/all-songs');
-            },
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: AppTheme.primary, width: 2),
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  context.tr('all_songs'),
-                  style: TextStyle(
-                    color: AppTheme.primary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Icon(Icons.arrow_forward, color: AppTheme.primary, size: 20),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBhajanCard(AudioModel bhajan) {
-    final currentSong = _audioService.currentSong;
-    final bool isCurrentSong;
-    if (currentSong == null) {
-      isCurrentSong = false;
-    } else if (currentSong is AudioModel) {
-      isCurrentSong = currentSong.id == bhajan.id;
-    } else {
-      isCurrentSong = (currentSong as Map)['title'] == bhajan.title;
-    }
-    final isPlaying = isCurrentSong && _audioService.isPlaying;
-    
-    // Get translated song title
-    String getSongTitle(String originalTitle) {
-      final titleMap = {
-        'Sri Jeeveswarastakam': 'song_sri_jeeveswarastakam',
-        'Gundello Gudi': 'song_gundello_gudi',
-        'Nirvana Shatkam': 'song_nirvana_shatkam',
-        'Jeeveswara Yogi Taluva': 'song_jeeveswara_yogi_taluva',
-        'Pralaya Kala Beekara': 'song_pralaya_kala_beekara',
-        'Ni Namamalo Undhi Moksha Dwaram': 'song_ni_namamalo',
-      };
-      return context.tr(titleMap[originalTitle] ?? originalTitle);
-    }
-
-    return GestureDetector(
-      onTap: () async {
-        final bhajans = _audioProvider.bhajans;
-        final index = bhajans.indexWhere((b) => b.id == bhajan.id);
-        if (index != -1) {
-          if (!(isCurrentSong && _audioService.isPlaying)) {
-            await _audioService.playSong(bhajans, index);
-          }
-          if (mounted) openNowPlaying(context);
-        }
-      },
-      child: Container(
-        margin: EdgeInsets.only(bottom: 16),
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isCurrentSong
-              ? AppTheme.saffron.withOpacity(0.1)
-              : Colors.grey[50],
-          borderRadius: BorderRadius.circular(16),
-          border: isCurrentSong
-              ? Border.all(color: AppTheme.saffron, width: 2)
-              : null,
-        ),
-        child: Row(
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(
-                      image: _getImageProvider(bhajan.thumbnailUrl ?? 'assets/images/placeholder.png'),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                if (isCurrentSong)
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.black.withOpacity(0.5),
-                    ),
-                    child: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    getSongTitle(bhajan.title),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: isCurrentSong ? AppTheme.saffron : null,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    bhajan.artist ?? bhajan.description ?? 'Divine Chants',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                          fontSize: 13,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${bhajan.durationSeconds ~/ 60}:${(bhajan.durationSeconds % 60).toString().padLeft(2, '0')}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                      ),
-                ),
-                SizedBox(height: 4),
-                Icon(
-                  isCurrentSong && isPlaying ? Icons.pause : Icons.play_arrow,
-                  color:
-                      isCurrentSong ? AppTheme.saffron : AppTheme.textSecondary,
-                  size: 24,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuruJourney() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: GestureDetector(
-        onTap: () {
-          context.push('/guru-journey');
-        },
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            image: DecorationImage(
-              image: _getImageProvider(AppConstants.guruJourneyImageUrl),
-              fit: BoxFit.cover,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.saffron.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFF6B4A).withValues(alpha: 0.88),
-                  Color(0xFFFF8A65).withValues(alpha: 0.85),
-                ],
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        context.tr('guru_journey'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        context.tr('learn_about_guruji'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text(
-                            context.tr('know_more'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKundaliniScience() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: GestureDetector(
-        onTap: () {
-          context.push('/kundalini-science');
-        },
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            image: DecorationImage(
-              image: _getImageProvider(AppConstants.kundaliniScienceImageUrl),
-              fit: BoxFit.cover,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.gold.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF00897B).withValues(alpha: 0.88),
-                  Color(0xFF26A69A).withValues(alpha: 0.85),
-                ],
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        context.tr('kundalini_science'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        context.tr('understand_kundalini'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text(
-                            context.tr('learn_more'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBenefits() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: GestureDetector(
-        onTap: () {
-          context.push('/benefits');
-        },
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            image: DecorationImage(
-              image: _getImageProvider(AppConstants.benefitsImageUrl),
-              fit: BoxFit.cover,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.saffron.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFE91E63).withValues(alpha: 0.88),
-                  Color(0xFFEC407A).withValues(alpha: 0.85),
-                ],
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        context.tr('benefits'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        context.tr('discover_benefits'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text(
-                            context.tr('discover_benefits'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _build7Chakras() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: GestureDetector(
-        onTap: () {
-          context.push('/chakras', extra: {'initialIndex': 0});
-        },
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            image: DecorationImage(
-              image: _getImageProvider(AppConstants.chakrasImageUrl),
-              fit: BoxFit.cover,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.saffron.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.purple.withValues(alpha: 0.85),
-                  Colors.deepPurple.withValues(alpha: 0.75),
-                ],
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        context.tr('seven_chakras'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        context.tr('explore_chakras'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontSize: 15,
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text(
-                            context.tr('swipe_to_explore'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

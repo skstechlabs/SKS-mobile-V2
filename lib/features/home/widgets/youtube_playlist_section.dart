@@ -10,7 +10,7 @@ class PlaylistConfig {
   final String playlistId;
   final Color accentColor;
   final Color bgColor;
-  final String emoji;
+  final String? emoji;
 
   const PlaylistConfig({
     required this.title,
@@ -18,7 +18,7 @@ class PlaylistConfig {
     required this.playlistId,
     required this.accentColor,
     required this.bgColor,
-    required this.emoji,
+    this.emoji,
   });
 }
 
@@ -193,9 +193,11 @@ class _YouTubePlaylistSectionState extends State<YouTubePlaylistSection> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Emoji badge
-              Text(cfg.emoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
+              // Emoji badge (optional)
+              if (cfg.emoji != null) ...[
+                Text(cfg.emoji!, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+              ],
               // Title + subtitle — takes all remaining space
               Expanded(
                 child: Column(

@@ -145,8 +145,15 @@ class _MainScaffoldState extends State<MainScaffold> {
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final titleFontSize = (screenWidth / 20).clamp(16.0, 22.0);
-    // Show a back-to-home button on non-home tabs
-    final bool showBackButton = widget.currentIndex != 0;
+    // Show a back-to-home button on non-home tabs, but NOT for full-screen
+    // slide pages (kalpataru, kundalini, guru-journey, chakras) which have
+    // their own AppBar with a back button overlaid on the slides.
+    final currentLocation = GoRouterState.of(context).uri.path;
+    final isFullScreenSlidePage = currentLocation.startsWith('/kalpataru') ||
+        currentLocation.startsWith('/kundalini') ||
+        currentLocation.startsWith('/guru-journey') ||
+        currentLocation.startsWith('/chakras');
+    final bool showBackButton = widget.currentIndex != 0 && !isFullScreenSlidePage;
 
     return AppBar(
       backgroundColor: AppTheme.cream,

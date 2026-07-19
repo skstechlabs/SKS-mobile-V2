@@ -709,7 +709,19 @@ class _MeditationTimerPageState extends State<MeditationTimerPage>
         elevation: 0,
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
-        leading: null,
+        leading: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              onPressed: () => context.go('/'),
+            ),
+          ),
+        ),
       ),
       extendBodyBehindAppBar: true,
       body: showTimer ? _buildTimerView(isSmall) : _buildHomeView(isSmall),

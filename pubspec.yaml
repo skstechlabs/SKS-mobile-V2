@@ -117,28 +117,37 @@ flutter:
   uses-material-design: true
   
   assets:
-    # Essential UI images only (logo for splash screen and meditation)
-    # All other images loaded from Cloudflare R2 dynamically
+    # Essential UI images — splash, meditation background, kalpataru, sivoham
+    # All other images loaded from Cloudflare R2 / CDN dynamically
     - assets/images/Guruji_logo.JPG
     - assets/images/Guruji_Meditation.PNG
-    - assets/images/guruji-kalpatharu.png
-    - assets/images/meditation-icon.jpeg
     - assets/images/Guruji-quotes.png
     - assets/images/kalpataru-bg.png
     - assets/images/kalpataru-image.png
     - assets/images/sivoham chanting.png
+    # Icon images (used in home/settings/feature cards)
     - assets/images/icons/
+    # Recent gatherings images (used in home/guruji-connect)
+    - assets/images/recentGatherings/
+    # Translations
     - assets/translations/
-    - assets/icons/
+    # HLS player JS
     - assets/hls.min.js
-    # Audio files for ringtone and meditation
+    # Audio: short cue sounds for meditation timer (must be instant / offline)
     - assets/audio/Sivoham_ringtone.mp3
     - assets/audio/Meditation_start.mp3
     - assets/audio/Meditation_end.mp3
+    # Guided meditation audio (bundled for offline use)
     - assets/audio/Sivoham_Mantra_10min_guided_Meditation.mp3
     - assets/audio/Sivoham_Mantra_15min_guided_Meditation.mp3
-    # Note: Bhajans/music streamed from R2 CDN
-    # Images loaded from R2 and cached locally by cached_network_image package
+    # Bhajans bundled (TODO: move to CDN streaming once backend is ready)
+    - assets/audio/Sri_Jeeveswarastakam_song.mp3
+    - assets/audio/Gundello_gudi_song.mp3
+    - assets/audio/Nirvana_Shatkam_song.mp3
+    - assets/audio/Jeeveswara_yogi_taluva_song.mp3
+    - assets/audio/Pralaya_kala_beekara_song.mp3
+    - assets/audio/Ni_Namamalo_Undhi_Moksha_Dwaram_song.mp3
+    # Note: All other images loaded from R2 and cached by cached_network_image
 
 flutter_launcher_icons:
   android: true

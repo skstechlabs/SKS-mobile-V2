@@ -6,7 +6,6 @@ import '../../core/services/api_service.dart';
 import '../../core/services/onesignal_service.dart';
 import '../../core/services/localization_service.dart';
 import '../onboarding/onboarding_screen.dart';
-import '../../core/utils/network_diagnostic.dart';
 import 'auth_service.dart';
 import 'auth_state.dart';
 import 'msg91_otp_service.dart';
@@ -38,8 +37,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   // Prevents double-tap / concurrent sign-in attempts
   bool _loginInProgress = false;
-  // Tracks if Google Sign-In is available (checked once on init)
-  bool? _isGoogleAvailable;
 
   @override
   void initState() {
@@ -65,18 +62,6 @@ class _LoginScreenState extends State<LoginScreen>
 
     _slideController.forward();
     _fadeController.forward();
-
-    // Check Google Sign-In availability once on init
-    _checkGoogleAvailability();
-  }
-
-  Future<void> _checkGoogleAvailability() async {
-    final available = await NetworkDiagnostic.isGoogleSignInAvailable();
-    if (mounted) {
-      setState(() {
-        _isGoogleAvailable = available;
-      });
-    }
   }
 
   @override
@@ -132,17 +117,10 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Pre-check: Verify network connectivity for Google Sign-In
-      // Only check if we haven't checked recently (uses cache)
-      final networkOk = await NetworkDiagnostic.isGoogleSignInAvailable();
-      if (!networkOk) {
-        _resetLoading();
-        _showSnackBar(
-            'Cannot reach Google servers. Try mobile data or use OTP login.');
-        return;
-      }
-
-      // Step 1: Google / Firebase sign-in on device
+      // Step 1: Google / Firebase sign-in on device.
+      // No pre-flight DNS check — it was causing false negatives on slow networks
+      // and blocking sign-in unnecessarily. Let the sign-in itself fail with a
+      // proper error if there's truly no connectivity.
       final result = await _authService.signInWithGoogle();
       _loginInProgress = false;
 
@@ -354,45 +332,6 @@ class _LoginScreenState extends State<LoginScreen>
                             // Google Sign-In button (primary)
                             _buildGoogleButton(),
 
-                            // OTP button is disabled - not yet implemented
-                            // Keeping the code for future use when OTP is enabled
-                            // _buildPrimaryButton(
-                            //   label: context.tr('send_otp'),
-                            //   icon: Icons.phone_android,
-                            //   onPressed: _isLoading ? null : _startOtpLogin,
-                            // ),
-
-                            // Show network warning if Google is unavailable
-                            if (_isGoogleAvailable == false) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: Colors.orange.shade200),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.info_outline,
-                                        size: 18, color: Colors.orange.shade700),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Google Sign-In unavailable. Use OTP or try mobile data.',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.orange.shade900,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-
                             const SizedBox(height: 24),
 
                             // DEBUG: Network diagnostic button (only in debug mode)
@@ -402,23 +341,20 @@ class _LoginScreenState extends State<LoginScreen>
                                 onPressed: _isLoading
                                     ? null
                                     : () async {
-                                        _showSnackBar(
-                                            'Running network diagnostics...');
-                                        // Clear cache before running fresh diagnostic
-                                        NetworkDiagnostic.clearCache();
-                                        await NetworkDiagnostic
-                                            .runFullDiagnostic();
-                                        // Re-check Google availability
-                                        await _checkGoogleAvailability();
+                                        _showSnackBar('Diagnostics: check console logs');
+                                        final authService = AuthService();
+                                        // Try a quick Firebase ready check
+                                        final ready = authService.currentUser != null
+                                            ? 'Firebase: ready'
+                                            : 'Firebase: no user';
                                         if (mounted) {
-                                          _showSnackBar(
-                                              'Check console for diagnostic report');
+                                          _showSnackBar(ready);
                                         }
                                       },
                                 icon: const Icon(Icons.network_check,
                                     size: 18, color: AppTheme.textSecondary),
                                 label: const Text(
-                                  'Test Network (Debug)',
+                                  'Test Auth (Debug)',
                                   style: TextStyle(
                                       fontSize: 13,
                                       color: AppTheme.textSecondary),
@@ -490,18 +426,18 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildGoogleButton() {
-    final isDisabled = _isLoading || _isGoogleAvailable == false;
-    
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: OutlinedButton(
-        onPressed: isDisabled ? null : _signInWithGoogle,
+        onPressed: _isLoading ? null : _signInWithGoogle,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.textPrimary,
           disabledForegroundColor: AppTheme.textSecondary,
           side: BorderSide(
-            color: isDisabled ? AppTheme.softGray.withValues(alpha: 0.5) : AppTheme.softGray,
+            color: _isLoading
+                ? AppTheme.softGray.withValues(alpha: 0.5)
+                : AppTheme.softGray,
           ),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -509,36 +445,37 @@ class _LoginScreenState extends State<LoginScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: isDisabled 
-                      ? AppTheme.softGray.withValues(alpha: 0.5) 
-                      : AppTheme.softGray,
+            if (_isLoading)
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            else
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: AppTheme.softGray),
+                ),
+                child: const Center(
+                  child: Text('G',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red)),
                 ),
               ),
-              child: Center(
-                child: Text('G',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: isDisabled 
-                            ? Colors.red.withValues(alpha: 0.5)
-                            : Colors.red)),
-              ),
-            ),
             const SizedBox(width: 12),
             Text(
-              _isGoogleAvailable == false 
-                  ? 'Google Sign-In Unavailable'
-                  : 'Continue with Google',
+              'Continue with Google',
               style: TextStyle(
-                fontSize: 16, 
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: isDisabled ? AppTheme.textSecondary : AppTheme.textPrimary,
+                color: _isLoading
+                    ? AppTheme.textSecondary
+                    : AppTheme.textPrimary,
               ),
             ),
           ],

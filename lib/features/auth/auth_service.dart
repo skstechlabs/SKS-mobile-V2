@@ -40,6 +40,9 @@ class AuthService {
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   /// Ensure Firebase is initialized and FirebaseAuth is accessible.
+  /// Never throws — if Firebase is not ready after all retries, we proceed
+  /// anyway and let FirebaseAuth surface its own error (which will be caught
+  /// and mapped to a friendly message by the caller).
   Future<void> _ensureFirebaseInitialized() async {
     // Fast path — if FirebaseAuth is already accessible, we're done.
     if (_isFirebaseAuthReady()) return;
@@ -69,7 +72,8 @@ class AuthService {
 
       // After each initializeApp attempt, poll for FirebaseAuth readiness
       // (platform channel registration takes a few ms after initializeApp).
-      for (int poll = 0; poll < 30; poll++) {
+      // Increased poll count to 50 (5 seconds) to handle slow devices.
+      for (int poll = 0; poll < 50; poll++) {
         if (_isFirebaseAuthReady()) {
           debugPrint('✅ FirebaseAuth ready');
           return;
@@ -78,12 +82,10 @@ class AuthService {
       }
     }
 
-    // If still not ready, one final check before throwing
+    // If still not ready after all retries, log a warning and continue.
+    // FirebaseAuth will throw its own error which we catch and map gracefully.
     if (_isFirebaseAuthReady()) return;
-
-    throw Exception(
-        'Google Sign-In is temporarily unavailable. '
-        'Please check your internet connection and try again.');
+    debugPrint('⚠️ FirebaseAuth not ready after retries — proceeding, may fail gracefully');
   }
 
   /// Returns true if FirebaseAuth.instance is accessible without throwing.
@@ -101,6 +103,7 @@ class AuthService {
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     if (_initializing) {
+      // Another call is already initializing — wait for it
       for (int i = 0; i < 100; i++) {
         await Future.delayed(const Duration(milliseconds: 50));
         if (_initialized) return;
@@ -116,9 +119,6 @@ class AuthService {
 
       debugPrint('🔑 GoogleSignIn.initialize() with serverClientId: $serverClientId');
 
-      // On Android, after clearing app storage, GoogleSignIn.instance may be
-      // in a stale state. Calling initialize() again always works — it's
-      // idempotent in google_sign_in 7.x and re-registers the client.
       await GoogleSignIn.instance.initialize(
         serverClientId: serverClientId,
       );
@@ -126,10 +126,9 @@ class AuthService {
       debugPrint('✅ GoogleSignIn.instance initialized');
     } catch (e) {
       debugPrint('⚠️ GoogleSignIn.initialize() attempt failed: $e — retrying once');
-      // Reset flag so we retry fresh next call
       _initialized = false;
       // Wait briefly then retry once — handles transient Play Services state
-      await Future.delayed(const Duration(milliseconds: 600));
+      await Future.delayed(const Duration(milliseconds: 800));
       try {
         final serverClientId = AppEnv.googleClientId.isNotEmpty
             ? AppEnv.googleClientId
@@ -139,7 +138,8 @@ class AuthService {
         debugPrint('✅ GoogleSignIn.instance initialized on retry');
       } catch (e2) {
         debugPrint('❌ GoogleSignIn.initialize() failed after retry: $e2');
-        rethrow;
+        // Don't rethrow — let authenticate() surface the real error
+        _initialized = false;
       }
     } finally {
       _initializing = false;
@@ -180,10 +180,16 @@ class AuthService {
 
   // ── Mobile (Android / iOS) ─────────────────────────────────────────────────
   Future<Map<String, dynamic>> _signInMobile() async {
-    // Always reset initialization state before a fresh sign-in attempt.
-    // After clear cache/storage, the singleton's internal state may be stale.
-    _initialized = false;
-    await _ensureInitialized();
+    // Only reset initialization if we know it's stale (not initialized yet).
+    // Resetting on EVERY call was the main cause of the "temporarily unavailable"
+    // error — if initialize() takes a moment, the next flow would fail.
+    if (!_initialized) {
+      await _ensureInitialized();
+    } else {
+      // Re-initialize in background only after clear-cache scenarios.
+      // The initialized flag stays true so authenticate() is never blocked.
+      _ensureInitialized().catchError((_) {});
+    }
 
     // authenticate() shows the account picker.
     // Throws GoogleSignInException on failure/cancellation.
@@ -431,6 +437,17 @@ class AuthService {
     }
     if (msg.contains('canceled') || msg.contains('cancelled')) {
       return 'Sign-in cancelled.';
+    }
+    if (msg.contains('temporarily unavailable') || msg.contains('FirebaseAuth')) {
+      return 'Sign-in failed. Please try again.';
+    }
+    if (msg.contains('ApiException') || msg.contains('10:')) {
+      // Google Play Services error code 10 = developer error (SHA-1 / package mismatch)
+      return 'Sign-in configuration error. Please contact support.';
+    }
+    if (msg.contains('ApiException') || msg.contains('12500')) {
+      // 12500 = Google Play Services outdated
+      return 'Please update Google Play Services and try again.';
     }
     return 'Google sign-in failed. Please try again.';
   }
